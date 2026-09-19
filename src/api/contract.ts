@@ -3,6 +3,8 @@ export const API_ROUTES = {
   health: "GET /api/v1/health",
   types: "GET /api/v1/meta/types",
   frequencies: "GET /api/v1/meta/frequencies",
+  signUp: "POST /api/v1/auth/sign-up",
+  signIn: "POST /api/v1/auth/sign-in",
   sendOtp: "POST /api/v1/auth/send-otp",
   verifyOtp: "POST /api/v1/auth/verify-otp",
   logout: "POST /api/v1/auth/logout",

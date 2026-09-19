@@ -80,6 +80,45 @@ app.get("/api/v1/meta/frequencies", (c) =>
   ]),
 );
 
+app.post("/api/v1/auth/sign-up", async (c) => {
+  try {
+    const body = await c.req.json();
+    const addr = normalizeEmail(String(body.email ?? ""));
+    const password = String(body.password ?? "");
+    if (password.length < 6) return c.json({ error: "Password must be at least 6 characters" }, 400);
+    const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await sb.auth.signUp({
+      email: addr,
+      password,
+      options: {
+        emailRedirectTo: String(body.redirectTo || `${process.env.SITE_URL || "http://localhost:5173"}/login`),
+      },
+    });
+    if (error) return c.json({ error: error.message }, 400);
+    const confirmed = Boolean(data.user?.email_confirmed_at);
+    if (data.session && !confirmed) await sb.auth.signOut();
+    return c.json({ ok: true, needsVerification: !confirmed });
+  } catch (e) {
+    const { error, status } = fail(e);
+    return c.json({ error }, status);
+  }
+});
+
+app.post("/api/v1/auth/sign-in", async (c) => {
+  try {
+    const body = await c.req.json();
+    const addr = normalizeEmail(String(body.email ?? ""));
+    const password = String(body.password ?? "");
+    const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await sb.auth.signInWithPassword({ email: addr, password });
+    if (error || !data.session) return c.json({ error: error?.message || "Could not start session" }, 400);
+    return c.json({ ok: true, session: data.session, user: data.user });
+  } catch (e) {
+    const { error, status } = fail(e);
+    return c.json({ error }, status);
+  }
+});
+
 app.post("/api/v1/auth/send-otp", async (c) => {
   try {
     const body = await c.req.json();

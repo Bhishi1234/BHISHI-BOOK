@@ -41,28 +41,28 @@ async function request(path: string, init: RequestInit = {}) {
 
 export const restApi = {
   authHint() {
-    return "Open the verification link in your inbox to finish signing in.";
+    return "Sign in with your email and password.";
   },
 
   onAuthChange(_cb: () => void) {
     return () => undefined;
   },
 
-  async sendOtp(email: string) {
-    const data = await request("/api/v1/auth/send-otp", {
+  async signUp(email: string, password: string) {
+    return request("/api/v1/auth/sign-up", {
       method: "POST",
       body: JSON.stringify({
         email: normalizeEmail(email),
+        password,
         redirectTo: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
       }),
     });
-    return { ok: true as const, provider: String(data.provider || "API"), devOtp: data.devOtp as string | undefined };
   },
 
-  async verifyOtp(email: string, otp?: string) {
-    const data = await request("/api/v1/auth/verify-otp", {
+  async signIn(email: string, password: string) {
+    const data = await request("/api/v1/auth/sign-in", {
       method: "POST",
-      body: JSON.stringify({ email: normalizeEmail(email), otp }),
+      body: JSON.stringify({ email: normalizeEmail(email), password }),
     });
     if (!data.session?.access_token) throw new Error("Could not start session");
     writeSession({

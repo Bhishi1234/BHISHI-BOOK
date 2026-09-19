@@ -8,8 +8,8 @@ import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "..
 type Backend = {
   authHint: () => string;
   onAuthChange: (cb: () => void) => () => void;
-  sendOtp: (email: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
-  verifyOtp: (email: string, otp?: string) => Promise<unknown>;
+  signUp: (email: string, password: string) => Promise<{ ok: true; needsVerification: boolean }>;
+  signIn: (email: string, password: string) => Promise<unknown>;
   logout: () => Promise<unknown>;
   profile: () => Promise<User>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
@@ -35,10 +35,10 @@ type Backend = {
 };
 
 const mockApi: Backend = {
-  authHint: () => "Demo: continue here until Supabase email verification is connected.",
+  authHint: () => "Sign in with your email and password.",
   onAuthChange: () => () => undefined,
-  sendOtp: (phone) => delay(mockServer.auth.sendOtp(phone)),
-  verifyOtp: (phone, otp) => delay(mockServer.auth.verifyOtp(phone, otp)),
+  signUp: (email, password) => delay(mockServer.auth.signUp(email, password)),
+  signIn: (email, password) => delay(mockServer.auth.signIn(email, password)),
   logout: () => delay(mockServer.auth.logout()),
   profile: () => delay(mockServer.auth.profile()),
   updateProfile: (patch) => delay(mockServer.auth.updateProfile(patch)),

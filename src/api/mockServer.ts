@@ -12,13 +12,15 @@ import { cycleDue, inferKind, settleWinner } from "../lib/chitMath";
 import { normalizeEmail } from "../lib/email";
 import { uid } from "../lib/format";
 
-const KEY = "bhishi-book-api-v7";
+const KEY = "bhishi-book-api-v8";
 
 type Session = { token: string; user: User };
+type Account = { email: string; password: string };
 type Db = {
   session: Session | null;
   pendingEmail: string | null;
   pendingPhone: string | null;
+  accounts: Account[];
   customers: Customer[];
   chits: Chit[];
   tickets: Ticket[];
@@ -31,6 +33,7 @@ function blankDb(): Db {
     session: null,
     pendingEmail: null,
     pendingPhone: null,
+    accounts: [],
     tickets: [],
     customers: [],
     chits: [],
@@ -43,6 +46,7 @@ function emptyDb(): Db {
     session: null,
     pendingEmail: null,
     pendingPhone: null,
+    accounts: [],
     tickets: [],
     customers: [
       { id: "c1", name: "ANIKET", phone: "9000000001" },
@@ -199,16 +203,21 @@ export const mockServer = {
   },
 
   auth: {
-    sendOtp(email: string) {
+    signUp(email: string, password: string) {
       const addr = normalizeEmail(email);
+      if (password.length < 6) throw new Error("Password must be at least 6 characters");
       const db = read();
-      db.pendingEmail = addr;
+      db.accounts = db.accounts ?? [];
+      if (db.accounts.some((a) => a.email === addr)) throw new Error("An account with this email already exists");
+      db.accounts.push({ email: addr, password });
       write(db);
-      return { ok: true as const, provider: "MOCK" };
+      return { ok: true as const, needsVerification: false };
     },
-    verifyOtp(email: string, _otp?: string) {
+    signIn(email: string, password: string) {
       const addr = normalizeEmail(email);
       const db = read();
+      const account = (db.accounts ?? []).find((a) => a.email === addr);
+      if (!account || account.password !== password) throw new Error("Invalid email or password");
       db.session = {
         token: uid("tok"),
         user: {
@@ -217,7 +226,6 @@ export const mockServer = {
           name: db.session?.user.name || addr.split("@")[0] || "Organiser",
         },
       };
-      db.pendingEmail = null;
       write(db);
       return db.session;
     },

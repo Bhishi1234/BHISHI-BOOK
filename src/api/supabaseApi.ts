@@ -29,7 +29,7 @@ async function loadPayments(chitId: string) {
 
 export const supabaseApi = {
   authHint() {
-    return "Open the verification link in your inbox to finish signing in.";
+    return "Sign in with your email and password.";
   },
 
   onAuthChange(cb: () => void) {
@@ -38,22 +38,28 @@ export const supabaseApi = {
     return () => data.subscription.unsubscribe();
   },
 
-  async sendOtp(email: string) {
+  async signUp(email: string, password: string) {
     const addr = normalizeEmail(email);
+    if (password.length < 6) throw new Error("Password must be at least 6 characters");
     const sb = getSupabase();
-    const { error } = await sb.auth.signInWithOtp({
+    const { data, error } = await sb.auth.signUp({
       email: addr,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/login`,
-      },
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
     });
     throwIf(error);
-    return { ok: true as const, provider: "EMAIL" };
+    const confirmed = Boolean(data.user?.email_confirmed_at);
+    if (data.session && !confirmed) await sb.auth.signOut();
+    return { ok: true as const, needsVerification: !confirmed };
   },
 
-  async verifyOtp(_email: string, _otp?: string) {
-    throw new Error("Open the verification link we sent to your email.");
+  async signIn(email: string, password: string) {
+    const addr = normalizeEmail(email);
+    const sb = getSupabase();
+    const { error } = await sb.auth.signInWithPassword({ email: addr, password });
+    throwIf(error);
+    await sb.rpc("reactivate_if_allowed");
+    return { ok: true as const };
   },
 
   async logout() {
