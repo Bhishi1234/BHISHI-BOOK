@@ -33,6 +33,7 @@ export function DashboardPage() {
         </div>
         {!!managed.length && (
           <div className="card flush block">
+            <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr><th>Chit</th><th>Cycle</th><th>Per cycle</th><th>Collection</th><th>Status</th></tr>
@@ -63,6 +64,7 @@ export function DashboardPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
         <div className="cards">

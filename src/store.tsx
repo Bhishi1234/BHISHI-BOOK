@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api/client";
+import { cycleDue, paidInCycle } from "./lib/chitMath";
 import type {
   AuctionRecord,
   Chit,
@@ -44,6 +45,7 @@ type Store = {
     kind?: PaymentKind,
     mode?: PayMode,
   ) => Promise<void>;
+  recordAllPayments: (chitId: string) => Promise<void>;
   undoPayment: (chitId: string, paymentId: string) => Promise<void>;
   recordAuction: (
     chitId: string,
@@ -166,6 +168,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       recordPayment: async (chitId, memberId, amount, kind, mode) => {
         await guarded(() => api.recordPayment(chitId, memberId, amount, kind, mode));
+        await reload();
+      },
+      recordAllPayments: async (chitId) => {
+        const chit = chits.find((c) => c.id === chitId);
+        if (!chit) throw new Error("Not found");
+        await guarded(async () => {
+          for (const member of chit.members) {
+            const due = cycleDue(chit, member.customerId, chit.currentCycle);
+            const paid = paidInCycle(chit, member.customerId, chit.currentCycle);
+            const left = Math.max(0, due - paid);
+            if (left > 0) {
+              await api.recordPayment(chitId, member.customerId, left, "full", "cash");
+            }
+          }
+        });
         await reload();
       },
       undoPayment: async (chitId, paymentId) => {

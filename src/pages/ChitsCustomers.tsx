@@ -28,6 +28,7 @@ export function ChitsPage() {
         </div>
         {!!managed.length && (
           <div className="card flush block">
+            <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Chit</th><th>Cycle</th><th>Per cycle</th><th>Collection</th><th>Status</th></tr></thead>
               <tbody>
@@ -53,6 +54,7 @@ export function ChitsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
         <div className="cards">
@@ -147,6 +149,7 @@ export function CustomersPage() {
           </div>
         </div>
         <div className="card flush">
+          <div className="table-wrap">
           <table className="table">
             <thead><tr><th>Person</th><th>Chits</th><th>Contributed</th><th>Outstanding</th></tr></thead>
             <tbody>
@@ -160,6 +163,7 @@ export function CustomersPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </AppShell>

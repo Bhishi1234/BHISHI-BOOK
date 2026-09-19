@@ -142,6 +142,52 @@ export function paymentStatus(chit: Chit, memberId: string, cycle: number) {
   return "due" as const;
 }
 
+export function collectedCount(chit: Chit) {
+  return chit.members.filter((m) => paymentStatus(chit, m.customerId, chit.currentCycle) !== "due").length;
+}
+
+/** Auction / lucky draw only after this month has collections, or cash on hand goes negative. */
+export function canSettleCycle(chit: Chit) {
+  if (!chit.members.length) return false;
+  return collectedThisCycle(chit) > 0;
+}
+
+export function assertCanSettlePayout(
+  chit: Chit,
+  winnerId: string,
+  bid: number,
+  method: AuctionRecord["method"],
+) {
+  if (!canSettleCycle(chit)) {
+    throw new Error("Record this month's collections before the auction");
+  }
+  const rec = settleWinner(chit, winnerId, bid, method);
+  if (rec.payout > Math.max(0, treasuryOf(chit))) {
+    throw new Error("Payout is more than cash on hand. Collect remaining dues or lower the winning bid.");
+  }
+  return rec;
+}
+
+export function cycleLedger(chit: Chit, cycle: number) {
+  const collected = chit.payments.filter((p) => p.cycle === cycle).reduce((s, p) => s + p.amount, 0);
+  const a = chit.auctions.find((x) => x.cycle === cycle);
+  return {
+    collected,
+    payout: a?.payout || 0,
+    commission: a?.commission || 0,
+    dividend: a?.dividend || 0,
+  };
+}
+
+export function balanceAfterCycle(chit: Chit, cycle: number) {
+  let bal = 0;
+  for (let c = 1; c <= cycle; c++) {
+    const row = cycleLedger(chit, c);
+    bal += row.collected - row.payout;
+  }
+  return bal;
+}
+
 export function inferKind(due: number, amount: number): PaymentKind {
   if (amount > due) return "advance";
   if (amount < due) return "partial";

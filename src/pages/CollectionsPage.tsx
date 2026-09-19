@@ -77,6 +77,7 @@ export function CollectionsPage() {
         </div>
         <div className="grid-2">
           <div className="card flush">
+            <div className="table-wrap">
             {receipts.map((p) => (
               <div key={p.id} className="list-row">
                 <div className="avatar">{initials(names[p.memberId] || "?")}</div>
@@ -88,6 +89,7 @@ export function CollectionsPage() {
               </div>
             ))}
             {!receipts.length && <p className="empty">No receipts in this range.</p>}
+            </div>
           </div>
           <div className="card">
             <h2>Modes in this range</h2>

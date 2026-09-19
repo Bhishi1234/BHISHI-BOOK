@@ -8,7 +8,7 @@ import type {
   Ticket,
   User,
 } from "../types";
-import { cycleDue, inferKind, settleWinner } from "../lib/chitMath";
+import { assertCanSettlePayout, cycleDue, inferKind } from "../lib/chitMath";
 import { normalizeEmail } from "../lib/email";
 import { uid } from "../lib/format";
 
@@ -422,7 +422,7 @@ export const mockServer = {
         const winner = c.members.find((m) => m.customerId === winnerId);
         if (!winner) throw new Error("Winner is not a member of this chit");
         if (winner.prizedCycle) throw new Error("This member already won");
-        record = settleWinner(c, winnerId, bid, method);
+        record = assertCanSettlePayout(c, winnerId, bid, method);
         return {
           ...c,
           auctions: [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record],

@@ -3,9 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { PayModal } from "../components/PayModal";
 import { AppShell } from "../layout/AppShell";
 import {
+  balanceAfterCycle,
+  canSettleCycle,
   collectedThisCycle,
+  collectedCount,
   commissionEarned,
   cycleDue,
+  cycleLedger,
   expectedThisCycle,
   moneyIn,
   moneyOut,
@@ -21,7 +25,7 @@ import type { PayMode, PaymentKind } from "../types";
 export function ChitDetailPage() {
   const { id } = useParams();
   const {
-    chits, customers, recordPayment, recordAuction, luckyDraw, closeCycle,
+    chits, customers, recordPayment, recordAllPayments, recordAuction, luckyDraw, closeCycle,
     cancelChit, addMember, undoPayment, updateChitSettings, error,
   } = useStore();
   const nav = useNavigate();
@@ -33,6 +37,10 @@ export function ChitDetailPage() {
   const [newMemberId, setNewMemberId] = useState("");
   const [visible, setVisible] = useState(true);
   const [remind, setRemind] = useState(true);
+  const [payPick, setPayPick] = useState(false);
+  const [unpaidNoted, setUnpaidNoted] = useState(false);
+  const [colRange, setColRange] = useState<"today" | "week" | "all">("all");
+  const [busyAll, setBusyAll] = useState(false);
 
   useEffect(() => {
     if (!chit) return;
@@ -48,8 +56,13 @@ export function ChitDetailPage() {
 
   const data = chit;
   const pending = data.members.filter((m) => paymentStatus(data, m.customerId, data.currentCycle) === "due").length;
-  const paidN = data.members.length - pending;
   const lastWin = data.auctions.find((a) => a.cycle === data.currentCycle);
+  const monthDate = new Date(data.startDate);
+  monthDate.setMonth(monthDate.getMonth() + data.currentCycle - 1);
+  const remainDue = data.members.filter((m) => {
+    const due = cycleDue(data, m.customerId, data.currentCycle);
+    return due - paidInCycle(data, m.customerId, data.currentCycle) > 0;
+  }).length;
   const unprized = data.members.filter((m) => !m.prizedCycle);
   const expectedLife = data.instalment * data.duration * Math.max(1, data.members.length);
   const ended = new Date(data.startDate);
@@ -72,7 +85,7 @@ export function ChitDetailPage() {
           <div className="toolbar" style={{ margin: 0 }}>
             <button className="btn ghost" onClick={() => window.print()}>Export</button>
             <button className="btn ghost" onClick={() => setTab("settings")}>Edit chit</button>
-            <button className="btn" onClick={() => setPayFor(data.members[0]?.customerId || null)}>+ Record collection</button>
+            <button className="btn" onClick={() => setPayPick(true)}>+ Record collection</button>
           </div>
         </div>
         {error && <p className="due">{error}</p>}
@@ -80,7 +93,7 @@ export function ChitDetailPage() {
           <div className="stat"><span>Month</span><strong>{data.currentCycle} / {data.duration}</strong></div>
           <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
           <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
-          <div className="stat"><span>Cash on hand</span><strong>{inr(treasuryOf(data))}</strong></div>
+          <div className="stat"><span>Cash on hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
           <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong></div>
           <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
         </div>
@@ -131,77 +144,178 @@ export function ChitDetailPage() {
           </>
         )}
 
-        {tab === "collections" && (
-          <div className="card flush">
-            <div className="card-pad">
-              <div className="muted">Collected</div>
-              <div className="hero-figure">{inr(moneyIn(data))}</div>
-              <p className="muted">{data.payments.length} receipts from {data.members.length} members</p>
-            </div>
-            {data.payments.map((p) => (
-              <div key={p.id} className="list-row">
-                <div className="avatar">{initials(names[p.memberId] || "?")}</div>
-                <div className="grow">
-                  <strong>{names[p.memberId]}</strong>
-                  <div className="muted">{MODE_LABEL[p.mode || "cash"]}</div>
+        {tab === "collections" && (() => {
+          const now = new Date();
+          const receipts = data.payments.filter((p) => {
+            const d = new Date(p.date);
+            if (colRange === "today") return d.toDateString() === now.toDateString();
+            if (colRange === "week") return now.getTime() - d.getTime() <= 7 * 86400000;
+            return true;
+          });
+          const total = receipts.reduce((s, p) => s + p.amount, 0);
+          const people = new Set(receipts.map((p) => p.memberId)).size;
+          return (
+            <div className="card flush">
+              <div className="card-pad">
+                <div className="seg" style={{ marginBottom: 16 }}>
+                  <button className={`chip ${colRange === "today" ? "on" : ""}`} onClick={() => setColRange("today")}>Today</button>
+                  <button className={`chip ${colRange === "week" ? "on" : ""}`} onClick={() => setColRange("week")}>This week</button>
+                  <button className={`chip ${colRange === "all" ? "on" : ""}`} onClick={() => setColRange("all")}>All</button>
                 </div>
-                <strong className="num">{inr(p.amount)}</strong>
-                <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
+                <div className="muted">Collected</div>
+                <div className="hero-figure">{inr(total)}</div>
+                <p className="muted">{receipts.length} receipts from {people} members</p>
+                <button
+                  className="btn"
+                  style={{ marginTop: 12 }}
+                  disabled={!remainDue || busyAll}
+                  onClick={() => {
+                    setBusyAll(true);
+                    void recordAllPayments(data.id).finally(() => setBusyAll(false));
+                  }}
+                >
+                  {busyAll ? "Recording…" : "Record all payments"}
+                </button>
               </div>
-            ))}
-          </div>
-        )}
+              {receipts.map((p) => (
+                <div key={p.id} className="list-row">
+                  <div className="avatar">{initials(names[p.memberId] || "?")}</div>
+                  <div className="grow">
+                    <strong>{names[p.memberId]}</strong>
+                    <div className="muted">{MODE_LABEL[p.mode || "cash"]} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+                  </div>
+                  <strong className="num">{inr(p.amount)}</strong>
+                  <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
+                </div>
+              ))}
+              {!receipts.length && <p className="empty">No collections in this range.</p>}
+            </div>
+          );
+        })()}
 
         {tab === "monthly" && (
-          <div className="grid-2">
+          <div className="stack">
+            <div className="month-steps">
+              <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
+              <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>2. Auction</span>
+              <span className={`month-step ${lastWin ? "on" : ""}`}>3. Close month</span>
+            </div>
+            <div className="stats four">
+              <div className="stat"><span>Expected this cycle</span><strong>{inr(expectedThisCycle(data))}</strong></div>
+              <div className="stat"><span>Collected</span><strong>{inr(collectedThisCycle(data))}</strong></div>
+              <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
+              <div className="stat"><span>Cash on hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
+            </div>
             <div className="card flush">
-              <div className="card-pad" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-                <div><strong>Month {data.currentCycle}</strong> <span className="muted">{new Date(data.startDate).toLocaleDateString("en-IN")}</span> <span className="pill paid">Open</span></div>
+              <div className="card-pad month-head">
+                <div>
+                  <strong>Month {data.currentCycle}</strong>
+                  <span className="muted"> {monthDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <span className="pill paid">Open</span>
+                  <div className="muted" style={{ marginTop: 6 }}>{collectedCount(data)} of {data.members.length} collected</div>
+                </div>
                 <div className="seg">
-                  <button className="btn ghost" disabled={!!lastWin || !winnerId} onClick={() => void recordAuction(data.id, winnerId, Number(bid) || data.pot, "auction")}>Record auction</button>
-                  <button className="btn ghost" disabled={!!lastWin} onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
-                  <button className="btn green" disabled={!lastWin && data.mode === "organise"} onClick={() => void closeCycle(data.id)}>Close month</button>
+                  <button
+                    className="btn"
+                    disabled={!remainDue || busyAll}
+                    onClick={() => {
+                      setBusyAll(true);
+                      void recordAllPayments(data.id).finally(() => setBusyAll(false));
+                    }}
+                  >
+                    {busyAll ? "Recording…" : "Record all payments"}
+                  </button>
+                  <button className="btn ghost" type="button" disabled={!remainDue} onClick={() => setUnpaidNoted(true)}>
+                    Mark all unpaid
+                  </button>
                 </div>
               </div>
-              {data.type === "auction" && !lastWin && (
-                <div style={{ padding: "0 16px 12px" }} className="grid-2">
-                  <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
-                    <option value="">Winner</option>
-                    {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
-                  </select>
-                  <input className="field" placeholder="Winning bid" value={bid} onChange={(e) => setBid(e.target.value)} />
-                </div>
+              {!canSettleCycle(data) && !lastWin && (
+                <p className="month-hint">Record collections first — individually or with Record all payments. Auction stays locked so cash on hand cannot go negative.</p>
               )}
-              <table className="table">
-                <thead><tr><th>Member</th><th>Due</th><th>Paid</th><th>Balance</th><th>Mode</th><th>Status</th><th></th></tr></thead>
-                <tbody>
-                  {data.members.map((m) => {
-                    const due = cycleDue(data, m.customerId, data.currentCycle);
-                    const paid = paidInCycle(data, m.customerId, data.currentCycle);
-                    const status = paymentStatus(data, m.customerId, data.currentCycle);
-                    const last = [...data.payments].reverse().find((p) => p.memberId === m.customerId && p.cycle === data.currentCycle);
-                    return (
-                      <tr key={m.customerId}>
-                        <td><div className="person"><div className="avatar">{initials(names[m.customerId] || "?")}</div>{names[m.customerId]}</div></td>
-                        <td>{inr(due)}</td>
-                        <td>{inr(paid)}</td>
-                        <td>{paid >= due ? "—" : inr(due - paid)}</td>
-                        <td>{last ? MODE_LABEL[last.mode || "cash"] : "—"}</td>
-                        <td><span className={`pill ${status}`}>{status[0].toUpperCase() + status.slice(1)}</span></td>
-                        <td><button className="link" onClick={() => setPayFor(m.customerId)}>Record</button></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {unpaidNoted && remainDue > 0 && (
+                <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button; auction still needs at least one receipt.</p>
+              )}
+              <div className="table-wrap">
+                <table className="table month-table">
+                  <thead>
+                    <tr>
+                      <th>Member</th>
+                      <th>Due</th>
+                      <th>Paid</th>
+                      <th>Balance</th>
+                      <th>Mode</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.members.map((m) => {
+                      const due = cycleDue(data, m.customerId, data.currentCycle);
+                      const paid = paidInCycle(data, m.customerId, data.currentCycle);
+                      const status = paymentStatus(data, m.customerId, data.currentCycle);
+                      const last = [...data.payments].reverse().find((p) => p.memberId === m.customerId && p.cycle === data.currentCycle);
+                      const label = status === "due" && unpaidNoted ? "Unpaid" : status[0].toUpperCase() + status.slice(1);
+                      return (
+                        <tr key={m.customerId}>
+                          <td><div className="person"><div className="avatar">{initials(names[m.customerId] || "?")}</div><span className="ellipsis">{names[m.customerId]}</span></div></td>
+                          <td>{inr(due)}</td>
+                          <td>{inr(paid)}</td>
+                          <td>{paid >= due ? "—" : inr(due - paid)}</td>
+                          <td>{last ? MODE_LABEL[last.mode || "cash"] : "—"}</td>
+                          <td>{last ? new Date(last.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</td>
+                          <td><span className={`pill ${status}`}>{label}</span></td>
+                          <td>
+                            {status === "due" || status === "partial" ? (
+                              <button className="btn ghost btn-sm" onClick={() => setPayFor(m.customerId)}>Record</button>
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div className="card">
-              <h2>Cycle position</h2>
-              <div className="kv"><span>Expected this cycle</span><strong>{inr(expectedThisCycle(data))}</strong></div>
-              <div className="kv"><span>Collected</span><strong>{inr(collectedThisCycle(data))}</strong></div>
-              <div className="kv"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
-              <div className="kv"><span>Cash on hand</span><strong>{inr(treasuryOf(data))}</strong></div>
-              <p className="muted" style={{ marginTop: 12 }}>{paidN} of {data.members.length} collected</p>
+              <div className="month-head" style={{ padding: 0 }}>
+                <div>
+                  <h2 style={{ margin: 0 }}>This month’s auction</h2>
+                  <p className="muted">Only after collections. Payout cannot exceed cash on hand.</p>
+                </div>
+                <button className="btn green" disabled={!lastWin && data.mode === "organise"} onClick={() => void closeCycle(data.id)}>Close month</button>
+              </div>
+              {lastWin ? (
+                <div className="kv" style={{ marginTop: 12 }}>
+                  <span>Winner · {lastWin.method === "lucky_draw" ? "Lucky draw" : "Auction"}</span>
+                  <strong>{names[lastWin.winnerId]} · bid {inr(lastWin.bid)} · paid out {inr(lastWin.payout)}</strong>
+                </div>
+              ) : !canSettleCycle(data) ? (
+                <p className="muted" style={{ margin: "12px 0 0" }}>Collect at least one payment this month before recording the auction or lucky draw.</p>
+              ) : (
+                <div className="month-auction" style={{ padding: "16px 0 0" }}>
+                  {data.type === "auction" && (
+                    <>
+                      <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                        <option value="">Winner</option>
+                        {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
+                      </select>
+                      <input className="field" placeholder="Winning bid" value={bid} onChange={(e) => setBid(e.target.value)} />
+                      <button
+                        className="btn"
+                        disabled={!winnerId || !bid}
+                        onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction")}
+                      >
+                        Record auction
+                      </button>
+                    </>
+                  )}
+                  <button className="btn ghost" onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -209,24 +323,28 @@ export function ChitDetailPage() {
         {tab === "cycles" && (
           <div className="card flush">
             <div className="card-pad"><h2>Monthly breakdown</h2></div>
+            <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Cycle</th><th>Collected</th><th>Payout</th><th>Commission</th><th>Dividend / member</th></tr></thead>
+              <thead><tr><th>Cycle</th><th>Collected</th><th>Payout</th><th>Commission</th><th>Dividend / member</th><th>Balance</th></tr></thead>
               <tbody>
-                {Array.from({ length: data.currentCycle }, (_, i) => i + 1).map((cyc) => {
-                  const a = data.auctions.find((x) => x.cycle === cyc);
-                  const col = data.payments.filter((p) => p.cycle === cyc).reduce((s, p) => s + p.amount, 0);
+                {Array.from({ length: data.currentCycle }, (_, i) => i + 1).reverse().map((cyc) => {
+                  const row = cycleLedger(data, cyc);
+                  const when = new Date(data.startDate);
+                  when.setMonth(when.getMonth() + cyc - 1);
                   return (
                     <tr key={cyc}>
-                      <td>Cycle {cyc}</td>
-                      <td>{inr(col)}</td>
-                      <td>{inr(a?.payout || 0)}</td>
-                      <td>{inr(a?.commission || 0)}</td>
-                      <td>{inr(a?.dividend || 0)}</td>
+                      <td>{when.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</td>
+                      <td>{inr(row.collected)}</td>
+                      <td>{inr(row.payout)}</td>
+                      <td>{inr(row.commission)}</td>
+                      <td>{inr(row.dividend)}</td>
+                      <td className={balanceAfterCycle(data, cyc) < 0 ? "neg" : ""}>{inr(balanceAfterCycle(data, cyc))}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -292,11 +410,54 @@ export function ChitDetailPage() {
         )}
       </div>
 
+      {payPick && !payFor && (
+        <div className="modal-back" onClick={() => setPayPick(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Record collection</h2>
+            <p className="muted">Record one member, or mark every remaining due as paid in cash.</p>
+            <button
+              className="btn wide"
+              style={{ margin: "12px 0 16px" }}
+              disabled={!remainDue || busyAll}
+              onClick={() => {
+                setBusyAll(true);
+                void recordAllPayments(data.id).finally(() => {
+                  setBusyAll(false);
+                  setPayPick(false);
+                });
+              }}
+            >
+              {busyAll ? "Recording…" : "Record all payments"}
+            </button>
+            {data.members.map((m) => {
+              const due = cycleDue(data, m.customerId, data.currentCycle);
+              const paid = paidInCycle(data, m.customerId, data.currentCycle);
+              const left = Math.max(0, due - paid);
+              return (
+                <button
+                  key={m.customerId}
+                  className="chooser-row"
+                  disabled={!left}
+                  onClick={() => { setPayPick(false); setPayFor(m.customerId); }}
+                >
+                  <div className="avatar">{initials(names[m.customerId] || "?")}</div>
+                  <div className="grow">
+                    <strong>{names[m.customerId]}</strong>
+                    <div className="muted">{left ? `${inr(left)} due` : "Paid"}</div>
+                  </div>
+                  {left ? <span className="link">Record</span> : <span className="muted">—</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {payFor && (
         <PayModal
           name={names[payFor] || payFor}
           cycle={data.currentCycle}
-          due={cycleDue(data, payFor, data.currentCycle)}
+          due={cycleDue(data, payFor, data.currentCycle) - paidInCycle(data, payFor, data.currentCycle)}
           onClose={() => setPayFor(null)}
           onSave={(amount: number, kind: PaymentKind, mode: PayMode) => {
             void recordPayment(data.id, payFor, amount, kind, mode).then(() => setPayFor(null));

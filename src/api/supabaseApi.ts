@@ -5,6 +5,7 @@ import { phone10 } from "../lib/phone";
 import { throwIf } from "./errors";
 import { chitPayload, mapAuction, mapChit, mapCustomer, mapTicket, mapUser } from "./map";
 import { META_FREQUENCIES, META_TYPES } from "./contract";
+import { assertCanSettlePayout } from "../lib/chitMath";
 
 const CHIT_SELECT = "*, members:chit_members(*), payments(*), auctions(*)";
 
@@ -206,6 +207,8 @@ export const supabaseApi = {
   },
 
   async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"]) {
+    const chit = await loadChit(chitId);
+    assertCanSettlePayout(chit, winnerId, bid, method);
     const { sb } = await requireUser();
     const { data, error } = await sb.rpc("settle_payout", {
       p_chit_id: chitId,
@@ -218,6 +221,10 @@ export const supabaseApi = {
   },
 
   async luckyDraw(chitId: string) {
+    const chit = await loadChit(chitId);
+    const pool = chit.members.filter((m) => !m.prizedCycle);
+    if (!pool.length) throw new Error("No unprized members left");
+    assertCanSettlePayout(chit, pool[0].customerId, chit.pot, "lucky_draw");
     const { sb } = await requireUser();
     const { data, error } = await sb.rpc("lucky_draw", { p_chit_id: chitId });
     throwIf(error);
