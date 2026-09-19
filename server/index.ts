@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { e164in, hashOtp, phone10, phoneEmail, randomOtp, randomPassword } from "./lib/otp.ts";
+import { normalizeEmail } from "../src/lib/email.ts";
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const anon = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
@@ -82,6 +83,16 @@ app.get("/api/v1/meta/frequencies", (c) =>
 app.post("/api/v1/auth/send-otp", async (c) => {
   try {
     const body = await c.req.json();
+    if (body.email) {
+      const addr = normalizeEmail(String(body.email));
+      const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { error } = await sb.auth.signInWithOtp({
+        email: addr,
+        options: { shouldCreateUser: true },
+      });
+      if (error) return c.json({ error: error.message }, 400);
+      return c.json({ ok: true, provider: "EMAIL" });
+    }
     const phone = phone10(String(body.phone ?? ""));
     const sb = admin();
     const { data: recent } = await sb
@@ -127,6 +138,15 @@ app.post("/api/v1/auth/send-otp", async (c) => {
 app.post("/api/v1/auth/verify-otp", async (c) => {
   try {
     const body = await c.req.json();
+    if (body.email) {
+      const addr = normalizeEmail(String(body.email));
+      const otp = String(body.otp ?? "").replace(/\D/g, "");
+      if (otp.length !== 6) return c.json({ error: "otp must be 6 digits" }, 400);
+      const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data, error } = await sb.auth.verifyOtp({ email: addr, token: otp, type: "email" });
+      if (error || !data.session) return c.json({ error: error?.message || "Could not start session" }, 400);
+      return c.json({ ok: true, session: data.session, user: data.user });
+    }
     const phone = phone10(String(body.phone ?? ""));
     const otp = String(body.otp ?? "").replace(/\D/g, "");
     if (otp.length !== 6) return c.json({ error: "otp must be 6 digits" }, 400);

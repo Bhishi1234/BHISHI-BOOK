@@ -56,14 +56,15 @@ exception when duplicate_object then null; end $$;
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text not null default 'Organiser',
-  phone text not null unique,
+  email text unique,
+  phone text unique,
   plan public.plan_id not null default 'free',
   language text not null default 'en',
   billing_mode public.billing_mode not null default 'payg',
   deactivated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint phone_10 check (phone ~ '^[0-9]{10}$')
+  constraint phone_10 check (phone is null or phone ~ '^[0-9]{10}$')
 );
 
 create table if not exists public.customers (
@@ -194,18 +195,21 @@ set search_path = public
 as $$
 declare
   digits text;
+  addr text;
 begin
   digits := coalesce(
     new.raw_user_meta_data->>'phone10',
     right(regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'), 10)
   );
   if digits is null or length(digits) <> 10 then
-    digits := '0000000000';
+    digits := null;
   end if;
-  insert into public.profiles (id, name, phone)
+  addr := lower(nullif(coalesce(new.email, new.raw_user_meta_data->>'email'), ''));
+  insert into public.profiles (id, name, email, phone)
   values (
     new.id,
-    coalesce(nullif(new.raw_user_meta_data->>'name', ''), 'Organiser'),
+    coalesce(nullif(new.raw_user_meta_data->>'name', ''), split_part(coalesce(addr, 'organiser'), '@', 1), 'Organiser'),
+    addr,
     digits
   )
   on conflict (id) do nothing;

@@ -1,6 +1,7 @@
 import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
 import { getSupabase } from "../lib/supabase";
-import { e164in, phone10 } from "../lib/phone";
+import { normalizeEmail } from "../lib/email";
+import { phone10 } from "../lib/phone";
 import { throwIf } from "./errors";
 import { chitPayload, mapAuction, mapChit, mapCustomer, mapTicket, mapUser } from "./map";
 import { META_FREQUENCIES, META_TYPES } from "./contract";
@@ -28,7 +29,7 @@ async function loadPayments(chitId: string) {
 
 export const supabaseApi = {
   authHint() {
-    return "Enter the 6-digit code sent to this number.";
+    return "Enter the 6-digit code sent to your email.";
   },
 
   onAuthChange(cb: () => void) {
@@ -37,37 +38,24 @@ export const supabaseApi = {
     return () => data.subscription.unsubscribe();
   },
 
-  async sendOtp(phone: string) {
-    const digits = phone10(phone);
+  async sendOtp(email: string) {
+    const addr = normalizeEmail(email);
     const sb = getSupabase();
-    const invoked = await sb.functions.invoke("auth-otp-send", { body: { phone: digits } });
-    if (!invoked.error && invoked.data && !invoked.data.error) {
-      return { ok: true as const, provider: String(invoked.data.provider || "SUPABASE"), devOtp: invoked.data.devOtp as string | undefined };
-    }
-    const { error } = await sb.auth.signInWithOtp({ phone: e164in(digits) });
-    if (error) {
-      throw new Error(invoked.data?.error || invoked.error?.message || error.message);
-    }
-    return { ok: true as const, provider: "PHONE" };
+    const { error } = await sb.auth.signInWithOtp({
+      email: addr,
+      options: { shouldCreateUser: true },
+    });
+    throwIf(error);
+    return { ok: true as const, provider: "EMAIL" };
   },
 
-  async verifyOtp(phone: string, otp: string) {
-    const digits = phone10(phone);
+  async verifyOtp(email: string, otp: string) {
+    const addr = normalizeEmail(email);
     const code = otp.replace(/\D/g, "");
     if (code.length !== 6) throw new Error("otp must be 6 digits");
     const sb = getSupabase();
-    const invoked = await sb.functions.invoke("auth-otp-verify", { body: { phone: digits, otp: code } });
-    if (!invoked.error && invoked.data?.session) {
-      const { error } = await sb.auth.setSession({
-        access_token: invoked.data.session.access_token,
-        refresh_token: invoked.data.session.refresh_token,
-      });
-      throwIf(error);
-      await sb.rpc("reactivate_if_allowed");
-      return { ok: true };
-    }
-    const { error } = await sb.auth.verifyOtp({ phone: e164in(digits), token: code, type: "sms" });
-    if (error) throw new Error(invoked.data?.error || invoked.error?.message || error.message);
+    const { error } = await sb.auth.verifyOtp({ email: addr, token: code, type: "email" });
+    throwIf(error);
     await sb.rpc("reactivate_if_allowed");
     return { ok: true };
   },
@@ -79,10 +67,13 @@ export const supabaseApi = {
   },
 
   async profile() {
-    const { sb } = await requireUser();
+    const { sb, user } = await requireUser();
     const { data, error } = await sb.rpc("reactivate_if_allowed");
     throwIf(error);
-    return mapUser(data as Record<string, unknown>);
+    return mapUser({
+      ...(data as Record<string, unknown>),
+      email: (data as { email?: string })?.email || user.email || "",
+    });
   },
 
   async updateProfile(patch: Partial<User>) {

@@ -101,12 +101,12 @@ export function ProfilePage() {
         <div className="card">
           <label className="label">Name</label>
           {edit ? <input className="field" value={name} onChange={(e) => setName(e.target.value)} /> : <p><strong>{user?.name}</strong></p>}
-          <label className="label">Phone</label>
-          <p>+91{user?.phone}</p>
+          <label className="label">Email</label>
+          <p>{user?.email || "—"}</p>
           {edit
             ? <button className="btn" onClick={() => { void updateProfile({ name, language: lang }); setEdit(false); }}>Save</button>
             : <button className="btn ghost" onClick={() => setEdit(true)}>Edit profile</button>}
-          <p className="muted">Your phone number is used to sign in and can’t be changed here.</p>
+          <p className="muted">Your email is used to sign in and can’t be changed here. Phone login will come later.</p>
         </div>
         <div className="card">
           <h2>Language</h2>

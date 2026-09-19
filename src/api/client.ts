@@ -8,8 +8,8 @@ import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "..
 type Backend = {
   authHint: () => string;
   onAuthChange: (cb: () => void) => () => void;
-  sendOtp: (phone: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
-  verifyOtp: (phone: string, otp: string) => Promise<unknown>;
+  sendOtp: (email: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<unknown>;
   logout: () => Promise<unknown>;
   profile: () => Promise<User>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
@@ -35,7 +35,7 @@ type Backend = {
 };
 
 const mockApi: Backend = {
-  authHint: () => "Demo login: any 6-digit OTP works until Supabase is connected.",
+  authHint: () => "Demo login: any 6-digit OTP works until Supabase email Auth is connected.",
   onAuthChange: () => () => undefined,
   sendOtp: (phone) => delay(mockServer.auth.sendOtp(phone)),
   verifyOtp: (phone, otp) => delay(mockServer.auth.verifyOtp(phone, otp)),

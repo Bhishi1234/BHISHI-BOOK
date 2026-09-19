@@ -26,8 +26,8 @@ type Store = {
   chits: Chit[];
   tickets: Ticket[];
   authHint: string;
-  sendOtp: (phone: string) => Promise<{ devOtp?: string }>;
-  verifyOtp: (phone: string, otp: string) => Promise<void>;
+  sendOtp: (email: string) => Promise<{ devOtp?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   deactivateAccount: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<void>;

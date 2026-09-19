@@ -9,24 +9,27 @@ import type {
   User,
 } from "../types";
 import { cycleDue, inferKind, settleWinner } from "../lib/chitMath";
+import { normalizeEmail } from "../lib/email";
 import { uid } from "../lib/format";
 
-const KEY = "bhishi-book-api-v6";
+const KEY = "bhishi-book-api-v7";
 
 type Session = { token: string; user: User };
 type Db = {
   session: Session | null;
+  pendingEmail: string | null;
   pendingPhone: string | null;
   customers: Customer[];
   chits: Chit[];
   tickets: Ticket[];
 };
 
-const demoUser: User = { name: "Organiser", phone: "", plan: "free" };
+const demoUser: User = { name: "Organiser", email: "", phone: "", plan: "free" };
 
 function blankDb(): Db {
   return {
     session: null,
+    pendingEmail: null,
     pendingPhone: null,
     tickets: [],
     customers: [],
@@ -38,6 +41,7 @@ function emptyDb(): Db {
   if (import.meta.env.PROD) return blankDb();
   return {
     session: null,
+    pendingEmail: null,
     pendingPhone: null,
     tickets: [],
     customers: [
@@ -195,27 +199,26 @@ export const mockServer = {
   },
 
   auth: {
-    sendOtp(phone: string) {
-      const digits = phone.replace(/\D/g, "").slice(-10);
-      if (digits.length !== 10) throw new Error("phone must be 10 digits");
+    sendOtp(email: string) {
+      const addr = normalizeEmail(email);
       const db = read();
-      db.pendingPhone = digits;
+      db.pendingEmail = addr;
       write(db);
       return { ok: true as const, provider: "MOCK" };
     },
-    verifyOtp(phone: string, otp: string) {
-      const digits = phone.replace(/\D/g, "").slice(-10);
+    verifyOtp(email: string, otp: string) {
+      const addr = normalizeEmail(email);
       if (otp.replace(/\D/g, "").length !== 6) throw new Error("otp must be 6 digits");
       const db = read();
       db.session = {
         token: uid("tok"),
         user: {
           ...demoUser,
-          phone: digits,
-          name: db.session?.user.name || "Organiser",
+          email: addr,
+          name: db.session?.user.name || addr.split("@")[0] || "Organiser",
         },
       };
-      db.pendingPhone = null;
+      db.pendingEmail = null;
       write(db);
       return db.session;
     },

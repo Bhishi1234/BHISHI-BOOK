@@ -8,6 +8,7 @@ export function mapUser(row: Record<string, unknown>): User {
   return {
     id: String(row.id ?? ""),
     name: String(row.name || "Organiser"),
+    email: String(row.email || ""),
     phone: String(row.phone || ""),
     plan: (row.plan as User["plan"]) || "free",
     language: String(row.language || "en"),

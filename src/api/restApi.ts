@@ -1,5 +1,5 @@
 import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
-import { phone10 } from "../lib/phone";
+import { normalizeEmail } from "../lib/email";
 import { readJson } from "./errors";
 import { chitPayload, mapAuction, mapChit, mapCustomer, mapTicket, mapUser } from "./map";
 import { META_FREQUENCIES, META_TYPES } from "./contract";
@@ -41,25 +41,25 @@ async function request(path: string, init: RequestInit = {}) {
 
 export const restApi = {
   authHint() {
-    return "Enter the 6-digit code sent to this number.";
+    return "Enter the 6-digit code sent to your email.";
   },
 
   onAuthChange(_cb: () => void) {
     return () => undefined;
   },
 
-  async sendOtp(phone: string) {
+  async sendOtp(email: string) {
     const data = await request("/api/v1/auth/send-otp", {
       method: "POST",
-      body: JSON.stringify({ phone: phone10(phone) }),
+      body: JSON.stringify({ email: normalizeEmail(email) }),
     });
     return { ok: true as const, provider: String(data.provider || "API"), devOtp: data.devOtp as string | undefined };
   },
 
-  async verifyOtp(phone: string, otp: string) {
+  async verifyOtp(email: string, otp: string) {
     const data = await request("/api/v1/auth/verify-otp", {
       method: "POST",
-      body: JSON.stringify({ phone: phone10(phone), otp }),
+      body: JSON.stringify({ email: normalizeEmail(email), otp }),
     });
     if (!data.session?.access_token) throw new Error("Could not start session");
     writeSession({

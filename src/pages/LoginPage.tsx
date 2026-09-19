@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 export function LoginPage() {
   const { sendOtp, verifyOtp, user, authHint, error } = useStore();
   const nav = useNavigate();
-  const [phone, setPhone] = useState("");
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<"email" | "otp">("email");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [sending, setSending] = useState(false);
   const [devOtp, setDevOtp] = useState<string | null>(null);
@@ -17,11 +21,11 @@ export function LoginPage() {
   }, [user, nav]);
 
   async function send() {
-    const digits = phone.replace(/\D/g, "").slice(0, 10);
-    if (digits.length !== 10) return;
+    const addr = email.trim();
+    if (!isEmail(addr)) return;
     setSending(true);
     try {
-      const sent = await sendOtp(digits);
+      const sent = await sendOtp(addr);
       setDevOtp(sent.devOtp || null);
       setStep("otp");
     } finally {
@@ -31,7 +35,7 @@ export function LoginPage() {
 
   async function submitOtp(code: string) {
     if (code.length !== 6) return;
-    await verifyOtp(phone.replace(/\D/g, "").slice(0, 10), code);
+    await verifyOtp(email.trim(), code);
     nav("/");
   }
 
@@ -51,28 +55,28 @@ export function LoginPage() {
         <h1>Bhishi Book</h1>
         <p className="sub">Manage your chit funds with confidence</p>
         <div className="login-card">
-          {step === "phone" ? (
+          {step === "email" ? (
             <>
-              <label className="label" htmlFor="phone">Mobile number</label>
-              <div className="phone-row">
-                <span>+91</span>
-                <input
-                  id="phone"
-                  inputMode="numeric"
-                  placeholder="98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
+              <label className="label" htmlFor="email">Email</label>
+              <input
+                id="email"
+                className="field"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+              />
               {error && <p className="due">{error}</p>}
-              <button className="btn wide" disabled={sending} onClick={send}>
+              <button className="btn wide" disabled={sending || !isEmail(email)} onClick={() => void send()}>
                 {sending ? "Sending…" : "Send OTP"}
               </button>
             </>
           ) : (
             <>
               <p className="sub" style={{ marginBottom: 12 }}>
-                Enter the OTP sent to +91 {phone.replace(/\D/g, "").slice(0, 10)}
+                Enter the OTP sent to {email.trim()}
               </p>
               <div className="otp-boxes">
                 {otp.map((n, i) => (
@@ -95,7 +99,7 @@ export function LoginPage() {
               {devOtp && <p className="fine">Dev OTP: {devOtp}</p>}
               <p className="fine">
                 {authHint}
-                <button className="link" onClick={() => setStep("phone")}> Change number</button>
+                <button className="link" onClick={() => setStep("email")}> Change email</button>
               </p>
             </>
           )}
