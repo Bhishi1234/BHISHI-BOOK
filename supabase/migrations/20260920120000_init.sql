@@ -56,8 +56,8 @@ exception when duplicate_object then null; end $$;
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text not null default 'Organiser',
-  email text unique,
-  phone text unique,
+  email text,
+  phone text,
   plan public.plan_id not null default 'free',
   language text not null default 'en',
   billing_mode public.billing_mode not null default 'payg',
@@ -66,6 +66,14 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now(),
   constraint phone_10 check (phone is null or phone ~ '^[0-9]{10}$')
 );
+
+create unique index if not exists profiles_email_unique
+  on public.profiles (email)
+  where email is not null and email <> '';
+
+create unique index if not exists profiles_phone_unique
+  on public.profiles (phone)
+  where phone is not null and phone <> '';
 
 create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
@@ -204,15 +212,16 @@ begin
   if digits is null or length(digits) <> 10 then
     digits := null;
   end if;
-  addr := lower(nullif(coalesce(new.email, new.raw_user_meta_data->>'email'), ''));
+  addr := lower(nullif(trim(coalesce(new.email, new.raw_user_meta_data->>'email', '')), ''));
   insert into public.profiles (id, name, email, phone)
   values (
     new.id,
-    coalesce(nullif(new.raw_user_meta_data->>'name', ''), split_part(coalesce(addr, 'organiser'), '@', 1), 'Organiser'),
+    coalesce(nullif(new.raw_user_meta_data->>'name', ''), nullif(split_part(coalesce(addr, ''), '@', 1), ''), 'Organiser'),
     addr,
     digits
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update
+    set email = coalesce(public.profiles.email, excluded.email);
   return new;
 end;
 $$;
