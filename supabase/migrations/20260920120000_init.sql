@@ -547,7 +547,7 @@ begin
     greatest(1, coalesce((payload->>'duration')::int, 1)),
     coalesce((payload->>'startDate')::date, current_date),
     v_mode,
-    'running',
+    'running'::public.chit_status,
     1,
     nullif(payload->>'premiumAmount', '')::numeric,
     nullif(payload->>'interestRate', '')::numeric,
@@ -629,7 +629,7 @@ declare
   c public.chits;
 begin
   c := public._owned_chit(p_chit_id);
-  update public.chits set status = 'cancelled' where id = c.id;
+  update public.chits set status = 'cancelled'::public.chit_status where id = c.id;
   return public._owned_chit(p_chit_id);
 end;
 $$;
@@ -835,7 +835,10 @@ begin
   update public.chits
   set
     current_cycle = next_cycle,
-    status = case when next_cycle > duration then 'completed' else 'running' end
+    status = case
+      when next_cycle > duration then 'completed'::public.chit_status
+      else 'running'::public.chit_status
+    end
   where id = p_chit_id;
   return public._owned_chit(p_chit_id);
 end;
