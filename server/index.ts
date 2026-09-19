@@ -88,7 +88,10 @@ app.post("/api/v1/auth/send-otp", async (c) => {
       const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
       const { error } = await sb.auth.signInWithOtp({
         email: addr,
-        options: { shouldCreateUser: true },
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: String(body.redirectTo || `${process.env.SITE_URL || "http://localhost:5173"}/login`),
+        },
       });
       if (error) return c.json({ error: error.message }, 400);
       return c.json({ ok: true, provider: "EMAIL" });

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiMode } from "../api/client";
 import { useStore } from "../store";
 
 function isEmail(value: string) {
@@ -10,11 +11,10 @@ export function LoginPage() {
   const { sendOtp, verifyOtp, user, authHint, error } = useStore();
   const nav = useNavigate();
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState<"email" | "otp">("email");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [step, setStep] = useState<"email" | "sent">("email");
   const [sending, setSending] = useState(false);
-  const [devOtp, setDevOtp] = useState<string | null>(null);
-  const refs = useRef<Array<HTMLInputElement | null>>([]);
+  const [opening, setOpening] = useState(false);
+  const demoContinue = apiMode() === "mock";
 
   useEffect(() => {
     if (user) nav("/");
@@ -25,27 +25,21 @@ export function LoginPage() {
     if (!isEmail(addr)) return;
     setSending(true);
     try {
-      const sent = await sendOtp(addr);
-      setDevOtp(sent.devOtp || null);
-      setStep("otp");
+      await sendOtp(addr);
+      setStep("sent");
     } finally {
       setSending(false);
     }
   }
 
-  async function submitOtp(code: string) {
-    if (code.length !== 6) return;
-    await verifyOtp(email.trim(), code);
-    nav("/");
-  }
-
-  function typeOtp(i: number, v: string) {
-    const d = v.replace(/\D/g, "").slice(-1);
-    const next = [...otp];
-    next[i] = d;
-    setOtp(next);
-    if (d && i < 5) refs.current[i + 1]?.focus();
-    if (next.join("").length === 6) void submitOtp(next.join(""));
+  async function continueDemo() {
+    setOpening(true);
+    try {
+      await verifyOtp(email.trim());
+      nav("/");
+    } finally {
+      setOpening(false);
+    }
   }
 
   return (
@@ -70,33 +64,21 @@ export function LoginPage() {
               />
               {error && <p className="due">{error}</p>}
               <button className="btn wide" disabled={sending || !isEmail(email)} onClick={() => void send()}>
-                {sending ? "Sending…" : "Send OTP"}
+                {sending ? "Sending…" : "Send verification link"}
               </button>
             </>
           ) : (
             <>
-              <p className="sub" style={{ marginBottom: 12 }}>
-                Enter the OTP sent to {email.trim()}
+              <h2 style={{ marginTop: 0 }}>Check your email</h2>
+              <p className="sub" style={{ marginBottom: 16 }}>
+                We sent a verification link to <strong>{email.trim()}</strong>. Open that email and continue from the link.
               </p>
-              <div className="otp-boxes">
-                {otp.map((n, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => { refs.current[i] = el; }}
-                    value={n}
-                    onChange={(e) => typeOtp(i, e.target.value)}
-                    maxLength={1}
-                  />
-                ))}
-              </div>
-              <button
-                className="btn wide"
-                onClick={() => void submitOtp(otp.join(""))}
-              >
-                Verify &amp; continue
-              </button>
               {error && <p className="due">{error}</p>}
-              {devOtp && <p className="fine">Dev OTP: {devOtp}</p>}
+              {demoContinue && (
+                <button className="btn wide" disabled={opening} onClick={() => void continueDemo()}>
+                  {opening ? "Opening…" : "Continue"}
+                </button>
+              )}
               <p className="fine">
                 {authHint}
                 <button className="link" onClick={() => setStep("email")}> Change email</button>

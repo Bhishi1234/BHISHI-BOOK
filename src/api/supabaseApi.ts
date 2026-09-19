@@ -29,7 +29,7 @@ async function loadPayments(chitId: string) {
 
 export const supabaseApi = {
   authHint() {
-    return "Enter the 6-digit code sent to your email.";
+    return "Open the verification link in your inbox to finish signing in.";
   },
 
   onAuthChange(cb: () => void) {
@@ -43,21 +43,17 @@ export const supabaseApi = {
     const sb = getSupabase();
     const { error } = await sb.auth.signInWithOtp({
       email: addr,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
     });
     throwIf(error);
     return { ok: true as const, provider: "EMAIL" };
   },
 
-  async verifyOtp(email: string, otp: string) {
-    const addr = normalizeEmail(email);
-    const code = otp.replace(/\D/g, "");
-    if (code.length !== 6) throw new Error("otp must be 6 digits");
-    const sb = getSupabase();
-    const { error } = await sb.auth.verifyOtp({ email: addr, token: code, type: "email" });
-    throwIf(error);
-    await sb.rpc("reactivate_if_allowed");
-    return { ok: true };
+  async verifyOtp(_email: string, _otp?: string) {
+    throw new Error("Open the verification link we sent to your email.");
   },
 
   async logout() {

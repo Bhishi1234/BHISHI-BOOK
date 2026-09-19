@@ -27,7 +27,7 @@ type Store = {
   tickets: Ticket[];
   authHint: string;
   sendOtp: (email: string) => Promise<{ devOtp?: string }>;
-  verifyOtp: (email: string, otp: string) => Promise<void>;
+  verifyOtp: (email: string, otp?: string) => Promise<void>;
   logout: () => Promise<void>;
   deactivateAccount: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<void>;
@@ -115,9 +115,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       chits,
       tickets,
       authHint: api.authHint(),
-      sendOtp: (phone) => guarded(() => api.sendOtp(phone).then((r) => ({ devOtp: r.devOtp }))),
-      verifyOtp: async (phone, otp) => {
-        await guarded(() => api.verifyOtp(phone, otp));
+      sendOtp: (email) => guarded(() => api.sendOtp(email).then((r) => ({ devOtp: r.devOtp }))),
+      verifyOtp: async (email, otp) => {
+        await guarded(() => api.verifyOtp(email, otp));
         await reload();
       },
       logout: async () => {

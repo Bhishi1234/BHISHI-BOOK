@@ -41,7 +41,7 @@ async function request(path: string, init: RequestInit = {}) {
 
 export const restApi = {
   authHint() {
-    return "Enter the 6-digit code sent to your email.";
+    return "Open the verification link in your inbox to finish signing in.";
   },
 
   onAuthChange(_cb: () => void) {
@@ -51,12 +51,15 @@ export const restApi = {
   async sendOtp(email: string) {
     const data = await request("/api/v1/auth/send-otp", {
       method: "POST",
-      body: JSON.stringify({ email: normalizeEmail(email) }),
+      body: JSON.stringify({
+        email: normalizeEmail(email),
+        redirectTo: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
+      }),
     });
     return { ok: true as const, provider: String(data.provider || "API"), devOtp: data.devOtp as string | undefined };
   },
 
-  async verifyOtp(email: string, otp: string) {
+  async verifyOtp(email: string, otp?: string) {
     const data = await request("/api/v1/auth/verify-otp", {
       method: "POST",
       body: JSON.stringify({ email: normalizeEmail(email), otp }),

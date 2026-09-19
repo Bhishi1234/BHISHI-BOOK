@@ -206,9 +206,8 @@ export const mockServer = {
       write(db);
       return { ok: true as const, provider: "MOCK" };
     },
-    verifyOtp(email: string, otp: string) {
+    verifyOtp(email: string, _otp?: string) {
       const addr = normalizeEmail(email);
-      if (otp.replace(/\D/g, "").length !== 6) throw new Error("otp must be 6 digits");
       const db = read();
       db.session = {
         token: uid("tok"),
