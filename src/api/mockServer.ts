@@ -11,7 +11,7 @@ import type {
 import { cycleDue, inferKind, settleWinner } from "../lib/chitMath";
 import { uid } from "../lib/format";
 
-const KEY = "bhishi-book-api-v5";
+const KEY = "bhishi-book-api-v6";
 
 type Session = { token: string; user: User };
 type Db = {
@@ -22,9 +22,20 @@ type Db = {
   tickets: Ticket[];
 };
 
-const demoUser: User = { name: "Sky", phone: "7738116169", plan: "free" };
+const demoUser: User = { name: "Organiser", phone: "", plan: "free" };
+
+function blankDb(): Db {
+  return {
+    session: null,
+    pendingPhone: null,
+    tickets: [],
+    customers: [],
+    chits: [],
+  };
+}
 
 function emptyDb(): Db {
+  if (import.meta.env.PROD) return blankDb();
   return {
     session: null,
     pendingPhone: null,
@@ -198,7 +209,11 @@ export const mockServer = {
       const db = read();
       db.session = {
         token: uid("tok"),
-        user: { ...demoUser, phone: digits, name: db.session?.user.name || demoUser.name },
+        user: {
+          ...demoUser,
+          phone: digits,
+          name: db.session?.user.name || "Organiser",
+        },
       };
       db.pendingPhone = null;
       write(db);
