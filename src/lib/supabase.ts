@@ -1,7 +1,13 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const url = import.meta.env.VITE_SUPABASE_URL || "";
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const url =
+  (typeof __BHISHI_SUPABASE_URL__ !== "undefined" ? __BHISHI_SUPABASE_URL__ : "") ||
+  import.meta.env.VITE_SUPABASE_URL ||
+  "";
+const anon =
+  (typeof __BHISHI_SUPABASE_ANON_KEY__ !== "undefined" ? __BHISHI_SUPABASE_ANON_KEY__ : "") ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  "";
 
 export function isSupabaseConfigured() {
   return Boolean(url && anon);
