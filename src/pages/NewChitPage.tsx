@@ -8,7 +8,7 @@ import { useStore } from "../store";
 
 const TYPES: { id: ChitType; title: string; body: string }[] = [
   { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Choose collect-first or auction-first next." },
-  { id: "fixed", title: "Fixed", body: "Same dues every month. Choose fixed payout order or a lucky-draw roll next." },
+  { id: "fixed", title: "Fixed", body: "Same dues every month. Choose fixed order, lucky draw, or sacrifice hand next." },
   { id: "loan", title: "Loan", body: "Member takes a loan; then pays deposit + interest on principal + principal share." },
 ];
 
@@ -35,6 +35,11 @@ const FIXED_STYLES: { id: FixedStyle; title: string; body: string }[] = [
     id: "lucky_draw",
     title: "Lucky draw",
     body: "Each month, roll among members who have not yet won. Same monthly due for everyone — no premium or extra after win.",
+  },
+  {
+    id: "hand_sacrifice",
+    title: "Sacrifice hand",
+    body: "Early winners take the pot minus half an instalment; that cut is paid as cash dividends to members still playing. The last member takes the full pot. Lucky draw available if no one steps up.",
   },
 ];
 
@@ -81,12 +86,22 @@ export function NewChitPage() {
   const interestN = Number(interest) || 0;
   const tenureN = Number(tenure) || 0;
   const resolvedType: ChitType =
-    type === "fixed" && fixedStyle === "lucky_draw" ? "lucky_draw" : type;
+    type === "fixed"
+      ? fixedStyle === "lucky_draw"
+        ? "lucky_draw"
+        : fixedStyle === "hand_sacrifice"
+          ? "hand_sacrifice"
+          : "fixed"
+      : type;
   const styleLabel =
     type === "auction"
       ? (auctionStyle === "auction_first" ? "Auction first" : "Collect first")
       : type === "fixed"
-        ? (fixedStyle === "lucky_draw" ? "Lucky draw" : "Fixed order")
+        ? fixedStyle === "lucky_draw"
+          ? "Lucky draw"
+          : fixedStyle === "hand_sacrifice"
+            ? "Sacrifice hand"
+            : "Fixed order"
         : null;
 
   const preview = useMemo(() => ({
@@ -124,7 +139,9 @@ export function NewChitPage() {
       const typeTitle =
         resolvedType === "lucky_draw"
           ? "Lucky draw"
-          : TYPES.find((t) => t.id === type)?.title;
+          : resolvedType === "hand_sacrifice"
+            ? "Sacrifice hand"
+            : TYPES.find((t) => t.id === type)?.title;
       const id = await addChit({
         name: title.trim() || `${typeTitle} - ${inr(potN)}`,
         title: title.trim() || undefined,
@@ -170,7 +187,7 @@ export function NewChitPage() {
 
   const termsStepLabel = needsStyleStep(type) ? 3 : 2;
   const membersStepLabel = needsStyleStep(type) ? 4 : 3;
-  const showPayoutOrder = type === "fixed" && fixedStyle === "fixed_order";
+  const showPayoutOrder = type === "fixed" && (fixedStyle === "fixed_order" || fixedStyle === "hand_sacrifice");
 
   return (
     <AppShell crumb="Chits" crumb2="New chit">
@@ -239,7 +256,7 @@ export function NewChitPage() {
         {step === 1 && type === "fixed" && (
           <div className="card">
             <div className="row-head"><h2>Fixed style</h2><span className="muted">Step 2</span></div>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="type-row" style={{ gridTemplateColumns: "1fr" }}>
               {FIXED_STYLES.map((s) => (
                 <button
                   key={s.id}
@@ -393,7 +410,9 @@ export function NewChitPage() {
             <div className="row-head"><h2>Members</h2><span className="muted">Step {membersStepLabel}</span></div>
             <p className="muted block">
               {showPayoutOrder
-                ? "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange."
+                ? fixedStyle === "hand_sacrifice"
+                  ? "Order is the usual take sequence — early slots sacrifice half a hand (cash dividends to those still playing). Last slot takes the full pot. Use the arrows to rearrange."
+                  : "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange."
                 : fixedStyle === "lucky_draw" && type === "fixed"
                   ? "Members who have not won yet stay in the draw each month. Order does not decide who wins."
                   : "Added before you start. You can leave slots empty and map people later."}

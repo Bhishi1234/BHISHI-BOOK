@@ -102,7 +102,7 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
     if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
-  if (chit.type === "fixed" || chit.type === "lucky_draw") {
+  if (chit.type === "fixed" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice") {
     return base;
   }
   if (chit.type === "base_premium") {
@@ -248,7 +248,14 @@ export function payoutsOf(chit: Chit) {
 }
 
 export function moneyOut(chit: Chit) {
-  return payoutsOf(chit) + commissionEarned(chit);
+  let out = payoutsOf(chit) + commissionEarned(chit);
+  // Sacrifice-hand: discount is paid out as cash dividends to remaining players.
+  if (isHandSacrifice(chit)) {
+    out += chit.auctions
+      .filter((a) => a.method !== "settlement")
+      .reduce((s, a) => s + Math.max(0, Number(a.discount) || 0), 0);
+  }
+  return out;
 }
 
 /**
@@ -335,11 +342,68 @@ export function memberPaidTotal(chit: Chit, memberId: string) {
   return total;
 }
 
-/** Cash a member received from pot / loan / settlement payouts. */
+/** Cash a member received from pot / loan / settlement / hand-sacrifice dividends. */
 export function memberReceivedTotal(chit: Chit, memberId: string) {
-  return chit.auctions
+  const asWinner = chit.auctions
     .filter((a) => a.winnerId === memberId)
     .reduce((s, a) => s + a.payout, 0);
+  return asWinner + handSacrificeDividendsReceived(chit, memberId);
+}
+
+/**
+ * Cash dividends from sacrifice-hand months where this member was still playing
+ * (had not won yet) and was not that month’s winner.
+ */
+export function handSacrificeDividendsReceived(chit: Chit, memberId: string) {
+  if (!isHandSacrifice(chit)) return 0;
+  let total = 0;
+  for (const a of chit.auctions) {
+    if (a.method === "settlement") continue;
+    if (a.winnerId === memberId) continue;
+    const member = chit.members.find((m) => m.customerId === memberId);
+    if (!member) continue;
+    // Already prized in an earlier cycle → not among “remaining players”.
+    if (member.prizedCycle && member.prizedCycle < a.cycle) continue;
+    total += handSacrificeShareForMember(chit, a, memberId);
+  }
+  return total;
+}
+
+/** Per-recipient cash share of a sacrifice-hand auction’s discount pool. */
+export function handSacrificeShareForMember(
+  chit: Chit,
+  auction: AuctionRecord,
+  memberId: string,
+) {
+  const recipients = handSacrificeRecipients(chit, auction);
+  if (!recipients.includes(memberId)) return 0;
+  const pool = Math.max(0, Number(auction.discount) || 0);
+  if (!recipients.length || pool <= 0) return 0;
+  const each = Math.floor(pool / recipients.length);
+  const rem = pool - each * recipients.length;
+  const idx = recipients.indexOf(memberId);
+  return each + (idx >= 0 && idx < rem ? 1 : 0);
+}
+
+/** Unprized members at award time, excluding the winner (slot order). */
+export function handSacrificeRecipients(chit: Chit, auction: AuctionRecord) {
+  return [...chit.members]
+    .filter((m) => {
+      if (m.customerId === auction.winnerId) return false;
+      if (m.prizedCycle && m.prizedCycle < auction.cycle) return false;
+      return true;
+    })
+    .sort((a, b) => a.slot - b.slot)
+    .map((m) => m.customerId);
+}
+
+/** Half an instalment left in the pot as cash dividends (matches ₹10k hand → ₹5k cut on ₹50k pot). */
+export function handSacrificeAmount(chit: Chit) {
+  return Math.floor(baseInstalment(chit) / 2);
+}
+
+export function isLastHandSacrificeAward(chit: Chit) {
+  return chit.members.filter((m) => !m.prizedCycle).length <= 1;
 }
 
 /** Dividend credited to every member from auctions held (₹ / member, cumulative). */
@@ -356,6 +420,25 @@ export function dividendsDistributed(chit: Chit) {
 }
 
 export function memberLedgerRows(chit: Chit) {
+  if (isHandSacrifice(chit)) {
+    return chit.members.map((m) => {
+      const paid = memberPaidTotal(chit, m.customerId);
+      const potWon = chit.auctions
+        .filter((a) => a.winnerId === m.customerId && a.method !== "settlement")
+        .reduce((s, a) => s + a.payout, 0);
+      const dividend = handSacrificeDividendsReceived(chit, m.customerId);
+      const received = potWon + dividend;
+      return {
+        customerId: m.customerId,
+        slot: m.slot,
+        prizedCycle: m.prizedCycle,
+        paid,
+        received,
+        dividend,
+        net: received - paid,
+      };
+    });
+  }
   const divEach = memberDividendTotal(chit);
   return chit.members.map((m) => {
     const paid = memberPaidTotal(chit, m.customerId);
@@ -373,11 +456,20 @@ export function memberLedgerRows(chit: Chit) {
 }
 
 export function isFixedLike(chit: Chit) {
-  return chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw";
+  return (
+    chit.type === "fixed"
+    || chit.type === "base_premium"
+    || chit.type === "lucky_draw"
+    || chit.type === "hand_sacrifice"
+  );
 }
 
 export function isLuckyDrawChit(chit: Chit) {
   return chit.type === "lucky_draw" || chit.fixedStyle === "lucky_draw";
+}
+
+export function isHandSacrifice(chit: Chit) {
+  return chit.type === "hand_sacrifice" || chit.fixedStyle === "hand_sacrifice";
 }
 
 /** Next unprized member in slot order (Fixed / Base+premium payout queue). */
@@ -445,6 +537,8 @@ export function settleWinner(
   );
   const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
   const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
+  const handSacrifice = isHandSacrifice(chit) && (method === "fixed" || method === "lucky_draw");
+  const lastHand = handSacrifice && isLastHandSacrificeAward(chit);
   // Auction-first: members settle the bid peer-to-peer (bid ÷ N each). No foreman cut from the till.
   const commission =
     method === "settlement" || lastAuction || auctionFirst
@@ -456,7 +550,19 @@ export function settleWinner(
           : 0;
   let safeBid: number;
   let dividend = 0;
-  if (lastAuction && auctionFirst) {
+  let discount = 0;
+  if (handSacrifice) {
+    // Early winners leave half an instalment as cash dividends for members still playing.
+    // Last remaining member takes the full pot (no dividend pool).
+    discount = lastHand ? 0 : handSacrificeAmount(chit);
+    const facePrize = Math.max(0, chit.pot - discount - commission);
+    const maxPayout = Math.max(0, treasuryOf(chit) - commission - discount);
+    safeBid = Math.min(facePrize, maxPayout);
+    const remaining = chit.members.filter(
+      (m) => m.customerId !== winnerId && !m.prizedCycle,
+    ).length;
+    dividend = remaining > 0 && discount > 0 ? Math.floor(discount / remaining) : 0;
+  } else if (lastAuction && auctionFirst) {
     safeBid = Math.max(0, chit.pot);
   } else if (lastAuction) {
     safeBid = Math.max(0, treasuryOf(chit));
@@ -466,7 +572,7 @@ export function settleWinner(
       // Collect-first: winner is paid from the till — never more than cash after commission.
       const maxPayout = Math.max(0, treasuryOf(chit) - commission);
       safeBid = Math.min(safeBid, maxPayout);
-      const discount = Math.max(0, chit.pot - safeBid);
+      discount = Math.max(0, chit.pot - safeBid);
       dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
     }
   } else if (method === "lucky_draw") {
@@ -481,7 +587,6 @@ export function settleWinner(
   } else {
     safeBid = Math.max(0, Number(bid) || 0);
   }
-  const discount = method === "auction" && !lastAuction && !auctionFirst ? Math.max(0, chit.pot - safeBid) : 0;
   // Auction-first: full bid is what the winner gets; peers settle bid ÷ N separately.
   const arrearsWithheld = method === "settlement" || auctionFirst
     ? 0
@@ -537,9 +642,10 @@ export function assertCanSettlePayout(
   const rec = settleWinner(chit, winnerId, bid, method);
   if (!auctionFirst) {
     const available = treasuryOf(chit);
-    if (rec.payout + rec.commission > Math.max(0, available) + 0.001) {
+    const need = rec.payout + rec.commission + (isHandSacrifice(chit) ? rec.discount : 0);
+    if (need > Math.max(0, available) + 0.001) {
       throw new Error(
-        `Amount plus commission (₹${rec.payout + rec.commission}) is more than cash on hand (₹${Math.max(0, available)}). Collect more dues first, or lower the amount.`,
+        `Amount plus commission${isHandSacrifice(chit) ? " and dividends" : ""} (₹${need}) is more than cash on hand (₹${Math.max(0, available)}). Collect more dues first, or lower the amount.`,
       );
     }
   }
@@ -551,14 +657,20 @@ export function cycleLedger(chit: Chit, cycle: number) {
     ? auctionFirstCollectedInCycle(chit, cycle)
     : chit.payments.filter((p) => p.cycle === cycle).reduce((s, p) => s + p.amount, 0);
   const rows = chit.auctions.filter((x) => x.cycle === cycle);
-  const auctionRow = rows.find((x) => !x.method || x.method === "auction" || x.method === "lucky_draw");
+  const auctionRow = rows.find(
+    (x) => !x.method || x.method === "auction" || x.method === "lucky_draw" || x.method === "fixed",
+  );
+  const dividendPaid = isHandSacrifice(chit)
+    ? rows.reduce((s, a) => s + Math.max(0, Number(a.discount) || 0), 0)
+    : 0;
   return {
     collected,
     payout: rows.reduce((s, a) => s + a.payout, 0),
     commission: rows.reduce((s, a) => s + (a.commission || 0), 0),
+    dividendPaid,
     // Dividend generated by this cycle's auction (not the credit applied to next month's dues).
     dividend: auctionRow
-      ? (auctionRow.dividend || dividendFromAuction(chit, auctionRow))
+      ? (auctionRow.dividend || (chit.type === "auction" ? dividendFromAuction(chit, auctionRow) : 0))
       : 0,
   };
 }
@@ -568,7 +680,7 @@ export function balanceAfterCycle(chit: Chit, cycle: number) {
   let bal = 0;
   for (let c = 1; c <= cycle; c++) {
     const row = cycleLedger(chit, c);
-    bal += row.collected - row.payout - row.commission;
+    bal += row.collected - row.payout - row.commission - (row.dividendPaid || 0);
   }
   return bal;
 }

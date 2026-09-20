@@ -18,6 +18,8 @@ import {
   interestCollected,
   isFixedLike,
   isLuckyDrawChit,
+  isHandSacrifice,
+  handSacrificeAmount,
   isAuctionFirst,
   isLastAuctionCycle,
   loanPrincipalOf,
@@ -114,6 +116,7 @@ export function ChitDetailPage() {
   ended.setMonth(ended.getMonth() + data.duration);
   const fixedLike = isFixedLike(data);
   const luckyDrawChit = isLuckyDrawChit(data);
+  const handSacrifice = isHandSacrifice(data);
   const nextSlot = nextBySlot(data);
   const lastAuctionMonth = data.type === "auction" && isLastAuctionCycle(data);
   const lastMember = lastAuctionMonth ? unprized[0] : undefined;
@@ -135,6 +138,7 @@ export function ChitDetailPage() {
               {data.type === "auction" && !auctionFirst && <span className="badge">Collect first</span>}
               {data.type === "fixed" && <span className="badge">Fixed order</span>}
               {data.type === "lucky_draw" && <span className="badge">Roll each month</span>}
+              {handSacrifice && <span className="badge">Sacrifice hand</span>}
             </div>
             <p className="page-sub">
               {data.members.length} members · {inr(data.instalment)}/{data.frequency} · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })} · ends {ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}
@@ -213,11 +217,15 @@ export function ChitDetailPage() {
                 )}
               </div>
             </div>
-            {data.type === "auction" && (
+            {(data.type === "auction" || handSacrifice) && (
               <div className="card flush block">
                 <div className="card-pad">
                   <h2>Member ledger</h2>
-                  <p className="muted">What each person paid in, what they took from the pot, and dividends credited to their dues.</p>
+                  <p className="muted">
+                    {handSacrifice
+                      ? "What each person paid in, what they took from the pot, and cash dividends from early sacrifice months."
+                      : "What each person paid in, what they took from the pot, and dividends credited to their dues."}
+                  </p>
                 </div>
                 <div className="table-wrap">
                   <table className="table">
@@ -226,7 +234,7 @@ export function ChitDetailPage() {
                         <th>Member</th>
                         <th>Paid in</th>
                         <th>Got from pot</th>
-                        <th>Dividends</th>
+                        <th>{handSacrifice ? "Cash dividends" : "Dividends"}</th>
                         <th>Net</th>
                       </tr>
                     </thead>
@@ -238,7 +246,7 @@ export function ChitDetailPage() {
                             {row.prizedCycle ? <div className="muted">Prized month {row.prizedCycle}</div> : null}
                           </td>
                           <td>{inr(row.paid)}</td>
-                          <td>{inr(row.received)}</td>
+                          <td>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
                           <td>{inr(row.dividend)}</td>
                           <td className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
                         </tr>
@@ -488,9 +496,15 @@ export function ChitDetailPage() {
                           ? unprized.length
                             ? `Roll among ${unprized.length} member${unprized.length === 1 ? "" : "s"} who have not won yet. Same dues every month.`
                             : "All members have been prized."
-                          : nextSlot
-                            ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
-                            : "All slots have been prized."
+                          : handSacrifice
+                            ? unprized.length <= 1
+                              ? "Last member takes the full pot — no dividend cut."
+                              : nextSlot
+                                ? `Next by slot: ${names[nextSlot.customerId]}. They take ${inr(data.pot - handSacrificeAmount(data))}; ${inr(handSacrificeAmount(data))} is paid as cash dividends to the ${unprized.length - 1} still playing.`
+                                : "All slots have been prized."
+                            : nextSlot
+                              ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
+                              : "All slots have been prized."
                         : auctionFirst
                           ? "Auction first. Enter the amount the winner takes (e.g. ₹95,000 of ₹1,00,000). Each member then pays that amount ÷ members — the winner’s share is booked as paid-in (paying themselves). Cash on hand stays ₹0."
                           : "Only after collections. Payout plus commission cannot exceed cash on hand."}
@@ -728,6 +742,55 @@ export function ChitDetailPage() {
                               In the pot: {unprized.map((m) => names[m.customerId]).join(", ")}
                             </p>
                           )}
+                        </>
+                      ) : handSacrifice ? (
+                        <>
+                          <p className="muted" style={{ marginBottom: 10 }}>
+                            Collect first. Early winners leave half an instalment ({inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.
+                          </p>
+                          <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
+                            <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                              <option value="">Award pot to</option>
+                              {unprized.map((m) => (
+                                <option key={m.customerId} value={m.customerId}>
+                                  Slot {m.slot} · {names[m.customerId]}
+                                  {nextSlot?.customerId === m.customerId ? " · next" : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="btn"
+                              disabled={!winnerId || !canSettleCycle(data)}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed")}
+                            >
+                              Award pot
+                            </button>
+                          </div>
+                          <button
+                            className="btn ghost"
+                            style={{ marginTop: 10 }}
+                            disabled={!canSettleCycle(data) || unprized.length === 0}
+                            onClick={() => void luckyDraw(data.id)}
+                          >
+                            Lucky draw instead ({unprized.length} left)
+                          </button>
+                          {winnerId && (() => {
+                            const preview = settleWinner(data, winnerId, data.pot, "fixed");
+                            const still = Math.max(0, unprized.length - 1);
+                            return (
+                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                                <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
+                                <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
+                                <div className="kv"><span>Dividend pool</span><strong>{inr(preview.discount)}</strong></div>
+                                {still > 0 && preview.discount > 0 ? (
+                                  <div className="kv"><span>Each of {still} still playing</span><strong>{inr(preview.dividend)}</strong></div>
+                                ) : (
+                                  <p className="muted" style={{ marginTop: 8 }}>Last member — full pot, no dividends.</p>
+                                )}
+                                <div className="kv"><span>Cash on hand after</span><strong>{inr(cashOnHand - preview.payout - preview.commission - preview.discount)}</strong></div>
+                              </div>
+                            );
+                          })()}
                         </>
                       ) : (
                         <>

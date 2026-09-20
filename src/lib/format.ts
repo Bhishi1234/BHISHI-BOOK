@@ -44,6 +44,7 @@ export const TYPE_LABEL: Record<string, string> = {
   base_premium: "Base + premium",
   loan: "Loan",
   lucky_draw: "Lucky draw",
+  hand_sacrifice: "Sacrifice hand",
 };
 
 export const FREQ_LABEL: Record<string, string> = {

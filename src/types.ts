@@ -1,7 +1,7 @@
-export type ChitType = "auction" | "fixed" | "base_premium" | "loan" | "lucky_draw";
+export type ChitType = "auction" | "fixed" | "base_premium" | "loan" | "lucky_draw" | "hand_sacrifice";
 
-/** Fixed bhishi subtype chosen at create: slot order vs lucky-draw roll. */
-export type FixedStyle = "fixed_order" | "lucky_draw";
+/** Fixed bhishi subtype: slot order, lucky-draw roll, or early hand-sacrifice with cash dividends. */
+export type FixedStyle = "fixed_order" | "lucky_draw" | "hand_sacrifice";
 
 export type Frequency =
   | "daily"
