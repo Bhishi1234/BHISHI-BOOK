@@ -307,6 +307,74 @@ export function loanInterestDueInCycle(chit: Chit, memberId: string, cycle: numb
   return loanMonthlyInterest(chit, principal);
 }
 
+/** Principal share due in a repayment cycle for this hand (0 before/after tenure). */
+export function loanPrincipalDueInCycle(chit: Chit, memberId: string, cycle: number, slot?: number) {
+  const principal = loanPrincipalOf(chit, memberId, slot);
+  if (!principal) return 0;
+  const start = firstLoanCycle(chit, memberId, slot);
+  if (!start || cycle <= start) return 0;
+  const tenure = loanEffectiveTenure(chit, start);
+  const monthIndex = cycle - start;
+  if (monthIndex < 1 || monthIndex > tenure) return 0;
+  let share = Math.ceil(principal / tenure);
+  if (monthIndex === tenure) {
+    const prior = Math.ceil(principal / tenure) * (tenure - 1);
+    share = Math.max(0, principal - prior);
+  }
+  return share;
+}
+
+/**
+ * Split one cycle’s cash payment into deposit (monthly instalment), interest, and principal.
+ * Order: deposit → interest → principal → leftover as deposit (advance).
+ */
+export function allocateLoanPaymentInCycle(
+  chit: Chit,
+  memberId: string,
+  cycle: number,
+  slot?: number,
+) {
+  const paid = paidInCycle(chit, memberId, cycle, slot);
+  const depositDue = baseInstalment(chit);
+  const interestDue = chit.type === "loan" ? loanInterestDueInCycle(chit, memberId, cycle, slot) : 0;
+  const principalDue = chit.type === "loan" ? loanPrincipalDueInCycle(chit, memberId, cycle, slot) : 0;
+
+  let left = Math.max(0, paid);
+  const deposit = Math.min(left, depositDue);
+  left -= deposit;
+  const interest = Math.min(left, interestDue);
+  left -= interest;
+  const principal = Math.min(left, principalDue);
+  left -= principal;
+  return {
+    deposit: deposit + left, // advances count toward contributions
+    interest,
+    principal,
+  };
+}
+
+/**
+ * Ledger “Paid in” for a loan hand = monthly deposits only (not principal repayment).
+ */
+export function loanContributionPaid(chit: Chit, memberId: string, slot?: number) {
+  let total = 0;
+  const through = displayCycle(chit);
+  for (let c = 1; c <= through; c++) {
+    total += allocateLoanPaymentInCycle(chit, memberId, c, slot).deposit;
+  }
+  return total;
+}
+
+/** Principal actually repaid from receipts (allocated). */
+export function loanPrincipalRepaid(chit: Chit, memberId: string, slot?: number) {
+  let total = 0;
+  const through = displayCycle(chit);
+  for (let c = 1; c <= through; c++) {
+    total += allocateLoanPaymentInCycle(chit, memberId, c, slot).principal;
+  }
+  return total;
+}
+
 /** No new loans on the last month of the bhishi. */
 export function canGiveLoan(chit: Chit) {
   return chit.type === "loan" && displayCycle(chit) < chit.duration;
@@ -600,35 +668,48 @@ export function memberLedgerRows(chit: Chit) {
   }
   if (chit.type === "loan") {
     return chit.members.map((m) => {
-      const handPaid = (() => {
-        let t = 0;
-        const through = displayCycle(chit);
-        for (let c = 1; c <= through; c++) t += paidInCycle(chit, m.customerId, c, m.slot);
-        return t;
-      })();
+      // Paid in = monthly deposits only — principal repayment is excluded.
+      const contribution = loanContributionPaid(chit, m.customerId, m.slot);
+      const principalRepaid = loanPrincipalRepaid(chit, m.customerId, m.slot);
+      let interestFromReceipts = 0;
+      const through = displayCycle(chit);
+      for (let c = 1; c <= through; c++) {
+        interestFromReceipts += allocateLoanPaymentInCycle(chit, m.customerId, c, m.slot).interest;
+      }
       const loanOut = chit.auctions
         .filter((a) => a.winnerId === m.customerId && a.method === "fixed" && loanMatchesHand(chit, a, m.slot))
         .reduce((s, a) => s + a.payout, 0);
       const settled = chit.auctions
         .filter((a) => a.winnerId === m.customerId && a.method === "settlement")
         .reduce((s, a) => s + a.payout, 0);
-      // Settlement is person-level; show only on first slot to avoid double-count.
-      const settledHere = m.slot === firstSlotOf(chit, m.customerId) ? settled : 0;
+      // Split person-level settlement across that person’s hands so multi-hand nets stay fair.
+      const handN = Math.max(1, handsOf(chit, m.customerId).length);
+      const settledEach = Math.floor(settled / handN);
+      const settledRem = settled - settledEach * handN;
+      const settledHere = settledEach + (m.slot === firstSlotOf(chit, m.customerId) ? settledRem : 0);
+      // Column shows all interest (upfront cut + monthly); net only subtracts monthly from receipts
+      // because upfront is already reflected in a lower loan payout.
       const interestPaid = interestPaidByMember(chit, m.customerId, m.slot);
-      const dividend = m.slot === firstSlotOf(chit, m.customerId)
-        ? loanInterestDividendShare(chit, m.customerId)
-        : 0;
-      const received = loanOut + settledHere;
+      const divTotal = loanInterestDividendShare(chit, m.customerId);
+      const divEach = Math.floor(divTotal / handN);
+      const divRem = divTotal - divEach * handN;
+      const dividend = divEach + (m.slot === firstSlotOf(chit, m.customerId) ? divRem : 0);
+      // Member is ahead by any unpaid principal (loan still outstanding) and by settlement cash;
+      // behind by monthly deposits and interest paid from receipts. Fully repaid ⇒ unpaid = 0.
+      // Upfront interest is already netted in a lower loanOut, so only receipt interest is subtracted.
+      const unpaidPrincipal = Math.max(0, loanOut - principalRepaid);
+      const net = unpaidPrincipal + settledHere - contribution - interestFromReceipts;
       return {
         customerId: m.customerId,
         slot: m.slot,
         prizedCycle: m.prizedCycle,
-        paid: handPaid,
-        received,
+        paid: contribution,
+        received: loanOut + settledHere,
         dividend,
         interestPaid,
         loanOut,
-        net: received - handPaid,
+        principalRepaid,
+        net,
       };
     });
   }

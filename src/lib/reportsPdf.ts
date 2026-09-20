@@ -23,7 +23,7 @@ import {
   paymentStatus,
   treasuryOf,
 } from "./chitMath";
-import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, inr } from "./format";
+import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL } from "./format";
 
 type Doc = jsPDF & { lastAutoTable?: { finalY: number } };
 type Cell = string | number;
@@ -33,7 +33,10 @@ const PAGE_W = 210;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
 function money(n: number) {
-  return inr(Math.round(n || 0));
+  const v = Math.round(Number(n) || 0);
+  const abs = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.abs(v));
+  // Helvetica in jsPDF cannot draw ₹ — use ASCII "Rs" for clean PDFs.
+  return v < 0 ? `-Rs ${abs}` : `Rs ${abs}`;
 }
 
 function safeName(s: string) {
@@ -187,14 +190,16 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
   ]);
 
   // Member ledger
-  y = sectionTitle(doc, y, "Member ledger (per hand)");
+  y = sectionTitle(doc, y, chit.type === "loan"
+    ? "Member ledger (Paid in = monthly deposits only)"
+    : "Member ledger (per hand)");
   const ledger = memberLedgerRows(chit);
   autoTable(doc, {
     startY: y,
     margin: { left: MARGIN, right: MARGIN },
     head: [[
       "Hand",
-      "Paid in",
+      chit.type === "loan" ? "Deposits" : "Paid in",
       chit.type === "loan" ? "Loan out" : "Received",
       chit.type === "loan" ? "Interest paid" : "Dividends",
       "Net",

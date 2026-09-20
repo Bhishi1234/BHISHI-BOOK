@@ -26,7 +26,6 @@ import {
   isLastAuctionCycle,
   loanDetailRows,
   loanEffectiveTenure,
-  loanInterestDividendShare,
   loanMonthlyInterest,
   loanPrincipalOf,
   loanSettlementPlan,
@@ -226,7 +225,11 @@ export function ChitDetailPage() {
               <div className="card">
                 <h2>Month {cycle} of {data.duration}</h2>
                 <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round((cycle / data.duration) * 100)}%` }} /></div>
-                <p className="muted block">{inr(moneyIn(data))} collected of {inr(expectedLife)} expected</p>
+                <p className="muted block">
+                  {data.type === "loan"
+                    ? `${inr(memberLedgerRows(data).reduce((s, r) => s + r.paid, 0))} deposits of ${inr(expectedLife)} expected · ${inr(moneyIn(data))} total cash in (incl. loan repayments)`
+                    : `${inr(moneyIn(data))} collected of ${inr(expectedLife)} expected`}
+                </p>
                 {data.type !== "auction" && (
                   <div className="grid-2">
                     <div><div className="muted">Total paid out</div><strong className="num">{inr(moneyOut(data) - commissionEarned(data))}</strong></div>
@@ -264,7 +267,7 @@ export function ChitDetailPage() {
                   <h2>Member ledger</h2>
                   <p className="muted">
                     {data.type === "loan"
-                      ? "What each person paid in, loans received, interest they paid, and interest dividends due at settlement."
+                      ? "What each hand paid as monthly deposits (loan principal repayments are excluded from Paid in), loans received, interest, and settlement dividends."
                       : handSacrifice
                       ? "What each person paid in, what they took from the pot, and cash dividends from early sacrifice months."
                       : "What each person paid in, what they took from the pot, and dividends credited to their dues."}
@@ -309,7 +312,7 @@ export function ChitDetailPage() {
                             <>
                               <td>{inr(row.loanOut || 0)}</td>
                               <td>{inr(row.interestPaid || 0)}</td>
-                              <td>{inr(loanInterestDividendShare(data, row.customerId))}</td>
+                              <td>{inr(row.dividend)}</td>
                             </>
                           ) : (
                             <>

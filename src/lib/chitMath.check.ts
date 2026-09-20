@@ -1,5 +1,6 @@
 import type { Chit, ChitMember } from "../types";
 import {
+  allocateLoanPaymentInCycle,
   appliedDividend,
   assertCanSettlePayout,
   balanceAfterCycle,
@@ -9,7 +10,10 @@ import {
   handSacrificeAmount,
   handSacrificeDividendsReceived,
   isLastAuctionCycle,
+  loanContributionPaid,
   loanPrincipalOf,
+  loanPrincipalRepaid,
+  memberLedgerRows,
   memberPaidTotal,
   paidInCycle,
   rawCycleDue,
@@ -423,5 +427,30 @@ try {
 } catch (e) {
   assert(String(e).includes("last month"), `last month err ${e}`);
 }
+
+// Loan ledger: principal repayment must not inflate Paid in
+multiLoan.currentCycle = 2;
+const due2 = rawCycleDue(multiLoan, "m1", 2, 1);
+multiLoan.payments.push({
+  id: "ml-repay",
+  memberId: "m1",
+  slot: 1,
+  cycle: 2,
+  amount: due2,
+  kind: "full",
+  date: "2026-02-01",
+  mode: "cash",
+});
+assert(loanContributionPaid(multiLoan, "m1", 1) === 20000, `contribution ${loanContributionPaid(multiLoan, "m1", 1)}`);
+assert(loanPrincipalRepaid(multiLoan, "m1", 1) > 0, "principal repaid > 0");
+const ledgerM1 = memberLedgerRows(multiLoan).find((r) => r.customerId === "m1" && r.slot === 1)!;
+assert(ledgerM1.paid === 20000, `ledger paid deposits only ${ledgerM1.paid}`);
+assert(ledgerM1.paid < due2 + 10000, "ledger paid less than total cash with principal");
+const interestPart = allocateLoanPaymentInCycle(multiLoan, "m1", 2, 1).interest;
+const unpaid = Math.max(0, ledgerM1.loanOut - loanPrincipalRepaid(multiLoan, "m1", 1));
+assert(
+  ledgerM1.net === unpaid - ledgerM1.paid - interestPart,
+  `ledger net ${ledgerM1.net} vs unpaid ${unpaid} - paid ${ledgerM1.paid} - int ${interestPart}`,
+);
 
 console.log("chit math ok");
