@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
     "";
 
   return {
+    // Relative base so Capacitor Android WebView can load assets from dist/.
+    // Web hosting (Vercel etc.) still works with relative asset URLs.
+    base: "./",
     plugins: [react()],
     define: {
       __BHISHI_SUPABASE_URL__: JSON.stringify(supabaseUrl),

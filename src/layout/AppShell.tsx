@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MoreHorizontal,
   Plus,
   Search,
   UserRound,
@@ -25,6 +26,13 @@ const NAV = [
   { to: "/support", label: "Support", icon: Headset },
   { to: "/upgrade", label: "Upgrade", icon: Crown },
   { to: "/profile", label: "Profile", icon: UserRound },
+];
+
+const TAB_NAV = [
+  { to: "/", label: "Home", icon: LayoutDashboard },
+  { to: "/chits", label: "Chits", icon: BookOpen },
+  { to: "/collections", label: "Collect", icon: Wallet },
+  { to: "/customers", label: "People", icon: Users },
 ];
 
 export function AppShell({
@@ -46,7 +54,10 @@ export function AppShell({
     NAV.find((n) => n.to === loc.pathname)?.label ||
     "Bhishi Book";
 
-  useEffect(() => { setOpen(false); }, [loc.pathname]);
+  useEffect(() => {
+    setOpen(false);
+  }, [loc.pathname]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -57,6 +68,17 @@ export function AppShell({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [nav]);
+
+  useEffect(() => {
+    const onBack = (e: Event) => {
+      if (open) {
+        e.preventDefault();
+        setOpen(false);
+      }
+    };
+    window.addEventListener("bhishi:hardware-back", onBack);
+    return () => window.removeEventListener("bhishi:hardware-back", onBack);
+  }, [open]);
 
   const side = (
     <>
@@ -88,6 +110,8 @@ export function AppShell({
     </>
   );
 
+  const moreActive = ["/support", "/upgrade", "/profile", "/search"].some((p) => loc.pathname.startsWith(p));
+
   return (
     <div className="shell">
       <aside className="sidebar">{side}</aside>
@@ -95,18 +119,35 @@ export function AppShell({
       {open && <div className="drawer-back" onClick={() => setOpen(false)} />}
       <div className="main">
         <div className="topbar">
-          <button className="icon-btn menu-btn" onClick={() => setOpen(true)}><Menu size={18} /></button>
+          <button className="icon-btn menu-btn" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={18} /></button>
           <div className="crumbs">
             {crumb && <Link to={crumb === "Chits" ? "/chits" : crumb === "Plan & billing" ? "/upgrade" : "/"}>{crumb}</Link>}
             {crumb2 && <span>›</span>}
             <strong>{title}</strong>
           </div>
           <button className="search" onClick={() => nav("/search")}>
-            <Search size={16} /> Search chits, members, receipts
-            <span style={{ marginLeft: "auto", fontSize: 12 }}>⌘K</span>
+            <Search size={16} />
+            <span className="search-label">Search chits, members, receipts</span>
+            <span className="search-kbd">⌘K</span>
           </button>
         </div>
-        {children}
+        <div className="main-scroll">{children}</div>
+        <nav className="bottom-tabs" aria-label="Primary">
+          {TAB_NAV.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => `bottom-tab${isActive ? " active" : ""}`}>
+              <n.icon size={20} />
+              <span>{n.label}</span>
+            </NavLink>
+          ))}
+          <button
+            type="button"
+            className={`bottom-tab${moreActive || open ? " active" : ""}`}
+            onClick={() => setOpen(true)}
+          >
+            <MoreHorizontal size={20} />
+            <span>More</span>
+          </button>
+        </nav>
       </div>
     </div>
   );

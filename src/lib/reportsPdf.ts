@@ -24,6 +24,7 @@ import {
   treasuryOf,
 } from "./chitMath";
 import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL } from "./format";
+import { isNativeApp } from "./native";
 
 type Doc = jsPDF & { lastAutoTable?: { finalY: number } };
 type Cell = string | number;
@@ -44,7 +45,35 @@ function safeName(s: string) {
 }
 
 function downloadBlob(doc: jsPDF, filename: string) {
-  doc.save(filename);
+  void savePdf(doc, filename);
+}
+
+async function savePdf(doc: jsPDF, filename: string) {
+  if (!isNativeApp()) {
+    doc.save(filename);
+    return;
+  }
+  try {
+    const { Filesystem, Directory } = await import("@capacitor/filesystem");
+    const { Share } = await import("@capacitor/share");
+    const dataUrl = doc.output("datauristring");
+    const base64 = dataUrl.split(",")[1] || "";
+    const path = filename.replace(/[^\w.\-]+/g, "_");
+    await Filesystem.writeFile({
+      path,
+      data: base64,
+      directory: Directory.Cache,
+    });
+    const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
+    await Share.share({
+      title: filename,
+      url: uri,
+      dialogTitle: "Share Bhishi Book report",
+    });
+  } catch {
+    // Fallback if native share fails
+    doc.save(filename);
+  }
 }
 
 function brandHeader(doc: Doc, title: string, subtitle: string) {
