@@ -28,6 +28,7 @@ import {
   memberBalance,
   settlementsOf,
   settleWinner,
+  isLastAuctionCycle,
   treasuryOf,
 } from "../lib/chitMath";
 import { downloadChitCsv } from "../lib/exportCsv";
@@ -108,6 +109,8 @@ export function ChitDetailPage() {
   ended.setMonth(ended.getMonth() + data.duration);
   const fixedLike = isFixedLike(data);
   const nextSlot = nextBySlot(data);
+  const lastAuctionMonth = data.type === "auction" && isLastAuctionCycle(data);
+  const lastMember = lastAuctionMonth ? unprized[0] : undefined;
 
   return (
     <AppShell crumb="Chits" crumb2={data.name}>
@@ -426,33 +429,77 @@ export function ChitDetailPage() {
                 <div style={{ padding: "16px 0 0" }}>
                   {data.type === "auction" && (
                     <>
-                      <div className="month-auction" style={{ padding: 0 }}>
-                        <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
-                          <option value="">Winner</option>
-                          {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
-                        </select>
-                        <input className="field" placeholder="Winning bid (amount winner takes)" value={bid} onChange={(e) => setBid(e.target.value)} />
-                        <button
-                          className="btn"
-                          disabled={!winnerId || !bid}
-                          onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction")}
-                        >
-                          Record auction
-                        </button>
-                      </div>
-                      {winnerId && Number(bid) > 0 && (() => {
-                        const preview = settleWinner(data, winnerId, Number(bid), "auction");
-                        const cashAfter = cashOnHand - preview.payout - preview.commission;
-                        return (
-                          <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                            <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
-                            <div className="kv"><span>Your commission (leaves the till)</span><strong>{inr(preview.commission)}</strong></div>
-                            <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>
-                            <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                      {lastAuctionMonth ? (
+                        <>
+                          <p className="muted" style={{ marginBottom: 12 }}>
+                            Last cycle — no auction. The remaining member takes the full cash on hand ({inr(cashOnHand)}), then you can close the chit.
+                          </p>
+                          <div className="month-auction" style={{ padding: 0 }}>
+                            <select
+                              className="field"
+                              value={winnerId || lastMember?.customerId || ""}
+                              onChange={(e) => setWinnerId(e.target.value)}
+                            >
+                              <option value="">Last member</option>
+                              {unprized.map((m) => (
+                                <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="btn"
+                              disabled={!(winnerId || lastMember?.customerId) || cashOnHand <= 0}
+                              onClick={() => {
+                                const who = winnerId || lastMember?.customerId || "";
+                                void recordAuction(data.id, who, cashOnHand, "auction");
+                              }}
+                            >
+                              Award full pot
+                            </button>
                           </div>
-                        );
-                      })()}
-                      <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
+                          {(winnerId || lastMember) && (() => {
+                            const who = winnerId || lastMember!.customerId;
+                            const preview = settleWinner(data, who, cashOnHand, "auction");
+                            const cashAfter = cashOnHand - preview.payout - preview.commission;
+                            return (
+                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                                <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
+                                <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
+                                <div className="kv"><span>Cash on hand after</span><strong>{inr(cashAfter)}</strong></div>
+                              </div>
+                            );
+                          })()}
+                        </>
+                      ) : (
+                        <>
+                          <div className="month-auction" style={{ padding: 0 }}>
+                            <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                              <option value="">Winner</option>
+                              {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
+                            </select>
+                            <input className="field" placeholder="Winning bid (amount winner takes)" value={bid} onChange={(e) => setBid(e.target.value)} />
+                            <button
+                              className="btn"
+                              disabled={!winnerId || !bid}
+                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction")}
+                            >
+                              Record auction
+                            </button>
+                          </div>
+                          {winnerId && Number(bid) > 0 && (() => {
+                            const preview = settleWinner(data, winnerId, Number(bid), "auction");
+                            const cashAfter = cashOnHand - preview.payout - preview.commission;
+                            return (
+                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                                <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
+                                <div className="kv"><span>Your commission (leaves the till)</span><strong>{inr(preview.commission)}</strong></div>
+                                <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>
+                                <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                              </div>
+                            );
+                          })()}
+                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
+                        </>
+                      )}
                     </>
                   )}
                   {data.type === "loan" && (

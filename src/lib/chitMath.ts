@@ -148,6 +148,14 @@ export function displayCycle(chit: Chit) {
   return Math.min(Math.max(1, chit.currentCycle || 1), Math.max(1, chit.duration || 1));
 }
 
+/** Last auction month: remaining member takes all cash; no discount / dividend / commission. */
+export function isLastAuctionCycle(chit: Chit) {
+  if (chit.type !== "auction") return false;
+  const cycle = displayCycle(chit);
+  const unprized = chit.members.filter((m) => !m.prizedCycle).length;
+  return cycle >= chit.duration || unprized <= 1;
+}
+
 export function memberBalance(chit: Chit, memberId: string) {
   let due = 0;
   let paid = 0;
@@ -303,8 +311,9 @@ export function settleWinner(
   const alreadyLoanedThisCycle = chit.auctions.some(
     (a) => a.cycle === chit.currentCycle && a.method === "fixed",
   );
+  const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
   const commission =
-    method === "settlement"
+    method === "settlement" || lastAuction
       ? 0
       : method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle
         ? 0
@@ -313,7 +322,10 @@ export function settleWinner(
           : 0;
   let safeBid: number;
   let dividend = 0;
-  if (method === "auction") {
+  if (lastAuction) {
+    // Drain the till: last member gets every rupee of cash on hand.
+    safeBid = Math.max(0, treasuryOf(chit));
+  } else if (method === "auction") {
     safeBid = Math.min(chit.pot, Math.max(0, bid));
     const discount = Math.max(0, chit.pot - safeBid);
     dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
@@ -327,7 +339,7 @@ export function settleWinner(
     // loan / settlement: amount is whatever you enter (not capped at pot)
     safeBid = Math.max(0, Number(bid) || 0);
   }
-  const discount = method === "auction" ? Math.max(0, chit.pot - safeBid) : 0;
+  const discount = method === "auction" && !lastAuction ? Math.max(0, chit.pot - safeBid) : 0;
   const arrearsWithheld = method === "settlement" ? 0 : memberBalance(chit, winnerId).outstanding;
   const payout = Math.max(0, safeBid - arrearsWithheld);
   return {
@@ -371,7 +383,8 @@ export function assertCanSettlePayout(
   if (method !== "settlement" && !canSettleCycle(chit)) {
     throw new Error("Record this month's collections before the auction");
   }
-  if (!bid || bid <= 0) {
+  const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
+  if (!lastAuction && (!bid || bid <= 0)) {
     throw new Error("Enter an amount greater than zero");
   }
   const rec = settleWinner(chit, winnerId, bid, method);

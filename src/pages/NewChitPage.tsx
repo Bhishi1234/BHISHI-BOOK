@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
-import type { ChitMode, ChitType, Frequency } from "../types";
-import { FREQ_LABEL, chitPath, inr } from "../lib/format";
+import type { ChitType, Frequency } from "../types";
+import { FREQ_LABEL, inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
 import { useStore } from "../store";
 
 const TYPES: { id: ChitType; title: string; body: string }[] = [
-  { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Discount − commission = dividend." },
+  { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Discount − commission = dividend. Last cycle pays the full pot to the remaining member." },
   { id: "fixed", title: "Fixed", body: "Predetermined payout order. Optional higher dues after someone wins." },
   { id: "loan", title: "Loan", body: "Member takes a loan; then pays deposit + interest on principal + principal share." },
 ];
@@ -15,11 +15,9 @@ const TYPES: { id: ChitType; title: string; body: string }[] = [
 const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
 
 export function NewChitPage() {
-  const { customers, addCustomer, addChit, user, error } = useStore();
+  const { customers, addCustomer, addChit, error } = useStore();
   const nav = useNavigate();
-  /** -1 = organise vs track, 0 = type, 1 = terms, 2 = members */
-  const [step, setStep] = useState(-1);
-  const [mode, setMode] = useState<ChitMode>("organise");
+  const [step, setStep] = useState(0);
   const [type, setType] = useState<ChitType>("auction");
   const [pot, setPot] = useState("");
   const [count, setCount] = useState("");
@@ -37,7 +35,6 @@ export function NewChitPage() {
   const [winnerPayKind, setWinnerPayKind] = useState<"amount" | "interest">("amount");
   const [winnerInterest, setWinnerInterest] = useState("");
   const [winningMonthPolicy, setWinningMonthPolicy] = useState<"nothing" | "normal" | "premium">("normal");
-  const [trackInstalment, setTrackInstalment] = useState("");
   const [remind, setRemind] = useState(true);
   const [remindDays, setRemindDays] = useState<number[]>([3]);
   const [visible, setVisible] = useState(false);
@@ -50,9 +47,7 @@ export function NewChitPage() {
   const n = Number(count) || 0;
   const potN = Number(pot) || 0;
   const months = Number(duration) || n;
-  const instalment = mode === "tracking"
-    ? (Number(trackInstalment) || 0)
-    : computeInstalment(potN, n);
+  const instalment = computeInstalment(potN, n);
   const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
   const interestN = Number(interest) || 0;
@@ -60,50 +55,21 @@ export function NewChitPage() {
   const premiumN = Number(premium) || (type === "base_premium" && instalment ? Math.round(instalment * 1.2) : 0);
 
   const preview = useMemo(() => ({
-    members: mode === "tracking" ? "You" : (n || "—"),
+    members: n || "—",
     duration: months ? `${months} months` : "0 months",
     per: instalment ? inr(instalment) : "—",
-    commission: mode === "tracking" ? "—" : (commMonth ? inr(commMonth) : "—"),
-  }), [n, months, instalment, commMonth, mode]);
+    commission: commMonth ? inr(commMonth) : "—",
+  }), [n, months, instalment, commMonth]);
 
-  const stepper = mode === "tracking"
-    ? [["Track", "Your contribution"], ["Terms", "Amount & duration"], ["Confirm", "Create the log"]]
-    : [["Type", "How winners are decided"], ["Terms", "Amount & duration"], ["Members", "Payout order"]];
+  const stepper = [
+    ["Type", "How winners are decided"],
+    ["Terms", "Amount & duration"],
+    ["Members", "Payout order"],
+  ];
 
   async function create() {
     setSaving(true);
     try {
-      if (mode === "tracking") {
-        let self = customers.find((c) => c.phone && user?.phone && c.phone === user.phone)
-          || customers.find((c) => c.name === (user?.name || "Me"));
-        if (!self) {
-          self = await addCustomer(user?.name || "Me", user?.phone || "");
-        }
-        const id = await addChit({
-          name: title.trim() || `My bhishi · ${inr(instalment)}`,
-          title: title.trim() || undefined,
-          type: "fixed",
-          frequency: freq,
-          pot: instalment * (months || 1),
-          instalment,
-          membersCount: 1,
-          commissionPct: 0,
-          duration: months || 10,
-          startDate: start,
-          mode: "tracking",
-          members: [{ customerId: self.id, slot: 1 }],
-          auctions: [],
-          currentCycle: 1,
-          commissionKind: "amount",
-          commissionValue: 0,
-          adjustmentStyle: "every_month",
-          remindDays: remind ? remindDays : [],
-          memberVisible: false,
-        });
-        nav(chitPath({ id, mode: "tracking" }));
-        return;
-      }
-
       const members = picked.map((customerId, i) => ({ customerId, slot: i + 1 }));
       const winnerInterestN = Number(winnerInterest) || 0;
       const resolvedPremium =
@@ -171,39 +137,17 @@ export function NewChitPage() {
           <button className="btn ghost" onClick={() => nav("/chits")}>Cancel</button>
         </div>
 
-        {step >= 0 && (
-          <div className="stepper">
-            {stepper.map(([t, s], i) => (
-              <div key={t} className={`step ${i <= step ? "on" : ""}`}>
-                <b>{i < step ? "✓" : i + 1}</b>
-                <div><div>{t}</div><small>{s}</small></div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="stepper">
+          {stepper.map(([t, s], i) => (
+            <div key={t} className={`step ${i <= step ? "on" : ""}`}>
+              <b>{i < step ? "✓" : i + 1}</b>
+              <div><div>{t}</div><small>{s}</small></div>
+            </div>
+          ))}
+        </div>
         {error && <p className="due">{error}</p>}
 
-        {step === -1 && (
-          <div className="card">
-            <div className="row-head"><h2>How will you use this?</h2></div>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <button className={`type-pick ${mode === "organise" ? "active" : ""}`} onClick={() => setMode("organise")}>
-                <h3>Organise a bhishi</h3>
-                <p>You run the group — collections, auctions / loans, payouts and the full ledger.</p>
-              </button>
-              <button className={`type-pick ${mode === "tracking" ? "active" : ""}`} onClick={() => setMode("tracking")}>
-                <h3>Track a bhishi I’m in</h3>
-                <p>Someone else organises. You only log your own monthly contributions.</p>
-              </button>
-            </div>
-            <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
-              <p className="muted">You can run organised chits and tracked chits side by side.</p>
-              <button className="btn" onClick={() => setStep(0)}>Continue →</button>
-            </div>
-          </div>
-        )}
-
-        {step === 0 && mode === "organise" && (
+        {step === 0 && (
           <div className="card">
             <div className="row-head"><h2>Type</h2><span className="muted">Step 1 of 3</span></div>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
@@ -215,20 +159,7 @@ export function NewChitPage() {
               ))}
             </div>
             <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
-              <button className="btn ghost" onClick={() => setStep(-1)}>Back</button>
-              <button className="btn" onClick={() => setStep(1)}>Continue to terms →</button>
-            </div>
-          </div>
-        )}
-
-        {step === 0 && mode === "tracking" && (
-          <div className="card">
-            <div className="row-head"><h2>Track</h2><span className="muted">Step 1 of 3</span></div>
-            <p className="muted block">A simple personal log for a bhishi someone else is running.</p>
-            <label className="label">Name</label>
-            <input className="field" placeholder="e.g. Office kitty" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <div className="row-head" style={{ marginBottom: 0, marginTop: 12 }}>
-              <button className="btn ghost" onClick={() => setStep(-1)}>Back</button>
+              <span />
               <button className="btn" onClick={() => setStep(1)}>Continue to terms →</button>
             </div>
           </div>
@@ -239,141 +170,120 @@ export function NewChitPage() {
             <div>
               <div className="card">
                 <div className="row-head"><h2>Terms</h2><span className="muted">Step 2 of 3</span></div>
-                {mode === "tracking" ? (
-                  <>
-                    <label className="label">Monthly contribution</label>
-                    <input className="field" placeholder="e.g. 10000" value={trackInstalment} onChange={(e) => setTrackInstalment(e.target.value)} />
-                    <label className="label">Duration (months)</label>
+                <div className="grid-2">
+                  <div>
+                    <label className="label">Total amount</label>
+                    <input className="field" placeholder="e.g. 100000" value={pot} onChange={(e) => setPot(e.target.value)} />
+                    <div className="quick">
+                      {[100000, 200000, 500000].map((v) => (
+                        <button key={v} className={`chip ${pot === String(v) ? "on" : ""}`} onClick={() => setPot(String(v))}>{inr(v)}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Number of members</label>
+                    <input className="field" placeholder="e.g. 10" value={count} onChange={(e) => { setCount(e.target.value); if (!duration) setDuration(e.target.value); }} />
+                  </div>
+                  <div>
+                    <label className="label">Duration (in Months)</label>
                     <input className="field" placeholder="e.g. 10" value={duration} onChange={(e) => setDuration(e.target.value)} />
+                  </div>
+                  <div>
                     <label className="label">Start date</label>
                     <input className="field" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-                    <label className="label">Frequency</label>
-                    <div className="seg block">
-                      {FREQS.map((f) => (
-                        <button key={f} className={`chip ${freq === f ? "on" : ""}`} onClick={() => setFreq(f)}>{FREQ_LABEL[f]}</button>
+                  </div>
+                </div>
+                <label className="label">Title (optional)</label>
+                <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
+                <label className="label">Frequency</label>
+                <div className="seg block">
+                  {FREQS.map((f) => (
+                    <button key={f} className={`chip ${freq === f ? "on" : ""}`} onClick={() => setFreq(f)}>{FREQ_LABEL[f]}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card" style={{ marginTop: 16 }}>
+                <h2>Money</h2>
+                <label className="label">Commission</label>
+                <div className="seg" style={{ marginBottom: 12 }}>
+                  <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>₹ Amount</button>
+                  <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>% Percentage</button>
+                </div>
+                <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
+                <p className="hint">
+                  {type === "loan"
+                    ? "Taken from cash on hand the first time you give a loan each month."
+                    : type === "auction"
+                      ? "Taken from the pot each month when you settle the auction (not on the last cycle)."
+                      : "Taken from cash on hand when you award the pot."}
+                </p>
+                {type === "loan" && (
+                  <>
+                    <label className="label">Interest rate (% per month)</label>
+                    <input className="field" value={interest} onChange={(e) => setInterest(e.target.value)} />
+                    <div className="quick">
+                      {[1, 2, 3, 5, 10].map((v) => (
+                        <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
                       ))}
+                    </div>
+                    <label className="label">Repayment tenure (months)</label>
+                    <input className="field" placeholder="Blank = rest of the chit" value={tenure} onChange={(e) => setTenure(e.target.value)} />
+                  </>
+                )}
+                {type === "fixed" && (
+                  <>
+                    <label className="label">Does everyone pay the same amount every month?</label>
+                    <div className="type-row" style={{ gridTemplateColumns: "1fr", gap: 8 }}>
+                      {([
+                        ["flat", "Yes, same every month", "One amount for everyone."],
+                        ["premium", "One amount for everyone, and one for members who have already won.", "Prized members pay a higher due."],
+                        ["variable", "No, it changes", "Custom table per month — coming next; uses flat dues for now."],
+                      ] as const).map(([id, title, body]) => (
+                        <button key={id} type="button" className={`type-pick ${fixedPayMode === id ? "active" : ""}`} onClick={() => setFixedPayMode(id)}>
+                          <h3 style={{ fontSize: 14 }}>{title}</h3>
+                          <p>{body}</p>
+                        </button>
+                      ))}
+                    </div>
+                    {fixedPayMode === "premium" && (
+                      <>
+                        <label className="label">Winner pays each month</label>
+                        <div className="seg" style={{ marginBottom: 12 }}>
+                          <button type="button" className={`chip ${winnerPayKind === "amount" ? "on" : ""}`} onClick={() => setWinnerPayKind("amount")}>Amount (₹)</button>
+                          <button type="button" className={`chip ${winnerPayKind === "interest" ? "on" : ""}`} onClick={() => setWinnerPayKind("interest")}>Interest (%)</button>
+                        </div>
+                        {winnerPayKind === "amount" ? (
+                          <input
+                            className="field"
+                            placeholder={instalment ? `e.g. ${Math.round(instalment * 1.2)}` : "e.g. 12000"}
+                            value={premium}
+                            onChange={(e) => setPremium(e.target.value)}
+                          />
+                        ) : (
+                          <input className="field" placeholder="e.g. 2" value={winnerInterest} onChange={(e) => setWinnerInterest(e.target.value)} />
+                        )}
+                        <p className="hint">After they take the chit — same as everyone else is fine (leave blank / 0).</p>
+                      </>
+                    )}
+                    <label className="label">In the winning month</label>
+                    <div className="seg">
+                      <button type="button" className={`chip ${winningMonthPolicy === "nothing" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("nothing")}>Pays nothing</button>
+                      <button type="button" className={`chip ${winningMonthPolicy === "normal" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("normal")}>Pays normal</button>
+                      <button type="button" className={`chip ${winningMonthPolicy === "premium" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("premium")}>Pays after-win amount</button>
                     </div>
                   </>
-                ) : (
+                )}
+                {type === "auction" && (
                   <>
-                    <div className="grid-2">
-                      <div>
-                        <label className="label">Total amount</label>
-                        <input className="field" placeholder="e.g. 100000" value={pot} onChange={(e) => setPot(e.target.value)} />
-                        <div className="quick">
-                          {[100000, 200000, 500000].map((v) => (
-                            <button key={v} className={`chip ${pot === String(v) ? "on" : ""}`} onClick={() => setPot(String(v))}>{inr(v)}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="label">Number of members</label>
-                        <input className="field" placeholder="e.g. 10" value={count} onChange={(e) => { setCount(e.target.value); if (!duration) setDuration(e.target.value); }} />
-                      </div>
-                      <div>
-                        <label className="label">Duration (in Months)</label>
-                        <input className="field" placeholder="e.g. 10" value={duration} onChange={(e) => setDuration(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="label">Start date</label>
-                        <input className="field" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-                      </div>
-                    </div>
-                    <label className="label">Title (optional)</label>
-                    <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
-                    <label className="label">Frequency</label>
-                    <div className="seg block">
-                      {FREQS.map((f) => (
-                        <button key={f} className={`chip ${freq === f ? "on" : ""}`} onClick={() => setFreq(f)}>{FREQ_LABEL[f]}</button>
-                      ))}
+                    <label className="label">Adjustment style</label>
+                    <div className="seg">
+                      <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>Every month</button>
+                      <button className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>At the end</button>
                     </div>
                   </>
                 )}
               </div>
-
-              {mode === "organise" && (
-                <div className="card" style={{ marginTop: 16 }}>
-                  <h2>Money</h2>
-                  <label className="label">Commission</label>
-                  <div className="seg" style={{ marginBottom: 12 }}>
-                    <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>₹ Amount</button>
-                    <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>% Percentage</button>
-                  </div>
-                  <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
-                  <p className="hint">
-                    {type === "loan"
-                      ? "Taken from cash on hand the first time you give a loan each month."
-                      : type === "auction"
-                        ? "Taken from the pot each month when you settle the auction."
-                        : "Taken from cash on hand when you award the pot."}
-                  </p>
-                  {type === "loan" && (
-                    <>
-                      <label className="label">Interest rate (% per month)</label>
-                      <input className="field" value={interest} onChange={(e) => setInterest(e.target.value)} />
-                      <div className="quick">
-                        {[1, 2, 3, 5, 10].map((v) => (
-                          <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
-                        ))}
-                      </div>
-                      <label className="label">Repayment tenure (months)</label>
-                      <input className="field" placeholder="Blank = rest of the chit" value={tenure} onChange={(e) => setTenure(e.target.value)} />
-                    </>
-                  )}
-                  {(type === "fixed") && (
-                    <>
-                      <label className="label">Does everyone pay the same amount every month?</label>
-                      <div className="type-row" style={{ gridTemplateColumns: "1fr", gap: 8 }}>
-                        {([
-                          ["flat", "Yes, same every month", "One amount for everyone."],
-                          ["premium", "One amount for everyone, and one for members who have already won.", "Prized members pay a higher due."],
-                          ["variable", "No, it changes", "Custom table per month — coming next; uses flat dues for now."],
-                        ] as const).map(([id, title, body]) => (
-                          <button key={id} type="button" className={`type-pick ${fixedPayMode === id ? "active" : ""}`} onClick={() => setFixedPayMode(id)}>
-                            <h3 style={{ fontSize: 14 }}>{title}</h3>
-                            <p>{body}</p>
-                          </button>
-                        ))}
-                      </div>
-                      {fixedPayMode === "premium" && (
-                        <>
-                          <label className="label">Winner pays each month</label>
-                          <div className="seg" style={{ marginBottom: 12 }}>
-                            <button type="button" className={`chip ${winnerPayKind === "amount" ? "on" : ""}`} onClick={() => setWinnerPayKind("amount")}>Amount (₹)</button>
-                            <button type="button" className={`chip ${winnerPayKind === "interest" ? "on" : ""}`} onClick={() => setWinnerPayKind("interest")}>Interest (%)</button>
-                          </div>
-                          {winnerPayKind === "amount" ? (
-                            <input
-                              className="field"
-                              placeholder={instalment ? `e.g. ${Math.round(instalment * 1.2)}` : "e.g. 12000"}
-                              value={premium}
-                              onChange={(e) => setPremium(e.target.value)}
-                            />
-                          ) : (
-                            <input className="field" placeholder="e.g. 2" value={winnerInterest} onChange={(e) => setWinnerInterest(e.target.value)} />
-                          )}
-                          <p className="hint">After they take the chit — same as everyone else is fine (leave blank / 0).</p>
-                        </>
-                      )}
-                      <label className="label">In the winning month</label>
-                      <div className="seg">
-                        <button type="button" className={`chip ${winningMonthPolicy === "nothing" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("nothing")}>Pays nothing</button>
-                        <button type="button" className={`chip ${winningMonthPolicy === "normal" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("normal")}>Pays normal</button>
-                        <button type="button" className={`chip ${winningMonthPolicy === "premium" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("premium")}>Pays after-win amount</button>
-                      </div>
-                    </>
-                  )}
-                  {type === "auction" && (
-                    <>
-                      <label className="label">Adjustment style</label>
-                      <div className="seg">
-                        <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>Every month</button>
-                        <button className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>At the end</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
 
               <div className="card" style={{ marginTop: 16 }}>
                 <h2>Settings</h2>
@@ -394,12 +304,10 @@ export function NewChitPage() {
                     ))}
                   </div>
                 )}
-                {mode === "organise" && (
-                  <label className="check">
-                    <input className="toggle" type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
-                    <span><strong>Allow members to view this chit</strong></span>
-                  </label>
-                )}
+                <label className="check">
+                  <input className="toggle" type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
+                  <span><strong>Allow members to view this chit</strong></span>
+                </label>
                 <label className="check">
                   <input className="toggle" type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
                   I understand how this chit works and the details above are correct.
@@ -408,13 +316,10 @@ export function NewChitPage() {
                   <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
                   <button
                     className="btn"
-                    disabled={
-                      !confirm
-                      || (mode === "tracking" ? (!instalment || !months) : (!potN || !n || (type === "loan" && !interestN)))
-                    }
+                    disabled={!confirm || !potN || !n || (type === "loan" && !interestN)}
                     onClick={() => setStep(2)}
                   >
-                    {mode === "tracking" ? "Continue to confirm" : "Continue to members"}
+                    Continue to members
                   </button>
                 </div>
               </div>
@@ -429,20 +334,7 @@ export function NewChitPage() {
           </div>
         )}
 
-        {step === 2 && mode === "tracking" && (
-          <div className="card">
-            <div className="row-head"><h2>Confirm</h2><span className="muted">Step 3 of 3</span></div>
-            <div className="kv"><span>Name</span><strong>{title.trim() || `My bhishi · ${inr(instalment)}`}</strong></div>
-            <div className="kv"><span>Contribution</span><strong>{inr(instalment)} / {FREQ_LABEL[freq]}</strong></div>
-            <div className="kv"><span>Duration</span><strong>{months} months</strong></div>
-            <div className="toolbar" style={{ marginTop: 16 }}>
-              <button className="btn ghost" onClick={() => setStep(1)}>Back</button>
-              <button className="btn" disabled={saving} onClick={() => void create()}>{saving ? "Creating…" : "Create tracked chit"}</button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && mode === "organise" && (
+        {step === 2 && (
           <div className="card">
             <div className="row-head"><h2>Members</h2><span className="muted">Step 3 of 3</span></div>
             <p className="muted block">

@@ -2,6 +2,7 @@ import type { Chit, ChitMember } from "../types";
 import {
   appliedDividend,
   balanceAfterCycle,
+  isLastAuctionCycle,
   rawCycleDue,
   settleWinner,
   treasuryOf,
@@ -77,11 +78,11 @@ const book = chit({
   commissionKind: "amount",
   commissionValue: 100,
 });
-const bids = [90000, 98000, 85000, 95000, 99000];
-const collect = [100000, 90100, 98100, 85100, 95100];
-const expectDiv = [0, 1980, 380, 2980, 980];
-const expectBal = [9900, 1900, 14900, 4900, 900];
-for (let i = 0; i < 5; i++) {
+const bids = [90000, 98000, 85000, 95000];
+const collect = [100000, 90100, 98100, 85100];
+const expectDiv = [0, 1980, 380, 2980];
+const expectBal = [9900, 1900, 14900, 4900];
+for (let i = 0; i < 4; i++) {
   book.currentCycle = i + 1;
   const each = collect[i] / 5;
   collectAll(book, each);
@@ -91,6 +92,19 @@ for (let i = 0; i < 5; i++) {
   assert(bal === expectBal[i], `balance month ${i + 1} ${bal}`);
   assert(treasuryOf(book) === expectBal[i], `treasury month ${i + 1} ${treasuryOf(book)}`);
 }
+
+// Last cycle: remaining member takes all cash — till empties.
+book.currentCycle = 5;
+collectAll(book, 20000);
+const cashBeforeLast = treasuryOf(book);
+assert(cashBeforeLast > 0, "should have cash before last award");
+assert(isLastAuctionCycle(book), "month 5 is last auction cycle");
+const last = auction(book, "m5", 1);
+assert(last.commission === 0, `last commission ${last.commission}`);
+assert(last.dividend === 0, `last dividend ${last.dividend}`);
+assert(last.bid === cashBeforeLast, `last bid ${last.bid} vs ${cashBeforeLast}`);
+assert(treasuryOf(book) === 0, `last cash ${treasuryOf(book)}`);
+
 
 const lucky = chit({ members: members(5) });
 collectAll(lucky, 20000);
