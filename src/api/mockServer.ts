@@ -341,6 +341,14 @@ export const mockServer = {
     create(input: Omit<Chit, "id" | "payments" | "status">) {
       const db = read();
       const user = needUser(db);
+      if (input.mode === "organise") {
+        if (!input.members?.length) {
+          throw new Error("Add members to every slot before creating this chit");
+        }
+        if (input.members.length !== input.membersCount) {
+          throw new Error(`Fill all ${input.membersCount} slots (currently ${input.members.length})`);
+        }
+      }
       const active = db.chits.filter((c) => c.status === "running" && c.mode === "organise" && c.members.length > 0).length;
       const cap = user.plan === "free" ? 1 : user.plan === "pro" ? 5 : 999;
       if (input.mode === "organise" && active >= cap) {

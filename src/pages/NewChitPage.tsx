@@ -133,6 +133,26 @@ export function NewChitPage() {
   }
 
   async function create() {
+    if (!n || n < 1) {
+      window.alert("Set the number of members / slots first.");
+      return;
+    }
+    if (picked.length !== n) {
+      window.alert(`Fill all ${n} slots before creating this chit (currently ${picked.length}). Use + Hand for each seat.`);
+      return;
+    }
+    if (!potN) {
+      window.alert("Enter the pot / face amount.");
+      return;
+    }
+    if (type === "loan" && !interestN) {
+      window.alert("Enter the monthly interest rate for a loan bhishi.");
+      return;
+    }
+    if (!confirm) {
+      window.alert("Confirm that you understand the terms.");
+      return;
+    }
     setSaving(true);
     try {
       const members = picked.map((customerId, i) => ({ customerId, slot: i + 1 }));
@@ -481,10 +501,20 @@ export function NewChitPage() {
               setNewName("");
               setNewPhone("");
             }}>Add customer</button>
-            <p className="muted" style={{ margin: "12px 0 16px" }}>{picked.length} of {n || 0} slots filled.</p>
+            <p className="muted" style={{ margin: "12px 0 16px" }}>
+              {picked.length} of {n || 0} slots filled.
+              {n > 0 && picked.length < n ? " Add a hand for each remaining slot before creating." : ""}
+              {n > 0 && picked.length === n ? " All slots filled — ready to create." : ""}
+            </p>
             <div className="toolbar">
               <button className="btn ghost" onClick={() => setStep(2)}>Back</button>
-              <button className="btn" disabled={saving} onClick={() => void create()}>{saving ? "Creating…" : "Create chit"}</button>
+              <button
+                className="btn"
+                disabled={saving || !n || picked.length !== n}
+                onClick={() => void create()}
+              >
+                {saving ? "Creating…" : "Create chit"}
+              </button>
             </div>
           </div>
         )}

@@ -814,6 +814,7 @@ export function outstandingOf(chit: Chit) {
 
 /**
  * Last month may close only when every hand’s dues are fully paid (no outstanding).
+ * Also blocks completing the chit while any hand still owes money.
  */
 export function canCloseLastMonth(chit: Chit) {
   const cycle = displayCycle(chit);
@@ -831,6 +832,12 @@ export function canCloseLastMonth(chit: Chit) {
         reason: "Record every hand’s payment for this month before closing.",
       };
     }
+  }
+  if (!chit.members.length) {
+    return {
+      ok: false as const,
+      reason: "Add members before closing the last month.",
+    };
   }
   return { ok: true as const };
 }

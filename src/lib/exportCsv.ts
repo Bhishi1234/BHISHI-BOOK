@@ -24,12 +24,13 @@ export function downloadChitCsv(chit: Chit, names: Record<string, string>) {
     lines.push(["Members", m.slot, names[m.customerId] || m.customerId, m.customerId, m.prizedCycle ?? ""].map(csvEscape).join(","));
   }
   lines.push("");
-  lines.push("Payments,Id,Member,Cycle,Amount,Kind,Mode,Date");
+  lines.push("Payments,Id,Member,Slot,Cycle,Amount,Kind,Mode,Date");
   for (const p of chit.payments) {
     lines.push([
       "Payments",
       p.id,
       names[p.memberId] || p.memberId,
+      p.slot ?? "",
       p.cycle,
       p.amount,
       p.kind,
@@ -38,17 +39,19 @@ export function downloadChitCsv(chit: Chit, names: Record<string, string>) {
     ].map(csvEscape).join(","));
   }
   lines.push("");
-  lines.push("Payouts,Cycle,Winner,Method,Bid,Payout,Commission,Dividend");
+  lines.push("Payouts,Cycle,Winner,Slot,Method,Bid,Payout,Commission,Dividend,Discount");
   for (const a of chit.auctions) {
     lines.push([
       "Payouts",
       a.cycle,
       names[a.winnerId] || a.winnerId,
+      a.winnerSlot ?? "",
       a.method,
       a.bid,
       a.payout,
       a.commission,
       a.dividend,
+      a.discount ?? 0,
     ].map(csvEscape).join(","));
   }
 

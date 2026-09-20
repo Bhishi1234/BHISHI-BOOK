@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AppShell } from "../layout/AppShell";
 import { MODE_LABEL, initials, inr } from "../lib/format";
+import { downloadDayBookPdf, downloadReceiptPdf } from "../lib/reportsPdf";
 import { useStore } from "../store";
 import type { PayMode } from "../types";
 
@@ -34,12 +35,27 @@ export function CollectionsPage() {
   const byMode = (m: PayMode) => receipts.filter((p) => (p.mode || "cash") === m).reduce((s, p) => s + p.amount, 0);
   const membersPaid = new Set(receipts.map((p) => p.memberId)).size;
 
-  function printDay() {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(`<h1>Day book</h1><p>${receipts.length} receipts · ${collected}</p>`);
-    w.document.close();
-    w.print();
+  function exportDayBook() {
+    const title =
+      range === "today" ? "Today"
+        : range === "week" ? "This week"
+          : range === "month" ? "This month"
+            : "All collections";
+    downloadDayBookPdf(
+      title,
+      receipts,
+      names,
+      {
+        collected,
+        byMode: {
+          cash: byMode("cash"),
+          upi: byMode("upi"),
+          bank: byMode("bank"),
+          cheque: byMode("cheque"),
+          adjusted: byMode("adjusted"),
+        },
+      },
+    );
   }
 
   return (
@@ -50,12 +66,12 @@ export function CollectionsPage() {
             <h1>Collection register</h1>
             <p className="page-sub">Every receipt across your chits</p>
           </div>
-          <button className="btn ghost" onClick={printDay}>Day book PDF</button>
+          <button className="btn" onClick={exportDayBook} disabled={!receipts.length}>Day book PDF</button>
         </div>
         <div className="toolbar">
           {(["today", "week", "month", "all"] as const).map((r) => (
             <button key={r} className={`chip ${range === r ? "on" : ""}`} onClick={() => setRange(r)}>
-              {r === "all" ? "Custom" : r === "today" ? "Today" : r === "week" ? "This week" : "This month"}
+              {r === "all" ? "All" : r === "today" ? "Today" : r === "week" ? "This week" : "This month"}
             </button>
           ))}
           <select className="field" style={{ margin: 0, maxWidth: 200 }} value={chitId} onChange={(e) => setChitId(e.target.value)}>
@@ -79,16 +95,32 @@ export function CollectionsPage() {
         <div className="grid-2">
           <div className="card flush">
             <div className="table-wrap">
-            {receipts.map((p) => (
-              <div key={p.id} className="list-row">
-                <div className="avatar">{initials(names[p.memberId] || "?")}</div>
-                <div className="grow">
-                  <strong>{names[p.memberId]}</strong>
-                  <div className="muted">{p.chitName} · {MODE_LABEL[p.mode || "cash"]}</div>
+            {receipts.map((p) => {
+              const chit = owned.find((c) => c.id === p.chitId);
+              return (
+                <div key={p.id} className="list-row">
+                  <div className="avatar">{initials(names[p.memberId] || "?")}</div>
+                  <div className="grow">
+                    <strong>{names[p.memberId]}</strong>
+                    <div className="muted">
+                      {p.chitName} · month {p.cycle}
+                      {p.slot != null ? ` · slot ${p.slot}` : ""}
+                      {" · "}{MODE_LABEL[p.mode || "cash"]}
+                    </div>
+                  </div>
+                  <strong className="num">{inr(p.amount)}</strong>
+                  {chit && (
+                    <button
+                      className="link"
+                      type="button"
+                      onClick={() => downloadReceiptPdf(chit, p, names)}
+                    >
+                      PDF
+                    </button>
+                  )}
                 </div>
-                <strong className="num">{inr(p.amount)}</strong>
-              </div>
-            ))}
+              );
+            })}
             {!receipts.length && <p className="empty">No receipts in this range.</p>}
             </div>
           </div>

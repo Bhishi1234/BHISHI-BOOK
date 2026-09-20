@@ -48,6 +48,11 @@ import {
   treasuryOf,
 } from "../lib/chitMath";
 import { downloadChitCsv } from "../lib/exportCsv";
+import {
+  downloadChitReportPdf,
+  downloadMonthDuesPdf,
+  downloadReceiptPdf,
+} from "../lib/reportsPdf";
 import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import type { PayMode, PaymentKind } from "../types";
@@ -122,7 +127,9 @@ export function ChitDetailPage() {
   const data = chit;
   const cycle = displayCycle(data);
   const isRunning = data.status === "running";
-  const pending = data.members.filter((m) => paymentStatus(data, m.customerId, cycle, m.slot) === "due").length;
+  const pending = isRunning
+    ? data.members.filter((m) => paymentStatus(data, m.customerId, cycle, m.slot) === "due").length
+    : 0;
   const lastMonthGate = canCloseLastMonth(data);
   const loanAllowed = canGiveLoan(data);
   const lastWin = data.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
@@ -177,7 +184,9 @@ export function ChitDetailPage() {
             </p>
           </div>
           <div className="toolbar" style={{ margin: 0 }}>
-            <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>Export</button>
+            <button className="btn ghost" onClick={() => downloadChitReportPdf(data, names)}>Export PDF</button>
+            <button className="btn ghost" onClick={() => downloadMonthDuesPdf(data, names)}>Month sheet</button>
+            <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>CSV</button>
             <button className="btn ghost" onClick={() => { setEditName(data.name); setEditTitle(data.title || ""); setEditOpen(true); }}>Edit chit</button>
             <button className="btn" disabled={!isRunning} onClick={() => setPayPick(true)}>+ Record collection</button>
           </div>
@@ -447,17 +456,34 @@ export function ChitDetailPage() {
                   {busyAll ? "Recording…" : "Record all payments"}
                 </button>
               </div>
-              {receipts.map((p) => (
-                <div key={p.id} className="list-row">
-                  <div className="avatar">{initials(names[p.memberId] || "?")}</div>
-                  <div className="grow">
-                    <strong>{names[p.memberId]}</strong>
-                    <div className="muted">{MODE_LABEL[p.mode || "cash"]} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+              {receipts.map((p) => {
+                const hands = data.members.filter((m) => m.customerId === p.memberId).length;
+                const label = p.slot != null
+                  ? handLabel(names[p.memberId] || "Member", p.slot, hands)
+                  : names[p.memberId];
+                return (
+                  <div key={p.id} className="list-row">
+                    <div className="avatar">{initials(names[p.memberId] || "?")}</div>
+                    <div className="grow">
+                      <strong>{label}</strong>
+                      <div className="muted">
+                        {MODE_LABEL[p.mode || "cash"]} · month {p.cycle} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      </div>
+                    </div>
+                    <strong className="num">{inr(p.amount)}</strong>
+                    <button
+                      className="link"
+                      type="button"
+                      onClick={() => downloadReceiptPdf(data, p, names)}
+                    >
+                      PDF
+                    </button>
+                    {isRunning && (
+                      <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
+                    )}
                   </div>
-                  <strong className="num">{inr(p.amount)}</strong>
-                  <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
-                </div>
-              ))}
+                );
+              })}
               {!receipts.length && <p className="empty">No collections in this range.</p>}
             </div>
           );
@@ -476,7 +502,14 @@ export function ChitDetailPage() {
                 <>
                   <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
                   <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>
-                    2. {data.type === "loan" ? "Give loan" : luckyDrawChit ? "Lucky draw" : fixedLike ? "Award pot" : "Auction"}
+                    2.{" "}
+                    {data.type === "loan"
+                      ? (loanAllowed ? "Give loan" : "No loan (last month)")
+                      : luckyDrawChit
+                        ? "Lucky draw"
+                        : fixedLike
+                          ? "Award pot"
+                          : "Auction"}
                   </span>
                   <span className={`month-step ${lastWin || (data.type === "loan" && canSettleCycle(data)) ? "on" : ""}`}>3. Close month</span>
                 </>
@@ -600,11 +633,19 @@ export function ChitDetailPage() {
               <div className="month-head" style={{ padding: 0 }}>
                 <div>
                   <h2 style={{ margin: 0 }}>
-                    {data.type === "loan" ? "This month’s loan" : fixedLike ? "This month’s payout" : "This month’s auction"}
+                    {data.type === "loan"
+                      ? (!isRunning || !loanAllowed ? "Month close" : "This month’s loan")
+                      : fixedLike
+                        ? "This month’s payout"
+                        : "This month’s auction"}
                   </h2>
                   <p className="muted">
                     {data.type === "loan"
-                      ? "Collect first. Giving a loan this month is optional — close the month when the books look right."
+                      ? !isRunning
+                        ? "This chit is closed. Use Settlement if cash remains to be returned."
+                        : !loanAllowed
+                          ? "Last month — no new loans. Collect every hand’s dues, then close. Open Settlement to return leftover cash and interest dividends."
+                          : "Collect first. Giving a loan this month is optional — close the month when the books look right."
                       : fixedLike
                         ? luckyDrawChit
                           ? unprized.length
@@ -1143,19 +1184,22 @@ export function ChitDetailPage() {
               <div className="card-pad"><h2>Loan positions</h2></div>
               <div className="table-wrap">
                 <table className="table">
-                  <thead><tr><th>Hand</th><th>Loan taken</th><th>Paid in</th><th>This month due</th></tr></thead>
+                  <thead><tr><th>Hand</th><th>Loan taken</th><th>Paid in</th><th>{isRunning ? "This month due" : "Outstanding"}</th></tr></thead>
                   <tbody>
                     {data.members.map((m) => {
                       const hands = data.members.filter((x) => x.customerId === m.customerId).length;
                       const principal = loanPrincipalOf(data, m.customerId, m.slot);
                       let paid = 0;
                       for (let c = 1; c <= cycle; c++) paid += paidInCycle(data, m.customerId, c, m.slot);
+                      const dueCell = isRunning
+                        ? cycleDue(data, m.customerId, cycle, m.slot)
+                        : Math.max(0, memberBalance(data, m.customerId, m.slot).outstanding);
                       return (
                         <tr key={`${m.customerId}-${m.slot}`}>
                           <td>{handLabel(names[m.customerId] || "Member", m.slot, hands)}</td>
                           <td>{principal ? inr(principal) : "—"}</td>
                           <td>{inr(paid)}</td>
-                          <td>{inr(cycleDue(data, m.customerId, cycle, m.slot))}</td>
+                          <td>{inr(dueCell)}</td>
                         </tr>
                       );
                     })}
@@ -1212,8 +1256,14 @@ export function ChitDetailPage() {
             </div>
             <div className="card">
               <h2>Reports</h2>
-              <p className="muted block">This chit’s books as a CSV table you can open in Excel.</p>
-              <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>Export</button>
+              <p className="muted block">
+                Download a full ledger PDF (member ledger, month summary, charts, receipts, payouts), a month dues sheet, or raw CSV for Excel.
+              </p>
+              <div className="toolbar" style={{ margin: 0, flexWrap: "wrap", gap: 8 }}>
+                <button className="btn" onClick={() => downloadChitReportPdf(data, names)}>Full ledger PDF</button>
+                <button className="btn ghost" onClick={() => downloadMonthDuesPdf(data, names)}>Month dues PDF</button>
+                <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>CSV (Excel)</button>
+              </div>
             </div>
             <div className="card">
               <h2>Edit chit</h2>

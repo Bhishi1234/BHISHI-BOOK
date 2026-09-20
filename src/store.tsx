@@ -161,6 +161,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return c as Customer;
       },
       addChit: async (chit) => {
+        if (chit.mode === "organise") {
+          if (!chit.members?.length) {
+            throw new Error("Add members to every slot before creating this chit");
+          }
+          if (chit.members.length !== chit.membersCount) {
+            throw new Error(`Fill all ${chit.membersCount} slots (currently ${chit.members.length})`);
+          }
+        }
         const created = await guarded(() => api.createChit(chit));
         await reload();
         return created.id;
