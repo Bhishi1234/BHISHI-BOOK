@@ -198,7 +198,13 @@ begin
   payout := greatest(0, safe_bid - arrears);
 
   if not auction_first then
-    if payout + commission + case when hand_sacrifice then discount else 0 end > cash_on_hand then
+    -- PL/pgSQL cannot embed a SQL CASE in an IF expression; branch instead.
+    if hand_sacrifice then
+      if payout + commission + discount > cash_on_hand then
+        raise exception 'Amount plus commission is more than cash on hand (%). Collect more or lower the amount.',
+          cash_on_hand;
+      end if;
+    elsif payout + commission > cash_on_hand then
       raise exception 'Amount plus commission is more than cash on hand (%). Collect more or lower the amount.',
         cash_on_hand;
     end if;
