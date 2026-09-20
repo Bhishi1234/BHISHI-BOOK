@@ -11,24 +11,25 @@ import {
   cycleDue,
   cycleLedger,
   displayCycle,
+  dividendsDistributed,
   expectedLifeCollections,
   expectedThisCycle,
   interestCollected,
   isFixedLike,
+  isLastAuctionCycle,
   loanPrincipalOf,
   loansThisCycle,
+  memberDividendTotal,
+  memberLedgerRows,
   moneyIn,
   moneyOut,
   nextBySlot,
   outstandingOf,
   paidInCycle,
   paymentStatus,
-  plannedPerMember,
-  plannedPot,
   memberBalance,
   settlementsOf,
   settleWinner,
-  isLastAuctionCycle,
   treasuryOf,
 } from "../lib/chitMath";
 import { downloadChitCsv } from "../lib/exportCsv";
@@ -169,36 +170,67 @@ export function ChitDetailPage() {
                 <h2>Month {cycle} of {data.duration}</h2>
                 <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round((cycle / data.duration) * 100)}%` }} /></div>
                 <p className="muted block">{inr(moneyIn(data))} collected of {inr(expectedLife)} expected</p>
-                <div className="grid-2">
-                  {data.type === "auction" ? (
-                    <>
-                      <div><div className="muted">Total pot</div><strong className="num">{inr(plannedPot(data))}</strong></div>
-                      <div><div className="muted">Each member gets</div><strong className="num">{inr(plannedPerMember(data))}</strong></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><div className="muted">Total paid out</div><strong className="num">{inr(moneyOut(data) - commissionEarned(data))}</strong></div>
-                      <div><div className="muted">Each member gets</div><strong className="num">{inr(Math.round((moneyOut(data) - commissionEarned(data)) / Math.max(1, data.members.length)))}</strong></div>
-                    </>
-                  )}
-                </div>
-                <p className="muted" style={{ marginTop: 10 }}>
-                  {data.type === "auction"
-                    ? "Planned pot after your commission. Only dividends from auctions already held are deducted, so it drops as the remaining auctions happen."
-                    : "Payouts already recorded. Commission has already left cash on hand."}
-                </p>
+                {data.type !== "auction" && (
+                  <div className="grid-2">
+                    <div><div className="muted">Total paid out</div><strong className="num">{inr(moneyOut(data) - commissionEarned(data))}</strong></div>
+                    <div><div className="muted">Payouts recorded</div><strong className="num">{inr(data.auctions.filter((a) => a.method !== "settlement").length)}</strong></div>
+                  </div>
+                )}
+                {data.type === "auction" && (
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    Member-by-member paid vs received is below — early winners take less; the last member takes the full remaining pot.
+                  </p>
+                )}
               </div>
               <div className="card">
                 <h2>You’ve earned</h2>
                 <div className="kv"><span>Commission</span><strong>{inr(commissionEarned(data))}</strong></div>
                 {data.type === "auction" && (
-                  <div className="kv"><span>Dividend per member</span><strong>{inr(data.auctions.filter((a) => !a.method || a.method === "auction").at(-1)?.dividend || 0)}</strong></div>
+                  <>
+                    <div className="kv"><span>Dividends to members (each)</span><strong>{inr(memberDividendTotal(data))}</strong></div>
+                    <div className="kv"><span>Dividends distributed (all)</span><strong>{inr(dividendsDistributed(data))}</strong></div>
+                  </>
                 )}
                 {data.type === "loan" && (
                   <div className="kv"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
                 )}
               </div>
             </div>
+            {data.type === "auction" && (
+              <div className="card flush block">
+                <div className="card-pad">
+                  <h2>Member ledger</h2>
+                  <p className="muted">What each person paid in, what they took from the pot, and dividends credited to their dues.</p>
+                </div>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Member</th>
+                        <th>Paid in</th>
+                        <th>Got from pot</th>
+                        <th>Dividends</th>
+                        <th>Net</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memberLedgerRows(data).map((row) => (
+                        <tr key={row.customerId}>
+                          <td>
+                            <strong>{names[row.customerId] || "Member"}</strong>
+                            {row.prizedCycle ? <div className="muted">Prized month {row.prizedCycle}</div> : null}
+                          </td>
+                          <td>{inr(row.paid)}</td>
+                          <td>{inr(row.received)}</td>
+                          <td>{inr(row.dividend)}</td>
+                          <td className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <div className="card">
               <h2>Money in / out</h2>
               <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
@@ -636,7 +668,7 @@ export function ChitDetailPage() {
                   <th>Collected</th>
                   <th>{data.type === "loan" ? "Loan given" : "Payout"}</th>
                   <th>Commission</th>
-                  {data.type === "auction" && <th>Dividend / member</th>}
+                  {data.type === "auction" && <th>Dividend generated</th>}
                   <th>Balance</th>
                 </tr>
               </thead>
@@ -677,6 +709,9 @@ export function ChitDetailPage() {
               {data.members.map((m) => {
                 const paid = data.payments.filter((p) => p.memberId === m.customerId).reduce((s, p) => s + p.amount, 0);
                 const principal = loanPrincipalOf(data, m.customerId);
+                const received = data.auctions
+                  .filter((a) => a.winnerId === m.customerId)
+                  .reduce((s, a) => s + a.payout, 0);
                 const left = Math.max(0, memberBalance(data, m.customerId).outstanding);
                 return (
                   <div key={m.customerId} className="list-row">
@@ -686,6 +721,8 @@ export function ChitDetailPage() {
                       <div className="muted">
                         {fixedLike ? `Slot ${m.slot} · ` : ""}
                         Paid {inr(paid)}
+                        {data.type === "auction" ? ` · got ${inr(received)}` : ""}
+                        {data.type === "auction" ? ` · dividends ${inr(memberDividendTotal(data))}` : ""}
                         {principal ? ` · loan ${inr(principal)}` : ""}
                         {m.prizedCycle ? ` · prized month ${m.prizedCycle}` : ""}
                       </div>
