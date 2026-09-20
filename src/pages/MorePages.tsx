@@ -161,7 +161,7 @@ export function SearchPage() {
             ))}
             <p className="muted" style={{ marginTop: 16 }}>Searching members and receipts across chits isn’t available yet — open a chit to search within it.</p>
             {customers.filter((c) => c.name.toLowerCase().includes(query)).slice(0, 6).map((c) => (
-              <div key={c.id} className="muted">{c.name} · {c.phone}</div>
+              <div key={c.id} className="search-hit"><Link to={`/customers/${c.id}`}>{c.name}</Link> <span className="muted">{c.phone}</span></div>
             ))}
           </div>
         </div>

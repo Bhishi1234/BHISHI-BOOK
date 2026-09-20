@@ -7,8 +7,8 @@ import { useStore } from "../store";
 
 const TYPES: { id: ChitType; title: string; body: string }[] = [
   { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot." },
-  { id: "fixed", title: "Fixed", body: "Predetermined payout order with interest." },
-  { id: "loan", title: "Loan", body: "Member loans with amortized repayment." },
+  { id: "fixed", title: "Fixed", body: "Predetermined payout order. Optional premium after prized." },
+  { id: "loan", title: "Loan", body: "Member takes a loan; then pays base + monthly interest." },
 ];
 
 const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
@@ -27,6 +27,8 @@ export function NewChitPage() {
   const [commKind, setCommKind] = useState<"amount" | "percent">("amount");
   const [comm, setComm] = useState("0");
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
+  const [interest, setInterest] = useState("5");
+  const [premium, setPremium] = useState("");
   const [remind, setRemind] = useState(true);
   const [remindDays, setRemindDays] = useState<number[]>([3]);
   const [visible, setVisible] = useState(false);
@@ -43,12 +45,20 @@ export function NewChitPage() {
   const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
 
+  const interestN = Number(interest) || 0;
+  const premiumN = Number(premium) || 0;
+
   const preview = useMemo(() => ({
     members: n || "—",
     duration: months ? `${months} months` : "0 months",
     per: instalment ? inr(instalment) : "—",
     commission: commMonth ? inr(commMonth) : "—",
-  }), [n, months, instalment, commMonth]);
+    interest: type === "loan" && interestN ? `${interestN}%` : "—",
+    premium: type === "fixed" && premiumN ? inr(premiumN) : "—",
+    afterLoan: type === "loan" && instalment
+      ? inr(Math.round(instalment + (instalment * interestN) / 100))
+      : "—",
+  }), [n, months, instalment, commMonth, type, interestN, premiumN]);
 
   async function create() {
     setSaving(true);
@@ -71,7 +81,9 @@ export function NewChitPage() {
         currentCycle: 1,
         commissionKind: commKind,
         commissionValue: Number(comm) || 0,
-        adjustmentStyle: adjust,
+        adjustmentStyle: type === "auction" ? adjust : "every_month",
+        interestRate: type === "loan" ? interestN : undefined,
+        premiumAmount: type === "fixed" && premiumN > 0 ? premiumN : undefined,
         remindDays: remind ? remindDays : [],
         memberVisible: visible,
       });
@@ -176,13 +188,47 @@ export function NewChitPage() {
                   <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>% Percentage</button>
                 </div>
                 <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
-                <p className="hint">Taken from the pot each month when you settle that month’s auction. 5% of ₹1,00,000 is ₹5,000 every month — it leaves cash on hand.</p>
-                <label className="label">Adjustment style</label>
-                <div className="seg">
-                  <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>Every month</button>
-                  <button className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>At the end</button>
-                </div>
-                <p className="hint">Per-cycle adjusts each member’s amount as dividends accrue; at-end settles once at completion.</p>
+                <p className="hint">
+                  {type === "loan"
+                    ? "Taken from cash on hand each time you give a loan this month."
+                    : type === "auction"
+                      ? "Taken from the pot each month when you settle that month’s auction. 5% of ₹1,00,000 is ₹5,000 every month — it leaves cash on hand."
+                      : "Taken from cash on hand when you award the pot for the month."}
+                </p>
+                {type === "loan" && (
+                  <>
+                    <label className="label">Interest rate (% per month)</label>
+                    <input className="field" placeholder="e.g. 5" value={interest} onChange={(e) => setInterest(e.target.value)} />
+                    <div className="quick">
+                      {[1, 2, 3, 5, 10].map((v) => (
+                        <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
+                      ))}
+                    </div>
+                    <p className="hint">After a member takes the loan, their monthly due becomes base + this interest. Unprized members keep paying the base.</p>
+                  </>
+                )}
+                {type === "fixed" && (
+                  <>
+                    <label className="label">Premium after prized (optional)</label>
+                    <input
+                      className="field"
+                      placeholder={instalment ? `e.g. ${Math.round(instalment * 1.2)}` : "e.g. 12000"}
+                      value={premium}
+                      onChange={(e) => setPremium(e.target.value)}
+                    />
+                    <p className="hint">Leave blank for a flat committee (same due every month). Set a premium if prized members pay more from the month they win.</p>
+                  </>
+                )}
+                {type === "auction" && (
+                  <>
+                    <label className="label">Adjustment style</label>
+                    <div className="seg">
+                      <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>Every month</button>
+                      <button className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>At the end</button>
+                    </div>
+                    <p className="hint">Per-cycle adjusts each member’s amount as dividends accrue; at-end settles once at completion.</p>
+                  </>
+                )}
               </div>
               <div className="card" style={{ marginTop: 16 }}>
                 <h2>Settings</h2>
@@ -218,7 +264,7 @@ export function NewChitPage() {
                 <p className="hint">Every term can still be edited before the first payout.</p>
                 <div className="toolbar">
                   <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
-                  <button className="btn" disabled={!potN || !n || !confirm} onClick={() => setStep(2)}>Continue to members</button>
+                  <button className="btn" disabled={!potN || !n || !confirm || (type === "loan" && !interestN)} onClick={() => setStep(2)}>Continue to members</button>
                 </div>
               </div>
             </div>
@@ -228,6 +274,15 @@ export function NewChitPage() {
               <div className="kv"><span>Duration</span><strong>{preview.duration}</strong></div>
               <div className="kv"><span>Per month / member</span><strong>{preview.per}</strong></div>
               <div className="kv"><span>Commission / month</span><strong>{preview.commission}</strong></div>
+              {type === "loan" && (
+                <>
+                  <div className="kv"><span>Interest</span><strong>{preview.interest}</strong></div>
+                  <div className="kv"><span>Due after loan</span><strong>{preview.afterLoan}</strong></div>
+                </>
+              )}
+              {type === "fixed" && Number(premium) > 0 && (
+                <div className="kv"><span>Premium after prized</span><strong>{preview.premium}</strong></div>
+              )}
             </div>
           </div>
         )}

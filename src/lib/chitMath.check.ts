@@ -2,6 +2,7 @@ import type { Chit, ChitMember } from "../types";
 import {
   appliedDividend,
   balanceAfterCycle,
+  rawCycleDue,
   settleWinner,
   treasuryOf,
 } from "./chitMath";
@@ -98,5 +99,27 @@ lucky.auctions.push(ld);
 assert(ld.commission === 5000, `lucky commission ${ld.commission}`);
 assert(ld.payout === 95000, `lucky payout ${ld.payout}`);
 assert(treasuryOf(lucky) === 0, `lucky cash ${treasuryOf(lucky)}`);
+
+const loan = chit({
+  members: members(5),
+  type: "loan",
+  commissionPct: 0,
+  commissionKind: "amount",
+  commissionValue: 100,
+  interestRate: 5,
+});
+collectAll(loan, 20000);
+const lg = settleWinner(loan, "m1", 100000, "fixed");
+loan.auctions.push(lg);
+loan.members = loan.members.map((m) =>
+  m.customerId === "m1" ? { ...m, prizedCycle: 1 } : m,
+);
+assert(lg.payout === 100000, `loan payout ${lg.payout}`);
+assert(lg.commission === 100, `loan commission ${lg.commission}`);
+assert(treasuryOf(loan) === 100000 - 100000 - 100, `loan cash ${treasuryOf(loan)}`);
+loan.currentCycle = 2;
+assert(appliedDividend(loan, 2) === 0, "loan has no dividend");
+assert(rawCycleDue(loan, "m1", 2) === 21000, `loan due after ${rawCycleDue(loan, "m1", 2)}`);
+assert(rawCycleDue(loan, "m2", 2) === 20000, `unprized due ${rawCycleDue(loan, "m2", 2)}`);
 
 console.log("chit math ok");

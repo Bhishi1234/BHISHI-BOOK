@@ -345,7 +345,7 @@ export const mockServer = {
       if (!chit) throw new Error("Not found");
       if (chit.status !== "running") throw new Error("Chit is not running");
       if (!chit.members.length) throw new Error("Add members before closing a cycle");
-      if (chit.mode === "organise" && !chit.auctions.some((a) => a.cycle === chit.currentCycle)) {
+      if (chit.mode === "organise" && chit.type !== "loan" && !chit.auctions.some((a) => a.cycle === chit.currentCycle)) {
         throw new Error("Settle this cycle's winner before closing");
       }
       db.chits = db.chits.map((c) => {

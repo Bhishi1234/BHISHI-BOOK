@@ -4,6 +4,7 @@ import { useStore } from "./store";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ChitsPage, CustomersPage } from "./pages/ChitsCustomers";
+import { CustomerDetailPage } from "./pages/CustomerDetailPage";
 import { NewChitPage } from "./pages/NewChitPage";
 import { ChitDetailPage } from "./pages/ChitDetailPage";
 import { CollectionsPage } from "./pages/CollectionsPage";
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/tracked/:id" element={<Guard><ChitDetailPage /></Guard>} />
       <Route path="/collections" element={<Guard><CollectionsPage /></Guard>} />
       <Route path="/customers" element={<Guard><CustomersPage /></Guard>} />
+      <Route path="/customers/:id" element={<Guard><CustomerDetailPage /></Guard>} />
       <Route path="/support" element={<Guard><SupportPage /></Guard>} />
       <Route path="/upgrade" element={<Guard><UpgradePage /></Guard>} />
       <Route path="/profile" element={<Guard><ProfilePage /></Guard>} />

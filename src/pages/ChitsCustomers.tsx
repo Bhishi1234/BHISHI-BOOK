@@ -86,6 +86,7 @@ export function ChitsPage() {
 
 export function CustomersPage() {
   const { customers, chits, addCustomer } = useStore();
+  const nav = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "out" | "dues">("all");
 
@@ -154,8 +155,8 @@ export function CustomersPage() {
             <thead><tr><th>Person</th><th>Chits</th><th>Contributed</th><th>Outstanding</th></tr></thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id}>
-                  <td><div className="person"><div className="avatar">{initials(r.name)}</div>{r.name}</div></td>
+                <tr key={r.id} className="clickable" onClick={() => nav(`/customers/${r.id}`)}>
+                  <td><div className="person"><div className="avatar">{initials(r.name)}</div><div><strong>{r.name}</strong><div className="muted">{r.phone || "No phone"}</div></div></div></td>
                   <td>{r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : "Not in any chit"}</td>
                   <td>{r.contributed ? inr(r.contributed) : "—"}</td>
                   <td>{r.outstanding ? inr(r.outstanding) : "—"}</td>

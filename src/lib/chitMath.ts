@@ -160,13 +160,19 @@ export function settleWinner(
   method: AuctionRecord["method"],
 ): AuctionRecord {
   const commission = commissionAmount(chit);
-  const safeBid = method === "auction"
-    ? Math.min(chit.pot, Math.max(0, bid))
-    : Math.max(0, chit.pot - commission);
-  const discount = Math.max(0, chit.pot - safeBid);
-  const dividend = method === "auction"
-    ? Math.floor(Math.max(0, discount - commission) / memberCount(chit))
-    : 0;
+  let safeBid: number;
+  let dividend = 0;
+  if (method === "auction") {
+    safeBid = Math.min(chit.pot, Math.max(0, bid));
+    const discount = Math.max(0, chit.pot - safeBid);
+    dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
+  } else if (method === "lucky_draw") {
+    safeBid = Math.max(0, chit.pot - commission);
+  } else {
+    // fixed / loan: principal paid out; commission leaves the till separately
+    safeBid = Math.max(0, bid || chit.pot);
+  }
+  const discount = Math.max(0, chit.pot - Math.min(safeBid, chit.pot));
   const arrearsWithheld = memberBalance(chit, winnerId).outstanding;
   const payout = Math.max(0, safeBid - arrearsWithheld);
   return {
