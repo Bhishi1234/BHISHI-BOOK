@@ -227,18 +227,10 @@ export function chitProgress(chit: Chit) {
 
 export function collectedThisCycle(chit: Chit) {
   const cyc = displayCycle(chit);
-  let total = chit.payments
+  if (isAuctionFirst(chit)) return auctionFirstCollectedInCycle(chit, cyc);
+  return chit.payments
     .filter((p) => p.cycle === cyc)
     .reduce((s, p) => s + p.amount, 0);
-  if (isAuctionFirst(chit)) {
-    for (const m of chit.members) {
-      const cash = chit.payments
-        .filter((p) => p.memberId === m.customerId && p.cycle === cyc)
-        .reduce((s, p) => s + p.amount, 0);
-      total += auctionFirstSelfCredit(chit, m.customerId, cyc, cash);
-    }
-  }
-  return total;
 }
 
 export function moneyIn(chit: Chit) {
@@ -264,39 +256,48 @@ export function moneyOut(chit: Chit) {
 
 /**
  * Cash on hand.
- * Auction-first is peer settlement: members pay the winning bid split, which funds
- * the winner. Outflow only counts up to what was collected that cycle — so the till
- * stays ₹0 once the bid is fully settled (never goes negative right after auction).
+ * Auction-first is peer settlement of each cycle’s winning bid: collections fund the
+ * winner and never create a negative till. Unpaid shares show under Outstanding.
+ * Only surplus above the bid (if any) remains as till.
  */
 export function treasuryOf(chit: Chit) {
   if (!isAuctionFirst(chit)) {
     return moneyIn(chit) - moneyOut(chit);
   }
   let bal = 0;
-  const through = Math.max(displayCycle(chit), ...chit.payments.map((p) => p.cycle), 0);
+  const through = Math.max(
+    displayCycle(chit),
+    ...chit.payments.map((p) => p.cycle),
+    ...chit.auctions.map((a) => a.cycle),
+    0,
+  );
   for (let c = 1; c <= through; c++) {
-    const cash = chit.payments
-      .filter((p) => p.cycle === c)
-      .reduce((s, p) => s + p.amount, 0);
-    let collected = cash;
-    if (isAuctionFirst(chit)) {
-      for (const m of chit.members) {
-        const memberCash = chit.payments
-          .filter((p) => p.memberId === m.customerId && p.cycle === c)
-          .reduce((s, p) => s + p.amount, 0);
-        collected += auctionFirstSelfCredit(chit, m.customerId, c, memberCash);
-      }
-    }
+    const collected = auctionFirstCollectedInCycle(chit, c);
     const a = auctionOfCycle(chit, c);
-    if (a) {
-      // Pass-through of the winning amount (+ any commission) as collections arrive.
-      const settle = a.payout + (a.commission || 0);
-      bal += collected - Math.min(settle, collected);
-    } else {
-      bal += collected;
+    if (!a) {
+      // Auction-first: money taken before the bid is working capital for that month’s
+      // settlement — not a standing till balance.
+      continue;
     }
+    // Settle against the winning bid (peer pays bid÷N). Payout may match bid.
+    const target = Math.max(Number(a.bid) || 0, Number(a.payout) || 0) + Math.max(0, Number(a.commission) || 0);
+    bal += Math.max(0, collected - target);
   }
   return bal;
+}
+
+/** Receipts + winner self-contribution for one auction-first cycle. */
+export function auctionFirstCollectedInCycle(chit: Chit, cycle: number) {
+  let collected = chit.payments
+    .filter((p) => p.cycle === cycle)
+    .reduce((s, p) => s + p.amount, 0);
+  for (const m of chit.members) {
+    const memberCash = chit.payments
+      .filter((p) => p.memberId === m.customerId && p.cycle === cycle)
+      .reduce((s, p) => s + p.amount, 0);
+    collected += auctionFirstSelfCredit(chit, m.customerId, cycle, memberCash);
+  }
+  return collected;
 }
 
 /** Dividend pools already realised from auctions held (discount − commission). */
@@ -564,9 +565,11 @@ export function assertCanSettlePayout(
 }
 
 export function cycleLedger(chit: Chit, cycle: number) {
-  const collected = chit.payments.filter((p) => p.cycle === cycle).reduce((s, p) => s + p.amount, 0);
+  const collected = isAuctionFirst(chit)
+    ? auctionFirstCollectedInCycle(chit, cycle)
+    : chit.payments.filter((p) => p.cycle === cycle).reduce((s, p) => s + p.amount, 0);
   const rows = chit.auctions.filter((x) => x.cycle === cycle);
-  const auctionRow = rows.find((x) => !x.method || x.method === "auction");
+  const auctionRow = rows.find((x) => !x.method || x.method === "auction" || x.method === "lucky_draw");
   return {
     collected,
     payout: rows.reduce((s, a) => s + a.payout, 0),
@@ -579,6 +582,18 @@ export function cycleLedger(chit: Chit, cycle: number) {
 }
 
 export function balanceAfterCycle(chit: Chit, cycle: number) {
+  if (isAuctionFirst(chit)) {
+    // Match till: never go negative; only surplus above each cycle’s bid remains.
+    let bal = 0;
+    for (let c = 1; c <= cycle; c++) {
+      const a = auctionOfCycle(chit, c);
+      if (!a) continue;
+      const collected = auctionFirstCollectedInCycle(chit, c);
+      const target = Math.max(Number(a.bid) || 0, Number(a.payout) || 0) + Math.max(0, Number(a.commission) || 0);
+      bal += Math.max(0, collected - target);
+    }
+    return bal;
+  }
   let bal = 0;
   for (let c = 1; c <= cycle; c++) {
     const row = cycleLedger(chit, c);

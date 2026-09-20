@@ -246,17 +246,28 @@ export function ChitDetailPage() {
             )}
             <div className="card">
               <h2>Money in / out</h2>
-              <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
-              <div className="kv"><span>Money out</span><strong>{inr(moneyOut(data))}</strong></div>
-              <div className="kv">
-                <span>{auctionFirst ? "Till (peer settlement)" : "On hand"}</span>
-                <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
-              </div>
-              <p className="muted" style={{ marginTop: 12 }}>
-                {auctionFirst
-                  ? "Auction-first settles the winning bid peer-to-peer, so the till stays ₹0."
-                  : `Of which ${inr(commissionEarned(data))} is your commission.`}
-              </p>
+              {auctionFirst ? (
+                <>
+                  <div className="kv"><span>Paid in (incl. winner share)</span><strong>{inr(moneyIn(data))}</strong></div>
+                  <div className="kv"><span>Winning bids settled</span><strong>{inr(moneyOut(data))}</strong></div>
+                  <div className="kv"><span>Till (peer settlement)</span><strong>{inr(treasuryOf(data))}</strong></div>
+                  <p className="muted" style={{ marginTop: 12 }}>
+                    Each month’s bid is settled peer-to-peer. The till stays ₹0 — unpaid shares show as Outstanding, not a negative till.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
+                  <div className="kv"><span>Money out</span><strong>{inr(moneyOut(data))}</strong></div>
+                  <div className="kv">
+                    <span>On hand</span>
+                    <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
+                  </div>
+                  <p className="muted" style={{ marginTop: 12 }}>
+                    Of which {inr(commissionEarned(data))} is your commission.
+                  </p>
+                </>
+              )}
               <div className="grid-2" style={{ marginTop: 8 }}>
                 <div className="kv"><span>Type</span><strong>{TYPE_LABEL[data.type].toUpperCase()}</strong></div>
                 <div className="kv"><span>Frequency</span><strong>{FREQ_LABEL[data.frequency]}</strong></div>

@@ -162,6 +162,7 @@ for (const m of af.members) {
   });
 }
 assert(treasuryOf(af) === 0, `af cash after collect ${treasuryOf(af)}`);
+assert(balanceAfterCycle(af, 1) === 0, `af cycle bal after collect ${balanceAfterCycle(af, 1)}`);
 assert(memberPaidTotal(af, "m1") === 19000, `af winner ledger paid ${memberPaidTotal(af, "m1")}`);
 // Full pot taken next cycle → each member pays base instalment; till still ₹0
 af.currentCycle = 2;
@@ -174,6 +175,21 @@ assert(rawCycleDue(af, "m2", 2) === 20000, "af full-pot winner due");
 assert(paidInCycle(af, "m2", 2) === 20000, "af full-pot winner paid-in");
 assert(rawCycleDue(af, "m3", 2) === 20000, `af full-pot share ${rawCycleDue(af, "m3", 2)}`);
 assert(treasuryOf(af) === 0, `af cash after full pot ${treasuryOf(af)}`);
+assert(balanceAfterCycle(af, 2) === 0, `af cycle2 bal ${balanceAfterCycle(af, 2)}`);
+for (const m of af.members) {
+  if (m.customerId === "m2") continue;
+  af.payments.push({
+    id: `p-${m.customerId}-2`,
+    memberId: m.customerId,
+    cycle: 2,
+    amount: 20000,
+    kind: "full",
+    date: "2026-02-01",
+    mode: "cash",
+  });
+}
+assert(treasuryOf(af) === 0, `af cash after month2 collect ${treasuryOf(af)}`);
+assert(balanceAfterCycle(af, 2) === 0, `af bal after month2 collect ${balanceAfterCycle(af, 2)}`);
 
 const lucky = chit({ members: members(5) });
 collectAll(lucky, 20000);
