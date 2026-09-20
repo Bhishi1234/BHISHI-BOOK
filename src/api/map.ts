@@ -62,12 +62,13 @@ export function mapTicket(row: Record<string, unknown>): Ticket {
   };
 }
 
-export function mapChit(row: Record<string, unknown>): Chit {
+export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerRole"]): Chit {
   const members = (row.members ?? row.chit_members ?? []) as Record<string, unknown>[];
   const payments = (row.payments ?? []) as Record<string, unknown>[];
   const auctions = (row.auctions ?? []) as Record<string, unknown>[];
   return {
     id: String(row.id),
+    viewerRole,
     name: String(row.name || ""),
     title: row.title ? String(row.title) : undefined,
     type: row.type as Chit["type"],

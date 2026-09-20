@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
-import { TYPE_LABEL, inr } from "../lib/format";
+import { TYPE_LABEL, chitPath, inr } from "../lib/format";
 import { useStore } from "../store";
 
 export function SupportPage() {
@@ -90,10 +90,31 @@ export function UpgradePage() {
 }
 
 export function ProfilePage() {
-  const { user, updateProfile, logout, deactivateAccount } = useStore();
+  const { user, updateProfile, logout, deactivateAccount, error } = useStore();
   const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [lang, setLang] = useState(user?.language || "en");
   const [edit, setEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setName(user?.name || "");
+    setPhone(user?.phone || "");
+    setLang(user?.language || "en");
+  }, [user?.name, user?.phone, user?.language]);
+
+  async function saveProfile() {
+    setSaving(true);
+    try {
+      await updateProfile({ name: name.trim() || user?.name, phone: phone.trim(), language: lang });
+      setEdit(false);
+    } catch {
+      /* store sets error */
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AppShell crumb="Profile">
       <div className="page">
@@ -104,10 +125,38 @@ export function ProfilePage() {
           {edit ? <input className="field" value={name} onChange={(e) => setName(e.target.value)} /> : <p><strong>{user?.name}</strong></p>}
           <label className="label">Email</label>
           <p>{user?.email || "—"}</p>
+          <label className="label">Phone</label>
+          {edit ? (
+            <input
+              className="field"
+              inputMode="numeric"
+              placeholder="10-digit mobile"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+            />
+          ) : (
+            <p><strong>{user?.phone || "Not set"}</strong></p>
+          )}
           {edit
-            ? <button className="btn" onClick={() => { void updateProfile({ name, language: lang }); setEdit(false); }}>Save</button>
+            ? (
+              <div className="seg" style={{ marginTop: 12 }}>
+                <button className="btn" disabled={saving} onClick={() => void saveProfile()}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                <button className="btn ghost" type="button" disabled={saving} onClick={() => {
+                  setName(user?.name || "");
+                  setPhone(user?.phone || "");
+                  setEdit(false);
+                }}>
+                  Cancel
+                </button>
+              </div>
+            )
             : <button className="btn ghost" onClick={() => setEdit(true)}>Edit profile</button>}
-          <p className="muted">Your email is used to sign in and can’t be changed here. Phone login will come later.</p>
+          {error && edit && <p className="due" style={{ marginTop: 8 }}>{error}</p>}
+          <p className="muted">
+            Your email is used to sign in and can’t be changed here. Add the same phone number your organiser used when adding you to a chit — then shared groups appear under Chits.
+          </p>
         </div>
         <div className="card">
           <h2>Language</h2>
@@ -170,7 +219,7 @@ export function SearchPage() {
           || String(p.amount).includes(query)
           || (p.mode || "").toLowerCase().includes(query);
       })
-      .map((p) => ({ ...p, chitId: c.id, chitName: c.name, mode: c.mode })),
+      .map((p) => ({ ...p, chitId: c.id, chitName: c.name, path: chitPath(c) })),
   ).slice(0, 20);
 
   return (
@@ -185,8 +234,8 @@ export function SearchPage() {
             <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Chits</p>
             {chitHits.length ? chitHits.map((c) => (
               <div key={c.id} className="search-hit">
-                <Link to={c.mode === "tracking" ? `/tracked/${c.id}` : `/chits/${c.id}`}>{c.name}</Link>
-                <span className="muted">{TYPE_LABEL[c.type] || c.type} · {c.mode}</span>
+                <Link to={chitPath(c)}>{c.name}</Link>
+                <span className="muted">{TYPE_LABEL[c.type] || c.type} · {c.viewerRole === "member" ? "shared" : c.mode}</span>
               </div>
             )) : <p className="muted">No chits match.</p>}
 
@@ -203,7 +252,7 @@ export function SearchPage() {
                 <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Receipts</p>
                 {receiptHits.length ? receiptHits.map((p) => (
                   <div key={p.id} className="search-hit">
-                    <Link to={p.mode === "tracking" ? `/tracked/${p.chitId}` : `/chits/${p.chitId}`}>
+                    <Link to={p.path}>
                       {names[p.memberId] || "Member"} · {inr(p.amount)}
                     </Link>
                     <span className="muted">{p.chitName} · cycle {p.cycle}</span>

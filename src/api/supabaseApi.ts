@@ -17,11 +17,16 @@ async function requireUser() {
   return { sb, user: data.user };
 }
 
+function roleFor(row: Record<string, unknown>, userId: string): Chit["viewerRole"] {
+  return String(row.owner_id ?? "") === userId ? "owner" : "member";
+}
+
 async function loadChit(id: string) {
-  const { sb } = await requireUser();
+  const { sb, user } = await requireUser();
   const { data, error } = await sb.from("chits").select(CHIT_SELECT).eq("id", id).single();
   throwIf(error);
-  return mapChit(data as Record<string, unknown>);
+  const row = data as Record<string, unknown>;
+  return mapChit(row, roleFor(row, user.id));
 }
 
 async function loadPayments(chitId: string) {
@@ -81,17 +86,40 @@ export const supabaseApi = {
 
   async updateProfile(patch: Partial<User>) {
     const { sb, user } = await requireUser();
-    const { data, error } = await sb
-      .from("profiles")
-      .update({
-        ...(patch.name != null ? { name: patch.name } : {}),
-        ...(patch.language != null ? { language: patch.language } : {}),
-      })
-      .eq("id", user.id)
-      .select("*")
-      .single();
-    throwIf(error);
-    return mapUser(data as Record<string, unknown>);
+    let row: Record<string, unknown> | null = null;
+
+    if (patch.phone !== undefined) {
+      const { data, error } = await sb.rpc("set_profile_phone", {
+        p_phone: patch.phone === "" || patch.phone == null ? null : String(patch.phone),
+      });
+      throwIf(error);
+      row = data as Record<string, unknown>;
+    }
+
+    if (patch.name != null || patch.language != null) {
+      const { data, error } = await sb
+        .from("profiles")
+        .update({
+          ...(patch.name != null ? { name: patch.name } : {}),
+          ...(patch.language != null ? { language: patch.language } : {}),
+        })
+        .eq("id", user.id)
+        .select("*")
+        .single();
+      throwIf(error);
+      row = data as Record<string, unknown>;
+    }
+
+    if (!row) {
+      const { data, error } = await sb.from("profiles").select("*").eq("id", user.id).single();
+      throwIf(error);
+      row = data as Record<string, unknown>;
+    }
+
+    return mapUser({
+      ...row,
+      email: (row.email as string) || user.email || "",
+    });
   },
 
   async setPlan(plan: PlanId) {
@@ -136,10 +164,13 @@ export const supabaseApi = {
   },
 
   async chits() {
-    const { sb } = await requireUser();
+    const { sb, user } = await requireUser();
     const { data, error } = await sb.from("chits").select(CHIT_SELECT).order("created_at", { ascending: false });
     throwIf(error);
-    return (data ?? []).map((row) => mapChit(row as Record<string, unknown>));
+    return (data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return mapChit(r, roleFor(r, user.id));
+    });
   },
 
   async chit(id: string) {

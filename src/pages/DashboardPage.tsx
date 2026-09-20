@@ -9,11 +9,12 @@ export function DashboardPage() {
   const { user, chits, cancelChit } = useStore();
   const nav = useNavigate();
   const live = chits.filter((c) => c.status !== "cancelled");
-  const managed = live.filter((c) => c.mode === "organise" && c.members.length > 0);
-  const tracking = live.filter((c) => c.mode === "tracking");
+  const managed = live.filter((c) => c.mode === "organise" && c.members.length > 0 && c.viewerRole !== "member");
+  const tracking = live.filter((c) => c.mode === "tracking" && c.viewerRole !== "member");
+  const shared = live.filter((c) => c.viewerRole === "member");
   const members = new Set(managed.flatMap((c) => c.members.map((m) => m.customerId))).size;
-  const collected = live.reduce((s, c) => s + collectedThisCycle(c), 0);
-  const outstanding = live.reduce((s, c) => s + outstandingOf(c), 0);
+  const collected = managed.reduce((s, c) => s + collectedThisCycle(c), 0);
+  const outstanding = managed.reduce((s, c) => s + outstandingOf(c), 0);
 
   return (
     <AppShell crumb="Dashboard">
@@ -66,6 +67,32 @@ export function DashboardPage() {
             </table>
             </div>
           </div>
+        )}
+        {!!shared.length && (
+          <>
+            <div className="row-head">
+              <h2>Shared with me</h2>
+              <Link className="link" to="/chits">View all</Link>
+            </div>
+            <div className="cards">
+              {shared.map((c) => {
+                const pct = chitProgress(c);
+                return (
+                  <article className="card clickable" key={c.id} onClick={() => nav(chitPath(c))}>
+                    <div className="card-top">
+                      <div className="avatar"><User size={16} /></div>
+                      <div className="grow">
+                        <div><strong>{c.name}</strong><span className="badge">Shared</span></div>
+                        <div className="muted">{TYPE_LABEL[c.type]} · {displayCycle(c)} / {c.duration}</div>
+                      </div>
+                    </div>
+                    <div className="progress blue"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="progress-row"><span /><span>{pct}%</span></div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
         )}
         <div className="cards">
           {tracking.map((c) => {

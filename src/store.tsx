@@ -145,6 +145,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateProfile: async (patch) => {
         const next = await guarded(() => api.updateProfile(patch));
         setUser(next);
+        if (patch.phone !== undefined) {
+          await reload();
+        }
       },
       setPlan: async (plan) => {
         const next = await guarded(() => api.setPlan(plan));

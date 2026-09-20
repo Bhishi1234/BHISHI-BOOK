@@ -8,12 +8,13 @@ import { TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 
 export function ChitsPage() {
-  const { chits, cancelChit } = useStore();
+  const { chits, cancelChit, user } = useStore();
   const nav = useNavigate();
   const [tab, setTab] = useState<"active" | "completed">("active");
   const pool = chits.filter((c) => (tab === "active" ? c.status === "running" : c.status !== "running"));
-  const managed = pool.filter((c) => c.mode === "organise");
-  const tracking = pool.filter((c) => c.mode === "tracking");
+  const managed = pool.filter((c) => c.mode === "organise" && c.viewerRole !== "member");
+  const tracking = pool.filter((c) => c.mode === "tracking" && c.viewerRole !== "member");
+  const shared = pool.filter((c) => c.viewerRole === "member");
 
   return (
     <AppShell crumb="Chits">
@@ -55,6 +56,44 @@ export function ChitsPage() {
               </tbody>
             </table>
             </div>
+          </div>
+        )}
+
+        <div className="row-head" style={{ marginTop: managed.length ? 24 : 0 }}>
+          <h2>Shared with me</h2>
+        </div>
+        {!user?.phone && (
+          <p className="muted block">
+            Set your phone on <Link to="/profile">Profile</Link> to see chits where an organiser added you.
+          </p>
+        )}
+        {user?.phone && !shared.length && (
+          <p className="muted block">
+            No shared chits yet. Ask your organiser to turn on Member visibility for the group.
+          </p>
+        )}
+        <div className="cards">
+          {shared.map((c) => {
+            const pct = chitProgress(c);
+            return (
+              <article className="card clickable" key={c.id} onClick={() => nav(chitPath(c))}>
+                <div className="card-top">
+                  <div className="avatar">{initials(c.name)}</div>
+                  <div className="grow">
+                    <div><strong>{c.name}</strong><span className="badge">Shared</span></div>
+                    <div className="muted">{TYPE_LABEL[c.type]} · {displayCycle(c)} / {c.duration} · {inr(c.instalment)}/M</div>
+                  </div>
+                </div>
+                <div className="progress blue"><i style={{ width: `${pct}%` }} /></div>
+                <div className="progress-row"><span /><span>{pct}%</span></div>
+              </article>
+            );
+          })}
+        </div>
+
+        {!!tracking.length && (
+          <div className="row-head" style={{ marginTop: 24 }}>
+            <h2>Tracking</h2>
           </div>
         )}
         <div className="cards">

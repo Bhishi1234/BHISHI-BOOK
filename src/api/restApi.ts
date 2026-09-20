@@ -120,12 +120,17 @@ export const restApi = {
   },
 
   async chits() {
-    const rows = await request("/api/v1/chits");
-    return (rows as Record<string, unknown>[]).map(mapChit);
+    const me = await this.profile();
+    const rows = await request("/api/v1/chits") as Record<string, unknown>[];
+    return rows.map((row) =>
+      mapChit(row, String(row.owner_id ?? "") === me.id ? "owner" : "member"),
+    );
   },
 
   async chit(id: string) {
-    return mapChit(await request(`/api/v1/chits/${id}`));
+    const me = await this.profile();
+    const row = await request(`/api/v1/chits/${id}`) as Record<string, unknown>;
+    return mapChit(row, String(row.owner_id ?? "") === me.id ? "owner" : "member");
   },
 
   async createChit(input: Omit<Chit, "id" | "payments" | "status">) {

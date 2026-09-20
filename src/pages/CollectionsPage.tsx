@@ -6,6 +6,7 @@ import type { PayMode } from "../types";
 
 export function CollectionsPage() {
   const { chits, customers } = useStore();
+  const owned = useMemo(() => chits.filter((c) => c.viewerRole !== "member"), [chits]);
   const [range, setRange] = useState<"today" | "week" | "month" | "all">("all");
   const [chitId, setChitId] = useState("all");
   const [mode, setMode] = useState<"all" | PayMode>("all");
@@ -14,7 +15,7 @@ export function CollectionsPage() {
 
   const receipts = useMemo(() => {
     const now = new Date();
-    return chits.flatMap((c) =>
+    return owned.flatMap((c) =>
       c.payments.map((p) => ({ ...p, chitId: c.id, chitName: c.name })),
     ).filter((p) => {
       if (chitId !== "all" && p.chitId !== chitId) return false;
@@ -27,7 +28,7 @@ export function CollectionsPage() {
       if (q && !name.toLowerCase().includes(q.toLowerCase()) && !p.chitName.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
-  }, [chits, chitId, mode, range, q, names]);
+  }, [owned, chitId, mode, range, q, names]);
 
   const collected = receipts.reduce((s, p) => s + p.amount, 0);
   const byMode = (m: PayMode) => receipts.filter((p) => (p.mode || "cash") === m).reduce((s, p) => s + p.amount, 0);
@@ -59,7 +60,7 @@ export function CollectionsPage() {
           ))}
           <select className="field" style={{ margin: 0, maxWidth: 200 }} value={chitId} onChange={(e) => setChitId(e.target.value)}>
             <option value="all">All chits</option>
-            {chits.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {owned.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select className="field" style={{ margin: 0, maxWidth: 180 }} value={mode} onChange={(e) => setMode(e.target.value as "all" | PayMode)}>
             <option value="all">All modes</option>

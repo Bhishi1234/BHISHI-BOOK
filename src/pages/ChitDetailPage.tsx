@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { PayModal } from "../components/PayModal";
 import { AppShell } from "../layout/AppShell";
 import {
@@ -80,6 +80,10 @@ export function ChitDetailPage() {
 
   if (!chit) {
     return <AppShell crumb="Chits"><div className="page"><p>Chit not found.</p></div></AppShell>;
+  }
+
+  if (chit.viewerRole === "member") {
+    return <Navigate to={`/member/${chit.id}`} replace />;
   }
 
   const data = chit;

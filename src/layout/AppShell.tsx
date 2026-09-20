@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useStore } from "../store";
+import { chitPath } from "../lib/format";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -68,7 +69,7 @@ export function AppShell({
       ))}
       <div className="section-label">Your chits</div>
       {chits.filter((c) => c.status !== "cancelled").map((c) => (
-        <NavLink key={c.id} to={c.mode === "tracking" ? `/tracked/${c.id}` : `/chits/${c.id}`} className="chit-mini">
+        <NavLink key={c.id} to={chitPath(c)} className="chit-mini">
           <i className={`dot ${c.members.length && c.status === "running" ? "green" : "gray"}`} />
           {c.name}
         </NavLink>

@@ -64,7 +64,8 @@ export const MODE_LABEL: Record<string, string> = {
   adjusted: "Adjusted from payout",
 };
 
-export function chitPath(chit: { id: string; mode: string }) {
+export function chitPath(chit: { id: string; mode: string; viewerRole?: string }) {
+  if (chit.viewerRole === "member") return `/member/${chit.id}`;
   return chit.mode === "tracking" ? `/tracked/${chit.id}` : `/chits/${chit.id}`;
 }
 

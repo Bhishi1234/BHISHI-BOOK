@@ -94,6 +94,8 @@ export type Chit = {
   winnerInterestPct?: number;
   /** Fixed: due in the prized month itself. */
   winningMonthPolicy?: "nothing" | "normal" | "premium";
+  /** owner = you organise this chit; member = shared via phone + member visibility. */
+  viewerRole?: "owner" | "member";
 };
 
 export type Ticket = {

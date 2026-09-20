@@ -180,6 +180,49 @@ function needUser(db: Db) {
   return db.session.user;
 }
 
+/** Owned chits are always owner; optional demo shared chit when profile phone matches. */
+function annotateViewerRole(chit: Chit, _user: User, _db: Db): Chit {
+  return { ...chit, viewerRole: chit.viewerRole || "owner" };
+}
+
+function sharedDemoChits(user: User): Chit[] {
+  if (user.phone !== "9000000001") return [];
+  return [
+    {
+      ...chitSeed("ch_shared_demo", "Neighbour Auction", "auction", 100000, 20000, "organise", 2),
+      duration: 5,
+      membersCount: 5,
+      memberVisible: true,
+      viewerRole: "member",
+      currentCycle: 2,
+      members: [
+        { customerId: "c1", slot: 1, prizedCycle: 1 },
+        { customerId: "c2", slot: 2 },
+        { customerId: "c3", slot: 3 },
+        { customerId: "c4", slot: 4 },
+        { customerId: "c5", slot: 5 },
+      ],
+      payments: [
+        { id: "ps1", memberId: "c1", cycle: 1, amount: 20000, kind: "full", date: "2026-08-01", mode: "cash" },
+        { id: "ps2", memberId: "c1", cycle: 2, amount: 10000, kind: "partial", date: "2026-09-01", mode: "upi" },
+      ],
+      auctions: [
+        {
+          cycle: 1,
+          winnerId: "c2",
+          bid: 80000,
+          method: "auction",
+          discount: 20000,
+          commission: 2000,
+          dividend: 3600,
+          payout: 80000,
+          arrearsWithheld: 0,
+        },
+      ],
+    },
+  ];
+}
+
 export const mockServer = {
   meta: {
     types() {
@@ -241,7 +284,13 @@ export const mockServer = {
     updateProfile(patch: Partial<User>) {
       const db = read();
       needUser(db);
-      db.session = { ...db.session!, user: { ...db.session!.user, ...patch } };
+      const next = { ...db.session!.user, ...patch };
+      if (patch.phone !== undefined) {
+        const digits = String(patch.phone || "").replace(/\D/g, "").slice(-10);
+        if (patch.phone && digits.length !== 10) throw new Error("phone must be 10 digits");
+        next.phone = digits || "";
+      }
+      db.session = { ...db.session!, user: next };
       write(db);
       return db.session.user;
     },
@@ -273,14 +322,21 @@ export const mockServer = {
 
   chits: {
     list() {
-      needUser(read());
-      return read().chits;
+      const db = read();
+      const user = needUser(db);
+      return [
+        ...db.chits.map((c) => annotateViewerRole(c, user, db)),
+        ...sharedDemoChits(user),
+      ];
     },
     get(id: string) {
-      needUser(read());
-      const chit = read().chits.find((c) => c.id === id);
+      const db = read();
+      const user = needUser(db);
+      const shared = sharedDemoChits(user).find((c) => c.id === id);
+      if (shared) return shared;
+      const chit = db.chits.find((c) => c.id === id);
       if (!chit) throw new Error("Not found");
-      return chit;
+      return annotateViewerRole(chit, user, db);
     },
     create(input: Omit<Chit, "id" | "payments" | "status">) {
       const db = read();

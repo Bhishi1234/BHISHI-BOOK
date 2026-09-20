@@ -281,17 +281,34 @@ app.patch("/api/v1/me", async (c) => {
     const patch = await c.req.json();
     const { data: auth } = await sb.auth.getUser();
     if (!auth.user) return c.json({ error: "Unauthorized" }, 401);
-    const { data, error } = await sb
-      .from("profiles")
-      .update({
-        ...(patch.name != null ? { name: patch.name } : {}),
-        ...(patch.language != null ? { language: patch.language } : {}),
-      })
-      .eq("id", auth.user.id)
-      .select("*")
-      .single();
-    if (error) return c.json({ error: error.message }, 400);
-    return c.json(data);
+
+    let row: Record<string, unknown> | null = null;
+    if (patch.phone !== undefined) {
+      const { data, error } = await sb.rpc("set_profile_phone", {
+        p_phone: patch.phone === "" || patch.phone == null ? null : String(patch.phone),
+      });
+      if (error) return c.json({ error: rpcError(error) }, 400);
+      row = data as Record<string, unknown>;
+    }
+    if (patch.name != null || patch.language != null) {
+      const { data, error } = await sb
+        .from("profiles")
+        .update({
+          ...(patch.name != null ? { name: patch.name } : {}),
+          ...(patch.language != null ? { language: patch.language } : {}),
+        })
+        .eq("id", auth.user.id)
+        .select("*")
+        .single();
+      if (error) return c.json({ error: error.message }, 400);
+      row = data as Record<string, unknown>;
+    }
+    if (!row) {
+      const { data, error } = await sb.from("profiles").select("*").eq("id", auth.user.id).single();
+      if (error) return c.json({ error: error.message }, 400);
+      row = data as Record<string, unknown>;
+    }
+    return c.json(row);
   } catch (e) {
     const { error, status } = fail(e);
     return c.json({ error }, status);
