@@ -273,7 +273,7 @@ export function NewChitPage() {
                   {type === "loan"
                     ? "Taken from cash on hand the first time you give a loan each month."
                     : type === "auction" && auctionStyle === "auction_first"
-                      ? "Added into each member’s share after the auction (bid + commission ÷ members)."
+                      ? "Auction-first settles the winning bid peer-to-peer (bid ÷ members). Foreman commission is not taken from this till."
                       : type === "auction"
                         ? "Taken from the pot each month when you settle the auction (not on the last cycle)."
                         : "Taken from cash on hand when you award the pot."}

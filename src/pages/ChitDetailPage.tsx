@@ -155,7 +155,11 @@ export function ChitDetailPage() {
           <div className="stat"><span>Month</span><strong>{cycle} / {data.duration}</strong></div>
           <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
           <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
-          <div className="stat"><span>Cash on hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
+          <div className="stat">
+            <span>{auctionFirst ? "Till (peer settlement)" : "Cash on hand"}</span>
+            <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
+            {auctionFirst && <em>Should stay ₹0</em>}
+          </div>
           <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month</em></div>
           <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
         </div>
@@ -171,7 +175,7 @@ export function ChitDetailPage() {
           <>
             <p className="muted block">The books · every figure below comes from one ledger derivation</p>
             <div className="card block">
-              <div className="muted">Cash on hand · as on today</div>
+              <div className="muted">{auctionFirst ? "Till · peer settlement (should stay ₹0)" : "Cash on hand · as on today"}</div>
               <div className="hero-figure">{inr(treasuryOf(data))}</div>
             </div>
             <div className="grid-2 block">
@@ -244,8 +248,15 @@ export function ChitDetailPage() {
               <h2>Money in / out</h2>
               <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
               <div className="kv"><span>Money out</span><strong>{inr(moneyOut(data))}</strong></div>
-              <div className="kv"><span>On hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
-              <p className="muted" style={{ marginTop: 12 }}>Of which {inr(commissionEarned(data))} is your commission.</p>
+              <div className="kv">
+                <span>{auctionFirst ? "Till (peer settlement)" : "On hand"}</span>
+                <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
+              </div>
+              <p className="muted" style={{ marginTop: 12 }}>
+                {auctionFirst
+                  ? "Auction-first settles the winning bid peer-to-peer, so the till stays ₹0."
+                  : `Of which ${inr(commissionEarned(data))} is your commission.`}
+              </p>
               <div className="grid-2" style={{ marginTop: 8 }}>
                 <div className="kv"><span>Type</span><strong>{TYPE_LABEL[data.type].toUpperCase()}</strong></div>
                 <div className="kv"><span>Frequency</span><strong>{FREQ_LABEL[data.frequency]}</strong></div>
@@ -320,8 +331,8 @@ export function ChitDetailPage() {
         })()}
 
         {tab === "monthly" && (
-          <div className="stack">
-            <div className="month-steps">
+          <div className="stack" style={auctionFirst ? { display: "flex", flexDirection: "column" } : undefined}>
+            <div className="month-steps" style={auctionFirst ? { order: 0 } : undefined}>
               {auctionFirst ? (
                 <>
                   <span className={`month-step ${!lastWin ? "on" : "done"}`}>1. Auction</span>
@@ -338,13 +349,17 @@ export function ChitDetailPage() {
                 </>
               )}
             </div>
-            <div className="stats four">
+            <div className="stats four" style={auctionFirst ? { order: 1 } : undefined}>
               <div className="stat"><span>Expected this cycle</span><strong>{inr(expectedThisCycle(data))}</strong></div>
               <div className="stat"><span>Collected</span><strong>{inr(collectedThisCycle(data))}</strong></div>
               <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
-              <div className="stat"><span>Cash on hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
+              <div className="stat">
+                <span>{auctionFirst ? "Till (should stay ₹0)" : "Cash on hand"}</span>
+                <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
+                {auctionFirst && <em>Peer settlement of the bid</em>}
+              </div>
             </div>
-            <div className="card flush">
+            <div className="card flush" style={auctionFirst ? { order: 3 } : undefined}>
               <div className="card-pad month-head">
                 <div>
                   <strong>Month {cycle}</strong>
@@ -369,10 +384,12 @@ export function ChitDetailPage() {
                 </div>
               </div>
               {auctionFirst && !lastWin && (
-                <p className="month-hint">Auction first — record the winning bid, then each member’s due becomes (bid + commission) ÷ members. Collect after the auction.</p>
+                <p className="month-hint">Record the auction above first. Then the other members each owe winning bid ÷ members — paid to the winner, so cash on hand stays ₹0.</p>
               )}
               {auctionFirst && lastWin && shareHint != null && (
-                <p className="month-hint">This month each member owes {inr(shareHint)} (winning amount split across the group). Face value stays {inr(data.pot)}.</p>
+                <p className="month-hint">
+                  Winning bid {inr(lastWin.bid)} ÷ {data.members.length} = {inr(shareHint)} due from each of the other members (winner owes ₹0 this month). Face value stays {inr(data.pot)}. Till stays ₹0 once settled.
+                </p>
               )}
               {!auctionFirst && !canSettleCycle(data) && !lastWin && (
                 <p className="month-hint">Record collections first — individually or with Record all payments. Auction stays locked so cash on hand cannot go negative.</p>
@@ -380,6 +397,7 @@ export function ChitDetailPage() {
               {unpaidNoted && remainDue > 0 && (
                 <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button{auctionFirst ? "." : "; auction still needs at least one receipt."}</p>
               )}
+              {!auctionFirst || lastWin ? (
               <div className="table-wrap">
                 <table className="table month-table">
                   <thead>
@@ -401,9 +419,18 @@ export function ChitDetailPage() {
                       const status = paymentStatus(data, m.customerId, cycle);
                       const last = [...data.payments].reverse().find((p) => p.memberId === m.customerId && p.cycle === cycle);
                       const label = status === "due" && unpaidNoted ? "Unpaid" : status[0].toUpperCase() + status.slice(1);
+                      const isWinner = lastWin?.winnerId === m.customerId;
                       return (
                         <tr key={m.customerId}>
-                          <td><div className="person"><div className="avatar">{initials(names[m.customerId] || "?")}</div><span className="ellipsis">{names[m.customerId]}</span></div></td>
+                          <td>
+                            <div className="person">
+                              <div className="avatar">{initials(names[m.customerId] || "?")}</div>
+                              <span className="ellipsis">
+                                {names[m.customerId]}
+                                {isWinner ? <span className="muted"> · winner</span> : null}
+                              </span>
+                            </div>
+                          </td>
                           <td>{inr(due)}</td>
                           <td>{inr(paid)}</td>
                           <td>{paid >= due ? "—" : inr(due - paid)}</td>
@@ -423,8 +450,11 @@ export function ChitDetailPage() {
                   </tbody>
                 </table>
               </div>
+              ) : (
+                <p className="muted" style={{ padding: "0 16px 16px" }}>Dues table appears after the auction is recorded.</p>
+              )}
             </div>
-            <div className="card">
+            <div className="card" style={auctionFirst ? { order: 2 } : undefined}>
               <div className="month-head" style={{ padding: 0 }}>
                 <div>
                   <h2 style={{ margin: 0 }}>
@@ -437,7 +467,9 @@ export function ChitDetailPage() {
                         ? nextSlot
                           ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
                           : "All slots have been prized."
-                        : "Only after collections. Payout plus commission cannot exceed cash on hand."}
+                        : auctionFirst
+                          ? "Auction first. Enter the amount the winner takes (e.g. ₹95,000 of ₹1,00,000). The other members then each pay that amount ÷ members to the winner — cash on hand stays ₹0."
+                          : "Only after collections. Payout plus commission cannot exceed cash on hand."}
                   </p>
                 </div>
                 <button
@@ -490,7 +522,7 @@ export function ChitDetailPage() {
                         <>
                           <p className="muted" style={{ marginBottom: 12 }}>
                             {auctionFirst
-                              ? `Last cycle — no bidding. The remaining member is awarded the full pot (${inr(data.pot)}); everyone then pays ${inr(computeInstalment(data.pot, data.members.length || 1))} each.`
+                              ? `Last cycle — no bidding. The remaining member is awarded the full pot (${inr(data.pot)}); the other members then each pay ${inr(computeInstalment(data.pot, data.members.length || 1))}.`
                               : `Last cycle — no auction. The remaining member takes the full cash on hand (${inr(cashOnHand)}), then you can close the chit.`}
                           </p>
                           <div className="month-auction" style={{ padding: 0 }}>
@@ -523,7 +555,7 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
                                 {auctionFirst ? (
-                                  <div className="kv"><span>Each member then pays</span><strong>{inr(auctionFirstShare({ ...data, auctions: [...data.auctions, preview] }, cycle))}</strong></div>
+                                  <div className="kv"><span>Each other member then pays</span><strong>{inr(auctionFirstShare({ ...data, auctions: [...data.auctions, preview] }, cycle))}</strong></div>
                                 ) : (
                                   <div className="kv"><span>Cash on hand after</span><strong>{inr(cashOnHand - preview.payout - preview.commission)}</strong></div>
                                 )}
@@ -558,7 +590,7 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
                                 {auctionFirst ? (
-                                  <div className="kv"><span>Each member then pays</span><strong>{inr(nextShare || 0)}</strong></div>
+                                  <div className="kv"><span>Each other member then pays</span><strong>{inr(nextShare || 0)}</strong></div>
                                 ) : (
                                   <>
                                     <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>

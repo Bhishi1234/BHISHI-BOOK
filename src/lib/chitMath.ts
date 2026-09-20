@@ -59,14 +59,13 @@ export function auctionOfCycle(chit: Chit, cycle: number) {
 }
 
 /**
- * Auction-first monthly share: each member pays (winning bid) ÷ N.
- * Face value / provision stays the pot; dues drop to the bid split after auction.
+ * Auction-first monthly share: each member pays winning bid ÷ N.
+ * Face value / provision stays the pot; dues switch to the bid split after auction.
  */
 export function auctionFirstShare(chit: Chit, cycle: number) {
   const n = memberCount(chit);
   const a = auctionOfCycle(chit, cycle);
-  if (a) return computeInstalment(a.bid + (a.commission || 0), n);
-  // Before auction: provisional face-value share (pot ÷ N).
+  if (a) return computeInstalment(a.bid, n);
   return baseInstalment(chit);
 }
 
@@ -79,7 +78,12 @@ export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
 export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
   const base = baseInstalment(chit);
   if (chit.type === "auction") {
-    if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
+    if (isAuctionFirst(chit)) {
+      const win = auctionOfCycle(chit, cycle);
+      // Winner receives the bid; the other members settle bid ÷ N to them.
+      if (win && win.winnerId === memberId) return 0;
+      return auctionFirstShare(chit, cycle);
+    }
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
   if (chit.type === "base_premium" || chit.type === "fixed") {
@@ -224,8 +228,32 @@ export function moneyOut(chit: Chit) {
   return payoutsOf(chit) + commissionEarned(chit);
 }
 
+/**
+ * Cash on hand.
+ * Auction-first is peer settlement: members pay the winning bid split, which funds
+ * the winner. Outflow only counts up to what was collected that cycle — so the till
+ * stays ₹0 once the bid is fully settled (never goes negative right after auction).
+ */
 export function treasuryOf(chit: Chit) {
-  return moneyIn(chit) - moneyOut(chit);
+  if (!isAuctionFirst(chit)) {
+    return moneyIn(chit) - moneyOut(chit);
+  }
+  let bal = 0;
+  const through = Math.max(displayCycle(chit), ...chit.payments.map((p) => p.cycle), 0);
+  for (let c = 1; c <= through; c++) {
+    const collected = chit.payments
+      .filter((p) => p.cycle === c)
+      .reduce((s, p) => s + p.amount, 0);
+    const a = auctionOfCycle(chit, c);
+    if (a) {
+      // Pass-through of the winning amount (+ any commission) as collections arrive.
+      const settle = a.payout + (a.commission || 0);
+      bal += collected - Math.min(settle, collected);
+    } else {
+      bal += collected;
+    }
+  }
+  return bal;
 }
 
 /** Dividend pools already realised from auctions held (discount − commission). */
@@ -383,8 +411,9 @@ export function settleWinner(
   );
   const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
   const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
+  // Auction-first: members settle the bid peer-to-peer (bid ÷ N each). No foreman cut from the till.
   const commission =
-    method === "settlement" || lastAuction
+    method === "settlement" || lastAuction || auctionFirst
       ? 0
       : method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle
         ? 0
@@ -394,27 +423,28 @@ export function settleWinner(
   let safeBid: number;
   let dividend = 0;
   if (lastAuction && auctionFirst) {
-    // Full face value; members then each pay pot ÷ N.
     safeBid = Math.max(0, chit.pot);
   } else if (lastAuction) {
-    // Collect-first last cycle: drain the till.
     safeBid = Math.max(0, treasuryOf(chit));
   } else if (method === "auction") {
     safeBid = Math.min(chit.pot, Math.max(0, bid));
-    const discount = Math.max(0, chit.pot - safeBid);
-    dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
+    if (!auctionFirst) {
+      const discount = Math.max(0, chit.pot - safeBid);
+      dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
+    }
   } else if (method === "lucky_draw") {
     safeBid = Math.max(0, chit.pot - commission);
   } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium")) {
-    // Cap at cash left after commission so round-off (e.g. ₹1) cannot block Close month.
     const maxPayout = Math.max(0, treasuryOf(chit) - commission);
     safeBid = Math.min(Math.max(0, Number(bid) || 0), maxPayout);
   } else {
-    // loan / settlement: amount is whatever you enter (not capped at pot)
     safeBid = Math.max(0, Number(bid) || 0);
   }
-  const discount = method === "auction" && !lastAuction ? Math.max(0, chit.pot - safeBid) : 0;
-  const arrearsWithheld = method === "settlement" ? 0 : memberBalance(chit, winnerId).outstanding;
+  const discount = method === "auction" && !lastAuction && !auctionFirst ? Math.max(0, chit.pot - safeBid) : 0;
+  // Auction-first: full bid is what the winner gets; peers settle bid ÷ N separately.
+  const arrearsWithheld = method === "settlement" || auctionFirst
+    ? 0
+    : memberBalance(chit, winnerId).outstanding;
   const payout = Math.max(0, safeBid - arrearsWithheld);
   return {
     cycle: chit.currentCycle,
@@ -432,8 +462,8 @@ export function settleWinner(
 export function paymentStatus(chit: Chit, memberId: string, cycle: number) {
   const due = cycleDue(chit, memberId, cycle);
   const paid = paidInCycle(chit, memberId, cycle);
-  if (due === 0 && paid === 0) return "due" as const;
-  if (paid >= due && due > 0) return paid > due ? ("advance" as const) : ("paid" as const);
+  if (due === 0) return paid > 0 ? ("advance" as const) : ("paid" as const);
+  if (paid >= due) return paid > due ? ("advance" as const) : ("paid" as const);
   if (paid > 0) return "partial" as const;
   return "due" as const;
 }

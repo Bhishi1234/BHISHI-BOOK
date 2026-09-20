@@ -92,7 +92,7 @@ begin
 end;
 $$;
 
--- Dues: auction_first uses this cycle's winning bid ÷ N (plus commission).
+-- Dues: auction_first uses this cycle's winning bid ÷ N (winner owes 0 that month).
 create or replace function public._raw_due(p_chit uuid, p_member uuid, p_cycle int)
 returns numeric
 language plpgsql
@@ -106,6 +106,7 @@ declare
   prized int;
   n_members int;
   share_of numeric;
+  share numeric;
 begin
   select * into c from public.chits where id = p_chit;
   if not found then
@@ -122,8 +123,17 @@ begin
         and method in ('auction', 'lucky_draw')
       limit 1;
       if found then
-        share_of := this_a.bid + coalesce(this_a.commission, 0);
-        return greatest(0, ceil(share_of / n_members));
+        -- Winner receives the bid; peers settle bid ÷ N.
+        if this_a.winner_id = p_member then
+          return 0;
+        end if;
+        share_of := this_a.bid;
+        -- Match app computeInstalment: round, then bump if N × share < bid.
+        share := round(share_of / n_members::numeric);
+        if share * n_members < share_of then
+          share := share + 1;
+        end if;
+        return greatest(0, share);
       end if;
       return base;
     end if;
@@ -243,7 +253,7 @@ begin
   select coalesce(sum(a.payout + a.commission), 0) into money_out from public.auctions a where a.chit_id = p_chit_id;
   cash_on_hand := greatest(0, money_in - money_out);
 
-  if p_method = 'settlement' or last_auction then
+  if p_method = 'settlement' or last_auction or auction_first then
     commission := 0;
   elsif p_method = 'fixed' and c.type = 'loan' and already_loaned then
     commission := 0;
@@ -267,17 +277,19 @@ begin
   end if;
 
   discount := case
-    when p_method = 'auction' and not last_auction then greatest(0, c.pot - safe_bid)
+    when p_method = 'auction' and not last_auction and not auction_first then greatest(0, c.pot - safe_bid)
     else 0
   end;
   select greatest(1, count(*)) into n_members
   from public.chit_members where chit_id = p_chit_id;
+  -- Auction-first is peer settlement of the bid (bid ÷ N); no dividend pool.
   dividend := case
-    when p_method = 'auction' and not last_auction then floor(greatest(0, discount - commission) / n_members)
+    when p_method = 'auction' and not last_auction and not auction_first
+      then floor(greatest(0, discount - commission) / n_members)
     else 0
   end;
 
-  if p_method = 'settlement' then
+  if p_method = 'settlement' or auction_first then
     arrears := 0;
   else
     arrears := public._outstanding(p_chit_id, p_winner_id);
