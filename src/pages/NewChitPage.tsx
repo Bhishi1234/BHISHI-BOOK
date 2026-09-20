@@ -41,7 +41,7 @@ export function NewChitPage() {
   const months = Number(duration) || n;
   const instalment = n ? Math.round(potN / n) : 0;
   const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
-  const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * commPct) / 100 / Math.max(1, months));
+  const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
 
   const preview = useMemo(() => ({
     members: n || "—",
@@ -176,7 +176,7 @@ export function NewChitPage() {
                   <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>% Percentage</button>
                 </div>
                 <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
-                <p className="hint">Taken from the pot each month</p>
+                <p className="hint">Taken from the pot each month when you settle that month’s auction. 5% of ₹1,00,000 is ₹5,000 every month — it leaves cash on hand.</p>
                 <label className="label">Adjustment style</label>
                 <div className="seg">
                   <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>Every month</button>

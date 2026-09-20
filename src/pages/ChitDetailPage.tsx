@@ -11,11 +11,13 @@ import {
   cycleDue,
   cycleLedger,
   expectedThisCycle,
+  interestCollected,
   moneyIn,
-  moneyOut,
   outstandingOf,
   paidInCycle,
   paymentStatus,
+  payoutsOf,
+  settleWinner,
   treasuryOf,
 } from "../lib/chitMath";
 import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
@@ -94,7 +96,7 @@ export function ChitDetailPage() {
           <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
           <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
           <div className="stat"><span>Cash on hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
-          <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong></div>
+          <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === data.currentCycle)?.commission || 0)} this month</em></div>
           <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
         </div>
         <div className="tabs">
@@ -118,22 +120,29 @@ export function ChitDetailPage() {
                 <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round(((data.currentCycle - 1) / data.duration) * 100)}%` }} /></div>
                 <p className="muted block">{inr(moneyIn(data))} collected of {inr(expectedLife)} expected</p>
                 <div className="grid-2">
-                  <div><div className="muted">Total pot</div><strong className="num">{inr(data.pot - commissionEarned(data))}</strong></div>
-                  <div><div className="muted">Each member gets</div><strong className="num">{inr(Math.round((data.pot - commissionEarned(data)) / Math.max(1, data.membersCount)))}</strong></div>
+                  <div><div className="muted">Total paid out</div><strong className="num">{inr(payoutsOf(data))}</strong></div>
+                  <div><div className="muted">Each member gets</div><strong className="num">{inr(Math.round(payoutsOf(data) / Math.max(1, data.members.length)))}</strong></div>
                 </div>
+                <p className="muted" style={{ marginTop: 10 }}>Payouts already recorded. Commission has already left cash on hand.</p>
               </div>
               <div className="card">
                 <h2>You’ve earned</h2>
                 <div className="kv"><span>Commission</span><strong>{inr(commissionEarned(data))}</strong></div>
-                <div className="kv"><span>Dividend per member</span><strong>{inr(data.auctions.at(-1)?.dividend || 0)}</strong></div>
+                {data.type === "auction" && (
+                  <div className="kv"><span>Dividend per member</span><strong>{inr(data.auctions.at(-1)?.dividend || 0)}</strong></div>
+                )}
+                {data.type === "loan" && (
+                  <div className="kv"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
+                )}
               </div>
             </div>
             <div className="card">
               <h2>Money in / out</h2>
               <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
-              <div className="kv"><span>Money out</span><strong>{inr(moneyOut(data))}</strong></div>
-              <div className="kv"><span>On hand</span><strong>{inr(treasuryOf(data))}</strong></div>
-              <p className="muted" style={{ marginTop: 12 }}>Of which {inr(commissionEarned(data))} is your commission.</p>
+              <div className="kv"><span>Payouts</span><strong>{inr(payoutsOf(data))}</strong></div>
+              <div className="kv"><span>Commission taken</span><strong>{inr(commissionEarned(data))}</strong></div>
+              <div className="kv"><span>On hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
+              <p className="muted" style={{ marginTop: 12 }}>Cash on hand is collections minus payouts minus your monthly commission.</p>
               <div className="grid-2" style={{ marginTop: 8 }}>
                 <div className="kv"><span>Type</span><strong>{TYPE_LABEL[data.type].toUpperCase()}</strong></div>
                 <div className="kv"><span>Frequency</span><strong>{FREQ_LABEL[data.frequency]}</strong></div>
@@ -289,21 +298,25 @@ export function ChitDetailPage() {
                 <button className="btn green" disabled={!lastWin && data.mode === "organise"} onClick={() => void closeCycle(data.id)}>Close month</button>
               </div>
               {lastWin ? (
-                <div className="kv" style={{ marginTop: 12 }}>
-                  <span>Winner · {lastWin.method === "lucky_draw" ? "Lucky draw" : "Auction"}</span>
-                  <strong>{names[lastWin.winnerId]} · bid {inr(lastWin.bid)} · paid out {inr(lastWin.payout)}</strong>
+                <div style={{ marginTop: 12 }}>
+                  <div className="kv"><span>Winner · {lastWin.method === "lucky_draw" ? "Lucky draw" : "Auction"}</span><strong>{names[lastWin.winnerId]}</strong></div>
+                  <div className="kv"><span>Winning bid / payout</span><strong>{inr(lastWin.bid)} · paid {inr(lastWin.payout)}</strong></div>
+                  <div className="kv"><span>Your commission</span><strong>{inr(lastWin.commission)}</strong></div>
+                  {lastWin.dividend > 0 && (
+                    <div className="kv"><span>Dividend next month / member</span><strong>{inr(lastWin.dividend)}</strong></div>
+                  )}
                 </div>
               ) : !canSettleCycle(data) ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>Collect at least one payment this month before recording the auction or lucky draw.</p>
               ) : (
-                <div className="month-auction" style={{ padding: "16px 0 0" }}>
+                <div style={{ padding: "16px 0 0" }}>
                   {data.type === "auction" && (
-                    <>
+                    <div className="month-auction" style={{ padding: 0 }}>
                       <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
                         <option value="">Winner</option>
                         {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
                       </select>
-                      <input className="field" placeholder="Winning bid" value={bid} onChange={(e) => setBid(e.target.value)} />
+                      <input className="field" placeholder="Winning bid (amount winner takes)" value={bid} onChange={(e) => setBid(e.target.value)} />
                       <button
                         className="btn"
                         disabled={!winnerId || !bid}
@@ -311,9 +324,21 @@ export function ChitDetailPage() {
                       >
                         Record auction
                       </button>
-                    </>
+                    </div>
                   )}
-                  <button className="btn ghost" onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
+                  {data.type === "auction" && winnerId && Number(bid) > 0 && (() => {
+                    const preview = settleWinner(data, winnerId, Number(bid), "auction");
+                    const cashAfter = treasuryOf(data) - preview.payout - preview.commission;
+                    return (
+                      <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                        <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
+                        <div className="kv"><span>Your commission (leaves the till)</span><strong>{inr(preview.commission)}</strong></div>
+                        <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>
+                        <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                      </div>
+                    );
+                  })()}
+                  <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
                 </div>
               )}
             </div>

@@ -6,8 +6,35 @@ export function baseInstalment(chit: Chit) {
   return Math.round(chit.pot / chit.membersCount);
 }
 
+export function memberCount(chit: Chit) {
+  return Math.max(1, chit.members.length || chit.membersCount || 1);
+}
+
+/** Foreman's cut each settled cycle. % is of the pot, taken every month. */
 export function commissionAmount(chit: Chit) {
+  if (chit.commissionKind === "amount" && (chit.commissionValue || 0) > 0) {
+    return Math.round(chit.commissionValue || 0);
+  }
   return Math.round((chit.pot * (chit.commissionPct || 0)) / 100);
+}
+
+/** Dividend from an auction: (discount − commission) split across every member. */
+export function dividendFromAuction(chit: Chit, auction: Pick<AuctionRecord, "bid" | "commission" | "method">) {
+  if (auction.method && auction.method !== "auction") return 0;
+  const discount = Math.max(0, chit.pot - auction.bid);
+  return Math.floor(Math.max(0, discount - (auction.commission || 0)) / memberCount(chit));
+}
+
+export function appliedDividend(chit: Chit, cycle: number) {
+  if (chit.type !== "auction") return 0;
+  if ((chit.adjustmentStyle || "every_month") === "at_end") {
+    if (cycle !== chit.duration) return 0;
+    return chit.auctions
+      .filter((a) => a.cycle < cycle)
+      .reduce((s, a) => s + dividendFromAuction(chit, a), 0);
+  }
+  const prev = chit.auctions.find((a) => a.cycle === cycle - 1);
+  return prev ? dividendFromAuction(chit, prev) : 0;
 }
 
 export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
@@ -18,9 +45,8 @@ export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
 
 export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
   const base = baseInstalment(chit);
-  const settled = chit.auctions.find((a) => a.cycle === cycle - 1);
-  if (chit.type === "auction" && settled) {
-    return Math.max(0, base - (settled.dividend || 0));
+  if (chit.type === "auction") {
+    return Math.max(0, base - appliedDividend(chit, cycle));
   }
   if (chit.type === "base_premium" || (chit.type === "fixed" && chit.premiumAmount)) {
     const member = chit.members.find((m) => m.customerId === memberId);
@@ -29,7 +55,11 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
     }
   }
   if (chit.type === "loan" && chit.interestRate) {
-    return Math.round(base + (base * chit.interestRate) / 100);
+    const member = chit.members.find((m) => m.customerId === memberId);
+    if (member?.prizedCycle && cycle > member.prizedCycle) {
+      return Math.round(base + (base * chit.interestRate) / 100);
+    }
+    return base;
   }
   return base;
 }
@@ -80,8 +110,12 @@ export function moneyIn(chit: Chit) {
   return chit.payments.reduce((s, p) => s + p.amount, 0);
 }
 
-export function moneyOut(chit: Chit) {
+export function payoutsOf(chit: Chit) {
   return chit.auctions.reduce((s, a) => s + a.payout, 0);
+}
+
+export function moneyOut(chit: Chit) {
+  return payoutsOf(chit) + commissionEarned(chit);
 }
 
 export function treasuryOf(chit: Chit) {
@@ -93,7 +127,23 @@ export function expectedThisCycle(chit: Chit) {
 }
 
 export function commissionEarned(chit: Chit) {
-  return chit.auctions.reduce((s, a) => s + a.commission, 0);
+  return chit.auctions.reduce((s, a) => s + (a.commission || 0), 0);
+}
+
+export function interestCollected(chit: Chit) {
+  if (chit.type !== "loan" || !chit.interestRate) return 0;
+  const rate = chit.interestRate;
+  const base = baseInstalment(chit);
+  return chit.members.reduce((sum, m) => {
+    if (!m.prizedCycle) return sum;
+    let extra = 0;
+    for (let c = m.prizedCycle + 1; c <= chit.currentCycle; c++) {
+      extra += paidInCycle(chit, m.customerId, c) > 0
+        ? Math.round((base * rate) / 100)
+        : 0;
+    }
+    return sum + extra;
+  }, 0);
 }
 
 export function outstandingOf(chit: Chit) {
@@ -109,15 +159,14 @@ export function settleWinner(
   bid: number,
   method: AuctionRecord["method"],
 ): AuctionRecord {
-  const safeBid = method === "auction" ? Math.min(chit.pot, Math.max(0, bid)) : chit.pot;
+  const commission = commissionAmount(chit);
+  const safeBid = method === "auction"
+    ? Math.min(chit.pot, Math.max(0, bid))
+    : Math.max(0, chit.pot - commission);
   const discount = Math.max(0, chit.pot - safeBid);
-  const commission = method === "auction" ? commissionAmount(chit) : 0;
-  const unprized = Math.max(
-    1,
-    chit.members.filter((m) => !m.prizedCycle).length - 1,
-  );
-  const dividend =
-    method === "auction" ? Math.floor(Math.max(0, discount - commission) / unprized) : 0;
+  const dividend = method === "auction"
+    ? Math.floor(Math.max(0, discount - commission) / memberCount(chit))
+    : 0;
   const arrearsWithheld = memberBalance(chit, winnerId).outstanding;
   const payout = Math.max(0, safeBid - arrearsWithheld);
   return {
@@ -162,8 +211,9 @@ export function assertCanSettlePayout(
     throw new Error("Record this month's collections before the auction");
   }
   const rec = settleWinner(chit, winnerId, bid, method);
-  if (rec.payout > Math.max(0, treasuryOf(chit))) {
-    throw new Error("Payout is more than cash on hand. Collect remaining dues or lower the winning bid.");
+  const available = treasuryOf(chit);
+  if (rec.payout + rec.commission > Math.max(0, available)) {
+    throw new Error("Payout plus commission is more than cash on hand. Collect remaining dues or lower the winning bid.");
   }
   return rec;
 }
@@ -175,7 +225,7 @@ export function cycleLedger(chit: Chit, cycle: number) {
     collected,
     payout: a?.payout || 0,
     commission: a?.commission || 0,
-    dividend: a?.dividend || 0,
+    dividend: appliedDividend(chit, cycle),
   };
 }
 
@@ -183,7 +233,7 @@ export function balanceAfterCycle(chit: Chit, cycle: number) {
   let bal = 0;
   for (let c = 1; c <= cycle; c++) {
     const row = cycleLedger(chit, c);
-    bal += row.collected - row.payout;
+    bal += row.collected - row.payout - row.commission;
   }
   return bal;
 }
