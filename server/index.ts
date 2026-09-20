@@ -518,6 +518,7 @@ app.post("/api/v1/chits/:id/settle", async (c) => {
       p_winner_id: body.winnerId,
       p_bid: body.bid,
       p_method: body.method,
+      p_winner_slot: body.winnerSlot ?? null,
     });
     if (error) return c.json({ error: rpcError(error) }, 400);
     return c.json(data);

@@ -51,6 +51,8 @@ export type Payment = {
 export type AuctionRecord = {
   cycle: number;
   winnerId: string;
+  /** Which hand/slot won (multi-hand). */
+  winnerSlot?: number;
   bid: number;
   method: "auction" | "lucky_draw" | "fixed" | "settlement";
   discount: number;
@@ -62,6 +64,7 @@ export type AuctionRecord = {
 };
 
 export type ChitMember = {
+  id?: string;
   customerId: string;
   slot: number;
   prizedCycle?: number;

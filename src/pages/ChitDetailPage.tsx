@@ -4,6 +4,7 @@ import { PayModal } from "../components/PayModal";
 import { AppShell } from "../layout/AppShell";
 import {
   balanceAfterCycle,
+  canCloseLastMonth,
   canSettleCycle,
   collectedThisCycle,
   collectedCount,
@@ -29,7 +30,9 @@ import {
   loanPrincipalOf,
   loanSettlementPlan,
   loansThisCycle,
+  memberBalance,
   memberDividendTotal,
+  memberHandLabel,
   memberLedgerRows,
   moneyIn,
   moneyOut,
@@ -37,11 +40,11 @@ import {
   outstandingOf,
   paidInCycle,
   paymentStatus,
-  memberBalance,
   settlementsOf,
   settleWinner,
   auctionFirstShare,
   treasuryOf,
+  uniqueMemberIds,
 } from "../lib/chitMath";
 import { downloadChitCsv } from "../lib/exportCsv";
 import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
@@ -60,6 +63,7 @@ export function ChitDetailPage() {
   const [payFor, setPayFor] = useState<string | null>(null);
   const [bid, setBid] = useState("");
   const [winnerId, setWinnerId] = useState("");
+  const [winnerSlot, setWinnerSlot] = useState<number | undefined>(undefined);
   const [newMemberId, setNewMemberId] = useState("");
   const [visible, setVisible] = useState(true);
   const [remind, setRemind] = useState(true);
@@ -85,9 +89,24 @@ export function ChitDetailPage() {
     if (!chit) return;
     // Only seed the amount when opening a chit — never overwrite what the user typed
     setBid(chit.type === "loan" || isFixedLike(chit) ? String(chit.pot) : "");
-    const next = isFixedLike(chit) ? nextBySlot(chit)?.customerId || "" : "";
-    setWinnerId(next);
+    const next = isFixedLike(chit) ? nextBySlot(chit) : undefined;
+    setWinnerId(next?.customerId || "");
+    setWinnerSlot(next?.slot);
   }, [chit?.id, chit?.currentCycle, chit?.auctions?.length]);
+
+  function pickHand(value: string) {
+    if (!value) {
+      setWinnerId("");
+      setWinnerSlot(undefined);
+      return;
+    }
+    const [cid, slotStr] = value.split("::");
+    setWinnerId(cid);
+    setWinnerSlot(slotStr ? Number(slotStr) : undefined);
+  }
+
+  const handSelectValue =
+    winnerId && winnerSlot != null ? `${winnerId}::${winnerSlot}` : winnerId;
 
   const names = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
 
@@ -102,7 +121,9 @@ export function ChitDetailPage() {
   const data = chit;
   const cycle = displayCycle(data);
   const isRunning = data.status === "running";
-  const pending = data.members.filter((m) => paymentStatus(data, m.customerId, cycle) === "due").length;
+  const pending = uniqueMemberIds(data).filter((id) => paymentStatus(data, id, cycle) === "due").length;
+  const lastMonthGate = canCloseLastMonth(data);
+  const payees = uniqueMemberIds(data);
   const lastWin = data.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
   const monthLoans = loansThisCycle(data);
   const cashOnHand = treasuryOf(data);
@@ -462,7 +483,7 @@ export function ChitDetailPage() {
                   <strong>Month {cycle}</strong>
                   <span className="muted"> {monthDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
                   <span className={`pill ${isRunning ? "paid" : "partial"}`}>{isRunning ? "Open" : "Closed"}</span>
-                  <div className="muted" style={{ marginTop: 6 }}>{collectedCount(data)} of {data.members.length} collected</div>
+                  <div className="muted" style={{ marginTop: 6 }}>{collectedCount(data)} of {payees.length} collected</div>
                 </div>
                 <div className="seg">
                   <button
@@ -515,21 +536,23 @@ export function ChitDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.members.map((m) => {
-                      const due = cycleDue(data, m.customerId, cycle);
-                      const paid = paidInCycle(data, m.customerId, cycle);
-                      const status = paymentStatus(data, m.customerId, cycle);
-                      const last = [...data.payments].reverse().find((p) => p.memberId === m.customerId && p.cycle === cycle);
+                    {payees.map((memberId) => {
+                      const due = cycleDue(data, memberId, cycle);
+                      const paid = paidInCycle(data, memberId, cycle);
+                      const status = paymentStatus(data, memberId, cycle);
+                      const last = [...data.payments].reverse().find((p) => p.memberId === memberId && p.cycle === cycle);
                       const label = status === "due" && unpaidNoted ? "Unpaid" : status[0].toUpperCase() + status.slice(1);
-                      const isWinner = lastWin?.winnerId === m.customerId;
+                      const isWinner = lastWin?.winnerId === memberId;
+                      const hands = data.members.filter((m) => m.customerId === memberId).length;
                       return (
-                        <tr key={m.customerId}>
+                        <tr key={memberId}>
                           <td>
                             <div className="person">
-                              <div className="avatar">{initials(names[m.customerId] || "?")}</div>
+                              <div className="avatar">{initials(names[memberId] || "?")}</div>
                               <span className="ellipsis">
-                                {names[m.customerId]}
+                                {memberHandLabel(data, memberId, names[memberId] || "Member")}
                                 {isWinner ? <span className="muted"> · winner</span> : null}
+                                {hands > 1 ? <span className="muted"> · dues ×{hands}</span> : null}
                               </span>
                             </div>
                           </td>
@@ -541,7 +564,7 @@ export function ChitDetailPage() {
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
                             {isRunning && !(auctionFirst && !lastWin) && (status === "due" || status === "partial") ? (
-                              <button className="btn ghost btn-sm" onClick={() => setPayFor(m.customerId)}>Record</button>
+                              <button className="btn ghost btn-sm" onClick={() => setPayFor(memberId)}>Record</button>
                             ) : (
                               <span className="muted">—</span>
                             )}
@@ -589,6 +612,8 @@ export function ChitDetailPage() {
                   disabled={
                     !isRunning
                       ? true
+                      : !lastMonthGate.ok
+                        ? true
                       : data.mode === "organise" && data.type === "auction" && !lastWin
                         ? true
                         : data.mode === "organise" && fixedLike && !lastWin
@@ -604,6 +629,8 @@ export function ChitDetailPage() {
                 <p className="muted" style={{ margin: "12px 0 0" }}>
                   This chit is {data.status}. Monthly collections and payouts are closed.
                 </p>
+              ) : !lastMonthGate.ok ? (
+                <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
               ) : lastWin && data.type !== "loan" ? (
                 <div style={{ marginTop: 12 }}>
                   <div className="kv">
@@ -640,12 +667,14 @@ export function ChitDetailPage() {
                           <div className="month-auction" style={{ padding: 0 }}>
                             <select
                               className="field"
-                              value={winnerId || lastMember?.customerId || ""}
-                              onChange={(e) => setWinnerId(e.target.value)}
+                              value={handSelectValue || (lastMember ? `${lastMember.customerId}::${lastMember.slot}` : "")}
+                              onChange={(e) => pickHand(e.target.value)}
                             >
                               <option value="">Last member</option>
                               {unprized.map((m) => (
-                                <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>
+                                <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
+                                  Slot {m.slot} · {names[m.customerId]}
+                                </option>
                               ))}
                             </select>
                             <button
@@ -653,7 +682,8 @@ export function ChitDetailPage() {
                               disabled={!(winnerId || lastMember?.customerId) || (!auctionFirst && cashOnHand <= 0)}
                               onClick={() => {
                                 const who = winnerId || lastMember?.customerId || "";
-                                void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction");
+                                const slot = winnerSlot ?? lastMember?.slot;
+                                void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot);
                               }}
                             >
                               Award full pot
@@ -678,21 +708,25 @@ export function ChitDetailPage() {
                       ) : (
                         <>
                           <div className="month-auction" style={{ padding: 0 }}>
-                            <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                            <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
                               <option value="">Winner</option>
-                              {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
+                              {unprized.map((m) => (
+                                <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
+                                  Slot {m.slot} · {names[m.customerId]}
+                                </option>
+                              ))}
                             </select>
                             <input className="field" placeholder="Winning bid (amount winner takes)" value={bid} onChange={(e) => setBid(e.target.value)} />
                             <button
                               className="btn"
                               disabled={!winnerId || !bid}
-                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction")}
+                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot)}
                             >
                               Record auction
                             </button>
                           </div>
                           {winnerId && Number(bid) > 0 && (() => {
-                            const preview = settleWinner(data, winnerId, Number(bid), "auction");
+                            const preview = settleWinner(data, winnerId, Number(bid), "auction", winnerSlot);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             const nextShare = auctionFirst
                               ? auctionFirstShare({ ...data, auctions: [...data.auctions.filter((a) => a.cycle !== cycle), preview] }, cycle)
@@ -827,19 +861,19 @@ export function ChitDetailPage() {
                             Collect first. Early winners leave one full instalment ({inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
-                            <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                            <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
                               <option value="">Award pot to</option>
                               {unprized.map((m) => (
-                                <option key={m.customerId} value={m.customerId}>
+                                <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
                                   Slot {m.slot} · {names[m.customerId]}
-                                  {nextSlot?.customerId === m.customerId ? " · next" : ""}
+                                  {nextSlot?.customerId === m.customerId && nextSlot.slot === m.slot ? " · next" : ""}
                                 </option>
                               ))}
                             </select>
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed")}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot)}
                             >
                               Award pot
                             </button>
@@ -853,7 +887,7 @@ export function ChitDetailPage() {
                             Lucky draw instead ({unprized.length} left)
                           </button>
                           {winnerId && (() => {
-                            const preview = settleWinner(data, winnerId, data.pot, "fixed");
+                            const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot);
                             const still = Math.max(0, unprized.length - 1);
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
@@ -876,19 +910,19 @@ export function ChitDetailPage() {
                             Payout order follows member slots. You can override and award a different unprized member. Same dues every month.
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
-                            <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                            <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
                               <option value="">Award pot to</option>
                               {unprized.map((m) => (
-                                <option key={m.customerId} value={m.customerId}>
+                                <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
                                   Slot {m.slot} · {names[m.customerId]}
-                                  {nextSlot?.customerId === m.customerId ? " · next" : ""}
+                                  {nextSlot?.customerId === m.customerId && nextSlot.slot === m.slot ? " · next" : ""}
                                 </option>
                               ))}
                             </select>
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed")}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot)}
                             >
                               Award pot
                             </button>
@@ -955,31 +989,45 @@ export function ChitDetailPage() {
           <>
             <div className="toolbar">
               <select className="field" style={{ margin: 0, maxWidth: 260 }} value={newMemberId} onChange={(e) => setNewMemberId(e.target.value)}>
-                <option value="">Add member</option>
-                {customers.filter((c) => !data.members.some((m) => m.customerId === c.id)).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                <option value="">Add member / hand</option>
+                {customers.map((c) => {
+                  const hands = data.members.filter((m) => m.customerId === c.id).length;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{hands ? ` · add hand (${hands} now)` : ""}
+                    </option>
+                  );
+                })}
               </select>
-              <button className="btn" disabled={!newMemberId} onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}>Add member</button>
+              <button
+                className="btn"
+                disabled={!newMemberId || data.members.length >= data.membersCount}
+                onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}
+              >
+                {data.members.some((m) => m.customerId === newMemberId) ? "Add hand" : "Add member"}
+              </button>
             </div>
+            <p className="muted" style={{ marginBottom: 12 }}>
+              One person can play multiple hands (slots). Each hand pays its own instalment and can win once. {data.members.length} of {data.membersCount} slots filled.
+            </p>
             <div className="card flush">
               {data.members.map((m) => {
                 const paid = data.payments.filter((p) => p.memberId === m.customerId).reduce((s, p) => s + p.amount, 0);
                 const principal = loanPrincipalOf(data, m.customerId);
                 const received = data.auctions
-                  .filter((a) => a.winnerId === m.customerId)
+                  .filter((a) => a.winnerId === m.customerId && (a.winnerSlot == null || a.winnerSlot === m.slot))
                   .reduce((s, a) => s + a.payout, 0);
                 const left = Math.max(0, memberBalance(data, m.customerId).outstanding);
+                const hands = data.members.filter((x) => x.customerId === m.customerId).length;
                 return (
-                  <div key={m.customerId} className="list-row">
+                  <div key={`${m.customerId}-${m.slot}`} className="list-row">
                     <div className="avatar">{initials(names[m.customerId] || "?")}</div>
                     <div className="grow">
                       <button className="link" style={{ fontWeight: 600 }} onClick={() => nav(`/customers/${m.customerId}`)}>{names[m.customerId]}</button>
                       <div className="muted">
-                        {fixedLike ? `Slot ${m.slot} · ` : ""}
-                        Paid {inr(paid)}
+                        Slot {m.slot}{hands > 1 ? ` · hand of ${hands}` : ""}
+                        {` · paid ${inr(paid)}`}
                         {data.type === "auction" ? ` · got ${inr(received)}` : ""}
-                        {data.type === "auction" ? ` · dividends ${inr(memberDividendTotal(data))}` : ""}
                         {principal ? ` · loan ${inr(principal)}` : ""}
                         {m.prizedCycle ? ` · prized month ${m.prizedCycle}` : ""}
                       </div>

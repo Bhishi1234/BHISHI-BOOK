@@ -8,7 +8,7 @@ import type {
   Ticket,
   User,
 } from "../types";
-import { assertCanSettlePayout, cycleDue, inferKind } from "../lib/chitMath";
+import { assertCanSettlePayout, canCloseLastMonth, cycleDue, inferKind } from "../lib/chitMath";
 import { normalizeEmail } from "../lib/email";
 import { uid } from "../lib/format";
 
@@ -369,11 +369,11 @@ export const mockServer = {
       needUser(db);
       db.chits = db.chits.map((c) => {
         if (c.id !== chitId) return c;
-        if (c.members.some((m) => m.customerId === customerId)) return c;
         if (c.members.length >= c.membersCount) throw new Error("All slots are filled");
+        const slot = Math.max(0, ...c.members.map((m) => m.slot)) + 1;
         return {
           ...c,
-          members: [...c.members, { customerId, slot: c.members.length + 1 }],
+          members: [...c.members, { customerId, slot }],
         };
       });
       write(db);
@@ -411,6 +411,8 @@ export const mockServer = {
       if (chit.mode === "organise" && chit.type !== "loan" && !chit.auctions.some((a) => a.cycle === chit.currentCycle)) {
         throw new Error("Settle this cycle's winner before closing");
       }
+      const gate = canCloseLastMonth(chit);
+      if (!gate.ok) throw new Error(gate.reason);
       db.chits = db.chits.map((c) => {
         if (c.id !== id) return c;
         const next = c.currentCycle + 1;
@@ -471,7 +473,7 @@ export const mockServer = {
   },
 
   auctions: {
-    create(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"]) {
+    create(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
       const db = read();
       needUser(db);
       let record: AuctionRecord | null = null;
@@ -486,13 +488,16 @@ export const mockServer = {
         if (!isLoan && !isSettlement && c.auctions.some((a) => a.cycle === c.currentCycle && a.method !== "settlement")) {
           throw new Error("This cycle is already settled");
         }
-        const winner = c.members.find((m) => m.customerId === winnerId);
+        const winner = winnerSlot != null
+          ? c.members.find((m) => m.customerId === winnerId && m.slot === winnerSlot)
+          : c.members.find((m) => m.customerId === winnerId && !m.prizedCycle)
+            || c.members.find((m) => m.customerId === winnerId);
         if (!winner) throw new Error("Winner is not a member of this chit");
         if (!isLoan && !isSettlement && winner.prizedCycle) {
           throw new Error("This member already won");
         }
         if (!bid || bid <= 0) throw new Error("Enter a loan / payout amount");
-        record = assertCanSettlePayout(c, winnerId, bid, method);
+        record = assertCanSettlePayout(c, winnerId, bid, method, winner.slot);
         const nextAuctions = isLoan || isSettlement
           ? [...c.auctions, record!]
           : [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record!];
@@ -531,7 +536,7 @@ export const mockServer = {
           members: isSettlement
             ? c.members
             : c.members.map((m) =>
-                m.customerId === winnerId
+                m.customerId === winnerId && m.slot === (record?.winnerSlot ?? winner.slot)
                   ? { ...m, prizedCycle: m.prizedCycle || c.currentCycle }
                   : m,
               ),
@@ -546,7 +551,7 @@ export const mockServer = {
       const pool = chit.members.filter((m) => !m.prizedCycle);
       if (!pool.length) throw new Error("No unprized members left");
       const winner = pool[Math.floor(Math.random() * pool.length)];
-      return this.create(chitId, winner.customerId, chit.pot, "lucky_draw");
+      return this.create(chitId, winner.customerId, chit.pot, "lucky_draw", winner.slot);
     },
   },
 

@@ -413,31 +413,56 @@ export function NewChitPage() {
             <p className="muted block">
               {showPayoutOrder
                 ? fixedStyle === "hand_sacrifice"
-                  ? "Order is the usual take sequence — early slots sacrifice one full hand (cash dividends to those still playing). Last slot takes the full pot. Use the arrows to rearrange."
-                  : "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange."
+                  ? "Order is the usual take sequence — early slots sacrifice one full hand (cash dividends to those still playing). Last slot takes the full pot. Use the arrows to rearrange. The same person can hold more than one hand."
+                  : "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange. Add another hand for someone who plays twice."
                 : fixedStyle === "lucky_draw" && type === "fixed"
-                  ? "Members who have not won yet stay in the draw each month. Order does not decide who wins."
-                  : "Added before you start. You can leave slots empty and map people later."}
+                  ? "Members who have not won yet stay in the draw each month. One person can play multiple hands."
+                  : "Add people before you start. The same person can take more than one hand — each hand fills one slot and pays its own instalment."}
             </p>
-            {customers.map((c) => (
-              <label key={c.id} className="check">
-                <input
-                  type="checkbox"
-                  checked={picked.includes(c.id)}
-                  onChange={(e) => setPicked((p) => e.target.checked ? [...p, c.id] : p.filter((id) => id !== c.id))}
-                />
-                {c.name} <span className="muted">{c.phone}</span>
-              </label>
-            ))}
+            {customers.map((c) => {
+              const hands = picked.filter((id) => id === c.id).length;
+              return (
+                <div key={c.id} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
+                  <div className="grow">
+                    <strong>{c.name}</strong> <span className="muted">{c.phone}</span>
+                    {hands > 0 ? <div className="muted">{hands} hand{hands > 1 ? "s" : ""} in this chit</div> : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn ghost btn-sm"
+                    disabled={hands === 0}
+                    onClick={() => {
+                      const idx = picked.lastIndexOf(c.id);
+                      if (idx >= 0) setPicked((p) => p.filter((_, i) => i !== idx));
+                    }}
+                  >
+                    − Hand
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost btn-sm"
+                    disabled={!!n && picked.length >= n}
+                    onClick={() => setPicked((p) => [...p, c.id])}
+                  >
+                    + Hand
+                  </button>
+                </div>
+              );
+            })}
             {showPayoutOrder && !!picked.length && (
               <div className="card" style={{ margin: "12px 0", background: "#f8fafc" }}>
-                <strong>Payout order</strong>
+                <strong>Payout order (hands)</strong>
                 {picked.map((id, i) => {
                   const c = customers.find((x) => x.id === id);
+                  const handNo = picked.slice(0, i + 1).filter((x) => x === id).length;
+                  const totalHands = picked.filter((x) => x === id).length;
                   return (
-                    <div key={id} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
+                    <div key={`${id}-${i}`} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
                       <span className="muted">Slot {i + 1}</span>
-                      <div className="grow"><strong>{c?.name}</strong></div>
+                      <div className="grow">
+                        <strong>{c?.name}</strong>
+                        {totalHands > 1 ? <span className="muted"> · hand {handNo}</span> : null}
+                      </div>
                       <button type="button" className="btn ghost btn-sm" disabled={i === 0} onClick={() => movePick(i, -1)}>↑</button>
                       <button type="button" className="btn ghost btn-sm" disabled={i === picked.length - 1} onClick={() => movePick(i, 1)}>↓</button>
                     </div>

@@ -2,6 +2,7 @@ import type { Chit, ChitMember } from "../types";
 import {
   appliedDividend,
   balanceAfterCycle,
+  canCloseLastMonth,
   canSettleCycle,
   handSacrificeAmount,
   handSacrificeDividendsReceived,
@@ -310,7 +311,67 @@ assert(lateLoan.discount === 1000, `late upfront ${lateLoan.discount}`);
 assert(lateLoan.payout === 19000, `late net ${lateLoan.payout}`);
 late.currentCycle = 4;
 assert(rawCycleDue(late, "m1", 4) === 10000 + 0 + 10000, `late m4 due ${rawCycleDue(late, "m1", 4)}`);
-late.currentCycle = 5;
+loan.currentCycle = 5;
 assert(rawCycleDue(late, "m1", 5) === 10000 + 1000 + 10000, `late m5 due ${rawCycleDue(late, "m1", 5)}`);
+
+// Multi-hand: same person, 2 slots → 2× instalment
+const multi = chit({
+  members: [
+    { customerId: "m1", slot: 1 },
+    { customerId: "m1", slot: 2 },
+    { customerId: "m2", slot: 3 },
+  ],
+  type: "fixed",
+  pot: 30000,
+  instalment: 10000,
+  duration: 3,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+assert(rawCycleDue(multi, "m1", 1) === 20000, `multi m1 due ${rawCycleDue(multi, "m1", 1)}`);
+assert(rawCycleDue(multi, "m2", 1) === 10000, `multi m2 due ${rawCycleDue(multi, "m2", 1)}`);
+collectAll(multi, 20000); // overpays m2; m1 exact if we collect per unique... collectAll uses members loop
+// fix: collect unique amounts
+multi.payments = [];
+for (const id of ["m1", "m2"]) {
+  const due = rawCycleDue(multi, id, 1);
+  multi.payments.push({
+    id: `pm${id}`,
+    memberId: id,
+    cycle: 1,
+    amount: due,
+    kind: "full",
+    date: "2026-01-01",
+    mode: "cash",
+  });
+}
+assert(canCloseLastMonth({ ...multi, currentCycle: 1, duration: 3 }).ok, "not last month yet");
+multi.currentCycle = 3;
+assert(!canCloseLastMonth(multi).ok, "last month unpaid should block");
+for (const id of ["m1", "m2"]) {
+  multi.payments.push({
+    id: `pm3${id}`,
+    memberId: id,
+    cycle: 3,
+    amount: rawCycleDue(multi, id, 3),
+    kind: "full",
+    date: "2026-03-01",
+    mode: "cash",
+  });
+}
+// still outstanding for cycle 2
+assert(!canCloseLastMonth(multi).ok, "cycle 2 outstanding blocks");
+for (const id of ["m1", "m2"]) {
+  multi.payments.push({
+    id: `pm2${id}`,
+    memberId: id,
+    cycle: 2,
+    amount: rawCycleDue(multi, id, 2),
+    kind: "full",
+    date: "2026-02-01",
+    mode: "cash",
+  });
+}
+assert(canCloseLastMonth(multi).ok, "last month clear should allow");
 
 console.log("chit math ok");

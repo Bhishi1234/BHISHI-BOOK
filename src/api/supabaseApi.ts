@@ -244,15 +244,16 @@ export const supabaseApi = {
     return loadPayments(chitId);
   },
 
-  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"]) {
+  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
     const chit = await loadChit(chitId);
-    assertCanSettlePayout(chit, winnerId, bid, method);
+    assertCanSettlePayout(chit, winnerId, bid, method, winnerSlot);
     const { sb } = await requireUser();
     const { data, error } = await sb.rpc("settle_payout", {
       p_chit_id: chitId,
       p_winner_id: winnerId,
       p_bid: bid,
       p_method: method,
+      p_winner_slot: winnerSlot ?? null,
     });
     throwIf(error);
     return mapAuction(data as Record<string, unknown>);

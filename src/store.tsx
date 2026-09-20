@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api/client";
-import { cycleDue, loanSettlementPlan, paidInCycle } from "./lib/chitMath";
+import { cycleDue, canCloseLastMonth, loanSettlementPlan, paidInCycle, uniqueMemberIds } from "./lib/chitMath";
 import type {
   AuctionRecord,
   Chit,
@@ -57,6 +57,7 @@ type Store = {
     winnerId: string,
     bid: number,
     method: AuctionRecord["method"],
+    winnerSlot?: number,
   ) => Promise<AuctionRecord | null>;
   settleBooksEqually: (chitId: string) => Promise<void>;
   luckyDraw: (chitId: string) => Promise<AuctionRecord | null>;
@@ -184,12 +185,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!chit) throw new Error("Not found");
         if (chit.status !== "running") throw new Error("Chit is not running");
         await guarded(async () => {
-          for (const member of chit.members) {
-            const due = cycleDue(chit, member.customerId, chit.currentCycle);
-            const paid = paidInCycle(chit, member.customerId, chit.currentCycle);
+          for (const memberId of uniqueMemberIds(chit)) {
+            const due = cycleDue(chit, memberId, chit.currentCycle);
+            const paid = paidInCycle(chit, memberId, chit.currentCycle);
             const left = Math.max(0, due - paid);
             if (left > 0) {
-              await api.recordPayment(chitId, member.customerId, left, "full", "cash");
+              await api.recordPayment(chitId, memberId, left, "full", "cash");
             }
           }
         });
@@ -199,8 +200,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await guarded(() => api.undoPayment(chitId, paymentId));
         await reload();
       },
-      recordAuction: async (chitId, winnerId, bid, method) => {
-        const rec = await guarded(() => api.settlePayout(chitId, winnerId, bid, method));
+      recordAuction: async (chitId, winnerId, bid, method, winnerSlot) => {
+        const rec = await guarded(() => api.settlePayout(chitId, winnerId, bid, method, winnerSlot));
         await reload();
         return rec;
       },
@@ -226,6 +227,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return rec;
       },
       closeCycle: async (id) => {
+        const chit = chits.find((c) => c.id === id);
+        if (chit) {
+          const gate = canCloseLastMonth(chit);
+          if (!gate.ok) throw new Error(gate.reason);
+        }
         await guarded(() => api.closeCycle(id));
         await reload();
       },

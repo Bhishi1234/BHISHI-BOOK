@@ -42,6 +42,9 @@ export function mapAuction(row: Record<string, unknown>): AuctionRecord {
     id: row.id ? String(row.id) : undefined,
     cycle: num(row.cycle),
     winnerId: String(row.winner_id ?? row.winnerId ?? ""),
+    winnerSlot: row.winner_slot != null || row.winnerSlot != null
+      ? num(row.winner_slot ?? row.winnerSlot)
+      : undefined,
     bid: num(row.bid),
     method: (row.method as AuctionRecord["method"]) || "auction",
     discount: num(row.discount),
@@ -106,6 +109,7 @@ export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerR
     memberVisible: Boolean(row.member_visible ?? row.memberVisible),
     members: members
       .map((m) => ({
+        id: m.id ? String(m.id) : undefined,
         customerId: String(m.customer_id ?? m.customerId ?? ""),
         slot: num(m.slot),
         prizedCycle: m.prized_cycle != null || m.prizedCycle != null
