@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api/client";
-import { cycleDue, paidInCycle, treasuryOf } from "./lib/chitMath";
+import { cycleDue, loanSettlementPlan, paidInCycle } from "./lib/chitMath";
 import type {
   AuctionRecord,
   Chit,
@@ -208,16 +208,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await guarded(async () => {
           const chit = await api.chit(chitId);
           if (chit.type !== "loan") throw new Error("Settlement is only for loan bhishi");
-          const cash = treasuryOf(chit);
-          if (cash <= 0) throw new Error("No cash on hand left to settle");
-          if (!chit.members.length) throw new Error("No members");
-          const n = chit.members.length;
-          const each = Math.floor(cash / n);
-          const first = cash - each * (n - 1);
-          for (let i = 0; i < n; i++) {
-            const amt = i === 0 ? first : each;
-            if (amt > 0) {
-              await api.settlePayout(chitId, chit.members[i].customerId, amt, "settlement");
+          const plan = loanSettlementPlan(chit);
+          if (!plan.length || plan.every((p) => p.amount <= 0)) {
+            throw new Error("No cash on hand left to settle");
+          }
+          for (const row of plan) {
+            if (row.amount > 0) {
+              await api.settlePayout(chitId, row.memberId, row.amount, "settlement");
             }
           }
         });

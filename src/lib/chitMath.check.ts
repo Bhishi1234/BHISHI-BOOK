@@ -246,20 +246,20 @@ const loan = chit({
 });
 collectAll(loan, 20000);
 const lg = settleWinner(loan, "m1", 200000, "fixed");
-assert(lg.payout === 200000, `loan payout ${lg.payout}`);
-// not enough cash — assertCanSettle would throw; settleWinner itself allows amount
+assert(lg.discount === 10000, `loan upfront interest ${lg.discount}`);
+// Only ₹1L cash on hand → net payout capped after commission
+assert(lg.payout === 99900, `loan payout capped ${lg.payout}`);
 loan.payments = [];
 collectAll(loan, 20000);
-// only 100k cash — giving 100k is ok
 const lg2 = settleWinner(loan, "m1", 100000, "fixed");
 loan.auctions.push(lg2);
 loan.members = loan.members.map((m) =>
   m.customerId === "m1" ? { ...m, prizedCycle: 1 } : m,
 );
-assert(lg2.payout === 100000, `loan 1L ${lg2.payout}`);
-assert(treasuryOf(loan) === 100000 - 100000 - 100, `loan cash ${treasuryOf(loan)}`);
+assert(lg2.discount === 5000, `loan 1L interest ${lg2.discount}`);
+assert(lg2.payout === 95000, `loan 1L net ${lg2.payout}`);
+assert(treasuryOf(loan) === 100000 - 95000 - 100, `loan cash ${treasuryOf(loan)}`);
 
-// second loan same cycle (extra cash)
 loan.payments.push(
   ...loan.members.map((m, i) => ({
     id: `px${i}`,
@@ -273,14 +273,44 @@ loan.payments.push(
 );
 const lg3 = settleWinner(loan, "m2", 50000, "fixed");
 assert(lg3.commission === 0, `second loan commission ${lg3.commission}`);
-assert(lg3.payout === 50000, `second loan ${lg3.payout}`);
+assert(lg3.discount === 2500, `second loan interest ${lg3.discount}`);
+assert(lg3.payout === 47500, `second loan ${lg3.payout}`);
 loan.auctions.push(lg3);
 loan.members = loan.members.map((m) =>
   m.customerId === "m2" ? { ...m, prizedCycle: 1 } : m,
 );
 
 loan.currentCycle = 2;
-assert(rawCycleDue(loan, "m1", 2) === 20000 + 5000 + 25000, `m1 due ${rawCycleDue(loan, "m1", 2)}`);
+// First repay month: upfront interest already cut → deposit + share only
+assert(rawCycleDue(loan, "m1", 2) === 20000 + 0 + 25000, `m1 due ${rawCycleDue(loan, "m1", 2)}`);
 assert(rawCycleDue(loan, "m3", 2) === 20000, `m3 due ${rawCycleDue(loan, "m3", 2)}`);
+
+const late = chit({
+  members: members(5),
+  type: "loan",
+  instalment: 10000,
+  pot: 50000,
+  commissionKind: "amount",
+  commissionValue: 0,
+  interestRate: 5,
+  repaymentTenure: 4,
+  duration: 5,
+  currentCycle: 1,
+});
+for (let c = 1; c <= 3; c++) {
+  late.currentCycle = c;
+  collectAll(late, 10000);
+}
+const lateLoan = settleWinner(late, "m1", 20000, "fixed");
+late.auctions.push(lateLoan);
+late.members = late.members.map((m) =>
+  m.customerId === "m1" ? { ...m, prizedCycle: 3 } : m,
+);
+assert(lateLoan.discount === 1000, `late upfront ${lateLoan.discount}`);
+assert(lateLoan.payout === 19000, `late net ${lateLoan.payout}`);
+late.currentCycle = 4;
+assert(rawCycleDue(late, "m1", 4) === 10000 + 0 + 10000, `late m4 due ${rawCycleDue(late, "m1", 4)}`);
+late.currentCycle = 5;
+assert(rawCycleDue(late, "m1", 5) === 10000 + 1000 + 10000, `late m5 due ${rawCycleDue(late, "m1", 5)}`);
 
 console.log("chit math ok");

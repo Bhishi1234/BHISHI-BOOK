@@ -129,11 +129,22 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
   return base;
 }
 
-/** Total principal this member has taken (loan disbursements only). */
+/** Total face principal this member has taken (loan disbursements only). */
 export function loanPrincipalOf(chit: Chit, memberId: string) {
   return chit.auctions
     .filter((a) => a.winnerId === memberId && a.method === "fixed")
-    .reduce((s, a) => s + a.payout, 0);
+    .reduce((s, a) => s + loanFaceAmount(a), 0);
+}
+
+/** Face loan amount (before upfront interest cut). */
+export function loanFaceAmount(a: AuctionRecord) {
+  const bid = Math.max(0, Number(a.bid) || 0);
+  if (bid > 0) return bid;
+  return (
+    Math.max(0, Number(a.payout) || 0)
+    + Math.max(0, Number(a.discount) || 0)
+    + Math.max(0, Number(a.arrearsWithheld) || 0)
+  );
 }
 
 export function firstLoanCycle(chit: Chit, memberId: string) {
@@ -143,9 +154,42 @@ export function firstLoanCycle(chit: Chit, memberId: string) {
   return cycles.length ? Math.min(...cycles) : 0;
 }
 
+/** Months left in the chit after the loan month (repayment window). */
+export function loanRemainingMonths(chit: Chit, startCycle: number) {
+  return Math.max(0, (chit.duration || 0) - startCycle);
+}
+
 /**
- * Loan bhishi due = deposit + interest on principal + amortised principal share.
- * Interest and principal start the month AFTER the loan is given (ChitBook-style).
+ * Repayment months for a loan taken in `startCycle`.
+ * Never longer than the remaining bhishi tenure (e.g. 5-mo chit, 4-mo tenure,
+ * loan in month 3 → only 2 repayment months).
+ */
+export function loanEffectiveTenure(chit: Chit, startCycle: number) {
+  const remaining = loanRemainingMonths(chit, startCycle);
+  if (remaining <= 0) return 1;
+  const configured =
+    chit.repaymentTenure && chit.repaymentTenure > 0
+      ? chit.repaymentTenure
+      : remaining;
+  return Math.max(1, Math.min(configured, remaining));
+}
+
+export function loanMonthlyInterest(chit: Chit, principal: number) {
+  const rate = chit.interestRate || 0;
+  return Math.round((principal * rate) / 100);
+}
+
+/** True when this member’s loans recorded an upfront interest cut (discount). */
+export function loanHadUpfrontInterest(chit: Chit, memberId: string) {
+  return chit.auctions.some(
+    (a) => a.winnerId === memberId && a.method === "fixed" && (Number(a.discount) || 0) > 0,
+  );
+}
+
+/**
+ * Loan due = deposit + interest + amortised principal share.
+ * Interest/principal start the month AFTER the loan. If upfront interest was cut
+ * from the disbursement, the first repayment month skips monthly interest (already paid).
  */
 export function loanCycleDue(chit: Chit, memberId: string, cycle: number) {
   const base = baseInstalment(chit);
@@ -153,23 +197,33 @@ export function loanCycleDue(chit: Chit, memberId: string, cycle: number) {
   if (!principal) return base;
   const start = firstLoanCycle(chit, memberId);
   if (!start || cycle <= start) return base;
-  const rate = chit.interestRate || 0;
-  const interest = Math.round((principal * rate) / 100);
-  const tenure = Math.max(
-    1,
-    chit.repaymentTenure || Math.max(1, chit.duration - start),
-  );
+  const tenure = loanEffectiveTenure(chit, start);
   const monthIndex = cycle - start; // 1 = first repayment month
-  const principalShare = monthIndex >= 1 && monthIndex <= tenure
-    ? Math.ceil(principal / tenure)
-    : 0;
-  // Last instalment adjustment so total principal shares ≈ principal
-  let share = principalShare;
+  if (monthIndex < 1 || monthIndex > tenure) return base;
+
+  const interestMonthly = loanMonthlyInterest(chit, principal);
+  const interest =
+    loanHadUpfrontInterest(chit, memberId) && monthIndex === 1 ? 0 : interestMonthly;
+
+  let share = Math.ceil(principal / tenure);
   if (monthIndex === tenure) {
     const prior = Math.ceil(principal / tenure) * (tenure - 1);
     share = Math.max(0, principal - prior);
   }
   return base + interest + share;
+}
+
+/** Interest portion due in a repayment cycle (0 if not a loan repayment month). */
+export function loanInterestDueInCycle(chit: Chit, memberId: string, cycle: number) {
+  const principal = loanPrincipalOf(chit, memberId);
+  if (!principal) return 0;
+  const start = firstLoanCycle(chit, memberId);
+  if (!start || cycle <= start) return 0;
+  const tenure = loanEffectiveTenure(chit, start);
+  const monthIndex = cycle - start;
+  if (monthIndex < 1 || monthIndex > tenure) return 0;
+  if (loanHadUpfrontInterest(chit, memberId) && monthIndex === 1) return 0;
+  return loanMonthlyInterest(chit, principal);
 }
 
 export function surplusBefore(chit: Chit, memberId: string, cycle: number) {
@@ -435,6 +489,33 @@ export function memberLedgerRows(chit: Chit) {
         paid,
         received,
         dividend,
+        loanOut: 0,
+        interestPaid: 0,
+        net: received - paid,
+      };
+    });
+  }
+  if (chit.type === "loan") {
+    return chit.members.map((m) => {
+      const paid = memberPaidTotal(chit, m.customerId);
+      const loanOut = chit.auctions
+        .filter((a) => a.winnerId === m.customerId && a.method === "fixed")
+        .reduce((s, a) => s + a.payout, 0);
+      const settled = chit.auctions
+        .filter((a) => a.winnerId === m.customerId && a.method === "settlement")
+        .reduce((s, a) => s + a.payout, 0);
+      const interestPaid = interestPaidByMember(chit, m.customerId);
+      const dividend = loanInterestDividendShare(chit, m.customerId);
+      const received = loanOut + settled;
+      return {
+        customerId: m.customerId,
+        slot: m.slot,
+        prizedCycle: m.prizedCycle,
+        paid,
+        received,
+        dividend,
+        interestPaid,
+        loanOut,
         net: received - paid,
       };
     });
@@ -450,6 +531,8 @@ export function memberLedgerRows(chit: Chit) {
       paid,
       received,
       dividend: divEach,
+      loanOut: 0,
+      interestPaid: 0,
       net: received + divEach - paid,
     };
   });
@@ -490,20 +573,85 @@ export function commissionEarned(chit: Chit) {
 
 export function interestCollected(chit: Chit) {
   if (chit.type !== "loan" || !chit.interestRate) return 0;
-  const rate = chit.interestRate;
-  const through = displayCycle(chit);
-  return chit.members.reduce((sum, m) => {
-    const principal = loanPrincipalOf(chit, m.customerId);
-    if (!principal) return sum;
-    const start = firstLoanCycle(chit, m.customerId);
-    let extra = 0;
-    for (let c = start + 1; c <= through; c++) {
-      if (paidInCycle(chit, m.customerId, c) > 0) {
-        extra += Math.round((principal * rate) / 100);
-      }
+  return chit.members.reduce((sum, m) => sum + interestPaidByMember(chit, m.customerId), 0);
+}
+
+/** Interest this member has paid in (upfront cut + monthly interest once dues are paid). */
+export function interestPaidByMember(chit: Chit, memberId: string) {
+  if (chit.type !== "loan" || !chit.interestRate) return 0;
+  let total = 0;
+  for (const a of chit.auctions) {
+    if (a.winnerId === memberId && a.method === "fixed") {
+      total += Math.max(0, Number(a.discount) || 0);
     }
-    return sum + extra;
-  }, 0);
+  }
+  const through = displayCycle(chit);
+  for (let c = 1; c <= through; c++) {
+    if (paidInCycle(chit, memberId, c) <= 0) continue;
+    total += loanInterestDueInCycle(chit, memberId, c);
+  }
+  return total;
+}
+
+/**
+ * End-of-tenure interest dividend for one member: share of everyone else’s interest
+ * (you do not get back the interest you paid).
+ */
+export function loanInterestDividendShare(chit: Chit, memberId: string) {
+  if (chit.type !== "loan") return 0;
+  const n = memberCount(chit);
+  if (n <= 1) return 0;
+  const total = interestCollected(chit);
+  const own = interestPaidByMember(chit, memberId);
+  return Math.max(0, Math.floor((total - own) / (n - 1)));
+}
+
+/**
+ * Final loan settlement: interest pool → dividends to others, then leftover cash equally.
+ * Returns one payout amount per member (combined).
+ */
+export function loanSettlementPlan(chit: Chit) {
+  const cash = Math.max(0, treasuryOf(chit));
+  const n = chit.members.length;
+  if (!n || cash <= 0) return [] as { memberId: string; amount: number; interestPart: number; equalPart: number }[];
+
+  const interestParts = chit.members.map((m) => ({
+    memberId: m.customerId,
+    interestPart: loanInterestDividendShare(chit, m.customerId),
+  }));
+  let interestSum = interestParts.reduce((s, r) => s + r.interestPart, 0);
+  const interestCap = Math.min(interestCollected(chit), cash);
+  // Distribute floor remainder so interest parts sum to interestCap.
+  let remI = interestCap - interestSum;
+  for (let i = 0; i < interestParts.length && remI > 0; i++) {
+    interestParts[i].interestPart += 1;
+    remI -= 1;
+    interestSum += 1;
+  }
+  if (interestSum > interestCap) {
+    // Scale down if floor math overshot (shouldn't with remainder loop).
+    let over = interestSum - interestCap;
+    for (let i = interestParts.length - 1; i >= 0 && over > 0; i--) {
+      const cut = Math.min(over, interestParts[i].interestPart);
+      interestParts[i].interestPart -= cut;
+      over -= cut;
+    }
+    interestSum = interestParts.reduce((s, r) => s + r.interestPart, 0);
+  }
+
+  const leftover = Math.max(0, cash - interestSum);
+  const equal = Math.floor(leftover / n);
+  let remE = leftover - equal * n;
+
+  return interestParts.map((row, i) => {
+    const equalPart = equal + (i < remE ? 1 : 0);
+    return {
+      memberId: row.memberId,
+      interestPart: row.interestPart,
+      equalPart,
+      amount: row.interestPart + equalPart,
+    };
+  });
 }
 
 export function loansThisCycle(chit: Chit) {
@@ -517,6 +665,33 @@ export function settlementsOf(chit: Chit) {
 
 export function outstandingLoanPrincipal(chit: Chit) {
   return chit.members.reduce((s, m) => s + loanPrincipalOf(chit, m.customerId), 0);
+}
+
+/** Per-loan rows for overview: who, when, face, cut, tenure, schedule. */
+export function loanDetailRows(chit: Chit) {
+  return chit.auctions
+    .filter((a) => a.method === "fixed")
+    .map((a) => {
+      const face = loanFaceAmount(a);
+      const tenure = loanEffectiveTenure(chit, a.cycle);
+      const interestMo = loanMonthlyInterest(chit, face);
+      const share = Math.ceil(face / tenure);
+      return {
+        id: a.id,
+        cycle: a.cycle,
+        memberId: a.winnerId,
+        face,
+        upfrontInterest: Math.max(0, Number(a.discount) || 0),
+        netPaidOut: a.payout,
+        commission: a.commission || 0,
+        tenure,
+        remainingAtLoan: loanRemainingMonths(chit, a.cycle),
+        interestPerMonth: interestMo,
+        principalSharePerMonth: share,
+        repayFrom: a.cycle + 1,
+        repayTo: a.cycle + tenure,
+      };
+    });
 }
 
 export function outstandingOf(chit: Chit) {
@@ -581,6 +756,10 @@ export function settleWinner(
       const maxPayout = Math.max(0, treasuryOf(chit) - commission);
       safeBid = Math.min(safeBid, maxPayout);
     }
+  } else if (method === "fixed" && chit.type === "loan") {
+    // Face principal; one month’s interest is cut from the amount handed over and stays in the pot.
+    safeBid = Math.max(0, Number(bid) || 0);
+    discount = loanMonthlyInterest(chit, safeBid);
   } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw")) {
     const maxPayout = Math.max(0, treasuryOf(chit) - commission);
     safeBid = Math.min(Math.max(0, Number(bid) || 0), maxPayout);
@@ -591,7 +770,14 @@ export function settleWinner(
   const arrearsWithheld = method === "settlement" || auctionFirst
     ? 0
     : memberBalance(chit, winnerId).outstanding;
-  const payout = Math.max(0, safeBid - arrearsWithheld);
+  let payout = Math.max(0, safeBid - arrearsWithheld);
+  if (method === "fixed" && chit.type === "loan") {
+    payout = Math.max(0, safeBid - discount - arrearsWithheld);
+  }
+  if (method === "fixed" && chit.type === "loan") {
+    const maxNet = Math.max(0, treasuryOf(chit) - commission);
+    if (payout > maxNet) payout = maxNet;
+  }
   return {
     cycle: chit.currentCycle,
     winnerId,

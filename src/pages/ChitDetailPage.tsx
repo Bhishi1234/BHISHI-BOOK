@@ -22,7 +22,12 @@ import {
   handSacrificeAmount,
   isAuctionFirst,
   isLastAuctionCycle,
+  loanDetailRows,
+  loanEffectiveTenure,
+  loanInterestDividendShare,
+  loanMonthlyInterest,
   loanPrincipalOf,
+  loanSettlementPlan,
   loansThisCycle,
   memberDividendTotal,
   memberLedgerRows,
@@ -213,16 +218,23 @@ export function ChitDetailPage() {
                   </>
                 )}
                 {data.type === "loan" && (
-                  <div className="kv"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
+                  <>
+                    <div className="kv"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
+                    <p className="muted" style={{ marginTop: 8 }}>
+                      One month’s interest is cut from the loan when it is given and stays in the pot. Further interest is collected with each repayment month, then paid as dividends to the other members at final settlement.
+                    </p>
+                  </>
                 )}
               </div>
             </div>
-            {(data.type === "auction" || handSacrifice) && (
+            {(data.type === "auction" || handSacrifice || data.type === "loan") && (
               <div className="card flush block">
                 <div className="card-pad">
                   <h2>Member ledger</h2>
                   <p className="muted">
-                    {handSacrifice
+                    {data.type === "loan"
+                      ? "What each person paid in, loans received, interest they paid, and interest dividends due at settlement."
+                      : handSacrifice
                       ? "What each person paid in, what they took from the pot, and cash dividends from early sacrifice months."
                       : "What each person paid in, what they took from the pot, and dividends credited to their dues."}
                   </p>
@@ -233,8 +245,18 @@ export function ChitDetailPage() {
                       <tr>
                         <th>Member</th>
                         <th>Paid in</th>
-                        <th>Got from pot</th>
-                        <th>{handSacrifice ? "Cash dividends" : "Dividends"}</th>
+                        {data.type === "loan" ? (
+                          <>
+                            <th>Loan received</th>
+                            <th>Interest paid</th>
+                            <th>Interest dividend</th>
+                          </>
+                        ) : (
+                          <>
+                            <th>Got from pot</th>
+                            <th>{handSacrifice ? "Cash dividends" : "Dividends"}</th>
+                          </>
+                        )}
                         <th>Net</th>
                       </tr>
                     </thead>
@@ -246,9 +268,61 @@ export function ChitDetailPage() {
                             {row.prizedCycle ? <div className="muted">Prized month {row.prizedCycle}</div> : null}
                           </td>
                           <td>{inr(row.paid)}</td>
-                          <td>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
-                          <td>{inr(row.dividend)}</td>
+                          {data.type === "loan" ? (
+                            <>
+                              <td>{inr(row.loanOut || 0)}</td>
+                              <td>{inr(row.interestPaid || 0)}</td>
+                              <td>{inr(loanInterestDividendShare(data, row.customerId))}</td>
+                            </>
+                          ) : (
+                            <>
+                              <td>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
+                              <td>{inr(row.dividend)}</td>
+                            </>
+                          )}
                           <td className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {data.type === "loan" && !!loanDetailRows(data).length && (
+              <div className="card flush block">
+                <div className="card-pad">
+                  <h2>Loan details</h2>
+                  <p className="muted">Every loan given — amount, interest cut, repayment window (capped to remaining months of this bhishi).</p>
+                </div>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Member</th>
+                        <th>Month</th>
+                        <th>Face loan</th>
+                        <th>Interest cut</th>
+                        <th>Net paid out</th>
+                        <th>Repay</th>
+                        <th>Share / mo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loanDetailRows(data).map((row, i) => (
+                        <tr key={row.id || `${row.memberId}-${row.cycle}-${i}`}>
+                          <td><strong>{names[row.memberId] || "Member"}</strong></td>
+                          <td>{row.cycle}</td>
+                          <td>{inr(row.face)}</td>
+                          <td>{inr(row.upfrontInterest)}</td>
+                          <td>{inr(row.netPaidOut)}{row.commission ? <div className="muted">comm {inr(row.commission)}</div> : null}</td>
+                          <td>
+                            {row.tenure} mo
+                            <div className="muted">M{row.repayFrom}–M{row.repayTo}</div>
+                          </td>
+                          <td>
+                            {inr(row.principalSharePerMonth)}
+                            <div className="muted">+ {inr(row.interestPerMonth)} int/mo</div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -659,7 +733,7 @@ export function ChitDetailPage() {
                         </div>
                       )}
                       <p className="muted" style={{ marginBottom: 10 }}>
-                        Enter any amount up to cash on hand — e.g. ₹2,00,000 even if the monthly pot is ₹1,00,000. You can give more than one loan this month.
+                        Enter the face loan amount (e.g. ₹2,00,000). One month’s interest is cut from that amount and stays in the pot; the borrower receives the rest. Organiser commission (if any) is also taken from cash on hand on the first loan of the month. Repayment months are capped to the remaining tenure of this bhishi.
                       </p>
                       <div className="month-auction" style={{ padding: 0 }}>
                         <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
@@ -703,15 +777,19 @@ export function ChitDetailPage() {
                         const preview = settleWinner(data, winnerId, Number(bid), "fixed");
                         const cashAfter = cashOnHand - preview.payout - preview.commission;
                         const start = cycle;
-                        const tenure = data.repaymentTenure || Math.max(1, data.duration - start);
-                        const share = Math.ceil(Number(bid) / tenure);
-                        const interest = Math.round((Number(bid) * (data.interestRate || 0)) / 100);
+                        const tenure = loanEffectiveTenure(data, start);
+                        const face = Number(bid);
+                        const share = Math.ceil(face / tenure);
+                        const interest = loanMonthlyInterest(data, face);
                         return (
                           <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                            <div className="kv"><span>Loan given now</span><strong>{inr(preview.payout)}</strong></div>
+                            <div className="kv"><span>Face loan</span><strong>{inr(face)}</strong></div>
+                            <div className="kv"><span>Interest cut now (stays in pot)</span><strong>{inr(preview.discount)}</strong></div>
+                            <div className="kv"><span>Borrower receives</span><strong>{inr(preview.payout)}</strong></div>
                             <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
+                            <div className="kv"><span>Repayment months</span><strong>{tenure} (remaining of chit: {Math.max(0, data.duration - start)})</strong></div>
                             <div className="kv"><span>From next month · deposit</span><strong>{inr(data.instalment)}</strong></div>
-                            <div className="kv"><span>Interest / month</span><strong>{inr(interest)} ({data.interestRate || 0}% of principal)</strong></div>
+                            <div className="kv"><span>Interest / month after 1st repay</span><strong>{inr(interest)} ({data.interestRate || 0}% of principal)</strong></div>
                             <div className="kv"><span>Principal share / month</span><strong>{inr(share)} over {tenure} mo</strong></div>
                             <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
                             {cashAfter < 0 && <p className="due">Not enough cash on hand for this loan.</p>}
@@ -925,10 +1003,20 @@ export function ChitDetailPage() {
             <div className="card">
               <h2>Final settlement</h2>
               <p className="muted block">
-                At the end of a loan bhishi, leftover cash on hand is returned to members. This does not mark anyone as prized — it only clears the till so cash on hand becomes ₹0, the way ChitBook closes the books.
+                Interest collected (upfront cuts + monthly interest paid) is returned as dividends to the other members — each person does not get back their own interest. Any leftover cash is then shared equally so the till goes to ₹0.
               </p>
-              <div className="kv"><span>Cash available to return</span><strong>{inr(Math.max(0, cashOnHand))}</strong></div>
-              <div className="kv"><span>Equal share / member</span><strong>{inr(data.members.length ? Math.floor(Math.max(0, cashOnHand) / data.members.length) : 0)}</strong></div>
+              {(() => {
+                const plan = loanSettlementPlan(data);
+                const interestOut = plan.reduce((s, p) => s + p.interestPart, 0);
+                const equalOut = plan.reduce((s, p) => s + p.equalPart, 0);
+                return (
+                  <>
+                    <div className="kv"><span>Cash available</span><strong>{inr(Math.max(0, cashOnHand))}</strong></div>
+                    <div className="kv"><span>Interest dividend pool</span><strong>{inr(interestOut)}</strong></div>
+                    <div className="kv"><span>Equal leftover share (all)</span><strong>{inr(equalOut)}</strong></div>
+                  </>
+                );
+              })()}
               <button
                 className="btn"
                 style={{ marginTop: 16 }}
@@ -938,8 +1026,32 @@ export function ChitDetailPage() {
                   void settleBooksEqually(data.id).finally(() => setBusySettle(false));
                 }}
               >
-                {busySettle ? "Settling…" : "Settle equally to all members"}
+                {busySettle ? "Settling…" : "Settle interest dividends + leftover"}
               </button>
+              {cashOnHand > 0 && (
+                <div className="table-wrap" style={{ marginTop: 16 }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Member</th>
+                        <th>Interest dividend</th>
+                        <th>Equal share</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loanSettlementPlan(data).map((row) => (
+                        <tr key={row.memberId}>
+                          <td>{names[row.memberId]}</td>
+                          <td>{inr(row.interestPart)}</td>
+                          <td>{inr(row.equalPart)}</td>
+                          <td><strong>{inr(row.amount)}</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
             <div className="card flush">
               <div className="card-pad"><h2>Loan positions</h2></div>

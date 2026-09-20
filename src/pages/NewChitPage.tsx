@@ -340,8 +340,10 @@ export function NewChitPage() {
                         <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
                       ))}
                     </div>
+                    <p className="hint">One month’s interest is cut from the loan amount when it is given and stays in the pot. More interest is collected with each repayment month, then shared as dividends to the other members at the end.</p>
                     <label className="label">Repayment tenure (months)</label>
                     <input className="field" placeholder="Blank = rest of the chit" value={tenure} onChange={(e) => setTenure(e.target.value)} />
+                    <p className="hint">If someone borrows late, repayment is capped to the months left in this bhishi (not longer than the remaining tenure).</p>
                   </>
                 )}
                 {type === "auction" && auctionStyle === "collect_first" && (
