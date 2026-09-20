@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import type { ChitMode, ChitType, Frequency } from "../types";
 import { FREQ_LABEL, chitPath, inr } from "../lib/format";
+import { computeInstalment } from "../lib/chitMath";
 import { useStore } from "../store";
 
 const TYPES: { id: ChitType; title: string; body: string }[] = [
@@ -51,7 +52,7 @@ export function NewChitPage() {
   const months = Number(duration) || n;
   const instalment = mode === "tracking"
     ? (Number(trackInstalment) || 0)
-    : (n ? Math.round(potN / n) : 0);
+    : computeInstalment(potN, n);
   const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
   const interestN = Number(interest) || 0;

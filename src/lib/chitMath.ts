@@ -3,7 +3,15 @@ import type { AuctionRecord, Chit, PaymentKind } from "../types";
 export function baseInstalment(chit: Chit) {
   if (chit.instalment) return chit.instalment;
   if (!chit.membersCount) return 0;
-  return Math.round(chit.pot / chit.membersCount);
+  return computeInstalment(chit.pot, chit.membersCount);
+}
+
+/** Monthly due so N × instalment always covers the pot (avoids ₹1 shortfalls from rounding). */
+export function computeInstalment(pot: number, members: number) {
+  if (!members || pot <= 0) return 0;
+  let inst = Math.round(pot / members);
+  if (inst * members < pot) inst += 1;
+  return inst;
 }
 
 export function memberCount(chit: Chit) {
@@ -301,8 +309,12 @@ export function settleWinner(
     dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
   } else if (method === "lucky_draw") {
     safeBid = Math.max(0, chit.pot - commission);
+  } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium")) {
+    // Cap at cash left after commission so round-off (e.g. ₹1) cannot block Close month.
+    const maxPayout = Math.max(0, treasuryOf(chit) - commission);
+    safeBid = Math.min(Math.max(0, Number(bid) || 0), maxPayout);
   } else {
-    // loan / fixed / settlement: amount is whatever you enter (not capped at pot)
+    // loan / settlement: amount is whatever you enter (not capped at pot)
     safeBid = Math.max(0, Number(bid) || 0);
   }
   const discount = method === "auction" ? Math.max(0, chit.pot - safeBid) : 0;
