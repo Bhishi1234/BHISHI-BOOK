@@ -1,5 +1,5 @@
--- Sacrifice hand: cut is one full instalment (not half).
--- Re-applies settle_payout with the corrected sacrifice amount.
+-- Fix settle_payout money_out: restore missing FROM public.auctions a.
+
 
 
 create or replace function public.settle_payout(

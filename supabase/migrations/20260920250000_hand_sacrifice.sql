@@ -125,10 +125,10 @@ begin
 
   select coalesce(sum(amount), 0) into money_in from public.payments where chit_id = p_chit_id;
   select coalesce(sum(a.payout + a.commission), 0)
-    + case when c.type = 'hand_sacrifice'
-        then coalesce((select sum(a2.discount) from public.auctions a2 where a2.chit_id = p_chit_id), 0)
-        else 0 end
-  into money_out;
+    + case when c.type = 'hand_sacrifice' then coalesce(sum(a.discount), 0) else 0 end
+  into money_out
+  from public.auctions a
+  where a.chit_id = p_chit_id;
   cash_on_hand := greatest(0, money_in - money_out);
 
   if p_method = 'settlement' or last_auction or auction_first then
