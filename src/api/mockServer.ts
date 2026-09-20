@@ -323,7 +323,12 @@ export const mockServer = {
       write(db);
       return this.get(chitId);
     },
-    updateSettings(id: string, patch: { memberVisible?: boolean; remindDays?: number[] }) {
+    updateSettings(id: string, patch: {
+      memberVisible?: boolean;
+      remindDays?: number[];
+      name?: string;
+      title?: string;
+    }) {
       const db = read();
       needUser(db);
       db.chits = db.chits.map((c) =>
@@ -332,6 +337,8 @@ export const mockServer = {
               ...c,
               memberVisible: patch.memberVisible ?? c.memberVisible,
               remindDays: patch.remindDays ?? c.remindDays,
+              name: patch.name?.trim() ? patch.name.trim() : c.name,
+              title: patch.title !== undefined ? (patch.title.trim() || undefined) : c.title,
             }
           : c,
       );

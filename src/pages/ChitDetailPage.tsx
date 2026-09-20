@@ -10,20 +10,26 @@ import {
   commissionEarned,
   cycleDue,
   cycleLedger,
+  expectedLifeCollections,
   expectedThisCycle,
   interestCollected,
+  isFixedLike,
   loanPrincipalOf,
   loansThisCycle,
   moneyIn,
+  moneyOut,
+  nextBySlot,
   outstandingOf,
   paidInCycle,
   paymentStatus,
-  payoutsOf,
+  plannedPerMember,
+  plannedPot,
   memberBalance,
   settlementsOf,
   settleWinner,
   treasuryOf,
 } from "../lib/chitMath";
+import { downloadChitCsv } from "../lib/exportCsv";
 import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import type { PayMode, PaymentKind } from "../types";
@@ -48,19 +54,26 @@ export function ChitDetailPage() {
   const [colRange, setColRange] = useState<"today" | "week" | "all">("all");
   const [busyAll, setBusyAll] = useState(false);
   const [busySettle, setBusySettle] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     if (!chit) return;
     setVisible(Boolean(chit.memberVisible));
     setRemind(Boolean(chit.remindDays?.length));
-  }, [chit?.id, chit?.memberVisible, chit?.remindDays]);
+    setEditName(chit.name);
+    setEditTitle(chit.title || "");
+  }, [chit?.id, chit?.memberVisible, chit?.remindDays, chit?.name, chit?.title]);
 
   useEffect(() => {
     if (!chit) return;
     // Only seed the amount when opening a chit — never overwrite what the user typed
-    setBid(chit.type === "loan" || chit.type === "fixed" ? String(chit.pot) : "");
-    setWinnerId("");
-  }, [chit?.id]);
+    setBid(chit.type === "loan" || isFixedLike(chit) ? String(chit.pot) : "");
+    const next = isFixedLike(chit) ? nextBySlot(chit)?.customerId || "" : "";
+    setWinnerId(next);
+  }, [chit?.id, chit?.currentCycle, chit?.auctions?.length]);
 
   const names = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
 
@@ -80,10 +93,12 @@ export function ChitDetailPage() {
     const due = cycleDue(data, m.customerId, data.currentCycle);
     return due - paidInCycle(data, m.customerId, data.currentCycle) > 0;
   }).length;
-  const unprized = data.members.filter((m) => !m.prizedCycle);
-  const expectedLife = data.instalment * data.duration * Math.max(1, data.members.length);
+  const unprized = [...data.members].filter((m) => !m.prizedCycle).sort((a, b) => a.slot - b.slot);
+  const expectedLife = expectedLifeCollections(data);
   const ended = new Date(data.startDate);
   ended.setMonth(ended.getMonth() + data.duration);
+  const fixedLike = isFixedLike(data);
+  const nextSlot = nextBySlot(data);
 
   return (
     <AppShell crumb="Chits" crumb2={data.name}>
@@ -105,8 +120,8 @@ export function ChitDetailPage() {
             </p>
           </div>
           <div className="toolbar" style={{ margin: 0 }}>
-            <button className="btn ghost" onClick={() => window.print()}>Export</button>
-            <button className="btn ghost" onClick={() => setTab("settings")}>Edit chit</button>
+            <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>Export</button>
+            <button className="btn ghost" onClick={() => { setEditName(data.name); setEditTitle(data.title || ""); setEditOpen(true); }}>Edit chit</button>
             <button className="btn" onClick={() => setPayPick(true)}>+ Record collection</button>
           </div>
         </div>
@@ -140,16 +155,29 @@ export function ChitDetailPage() {
                 <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round(((data.currentCycle - 1) / data.duration) * 100)}%` }} /></div>
                 <p className="muted block">{inr(moneyIn(data))} collected of {inr(expectedLife)} expected</p>
                 <div className="grid-2">
-                  <div><div className="muted">Total paid out</div><strong className="num">{inr(payoutsOf(data))}</strong></div>
-                  <div><div className="muted">Each member gets</div><strong className="num">{inr(Math.round(payoutsOf(data) / Math.max(1, data.members.length)))}</strong></div>
+                  {data.type === "auction" ? (
+                    <>
+                      <div><div className="muted">Total pot</div><strong className="num">{inr(plannedPot(data))}</strong></div>
+                      <div><div className="muted">Each member gets</div><strong className="num">{inr(plannedPerMember(data))}</strong></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><div className="muted">Total paid out</div><strong className="num">{inr(moneyOut(data) - commissionEarned(data))}</strong></div>
+                      <div><div className="muted">Each member gets</div><strong className="num">{inr(Math.round((moneyOut(data) - commissionEarned(data)) / Math.max(1, data.members.length)))}</strong></div>
+                    </>
+                  )}
                 </div>
-                <p className="muted" style={{ marginTop: 10 }}>Payouts already recorded. Commission has already left cash on hand.</p>
+                <p className="muted" style={{ marginTop: 10 }}>
+                  {data.type === "auction"
+                    ? "Planned pot after your commission. Only dividends from auctions already held are deducted, so it drops as the remaining auctions happen."
+                    : "Payouts already recorded. Commission has already left cash on hand."}
+                </p>
               </div>
               <div className="card">
                 <h2>You’ve earned</h2>
                 <div className="kv"><span>Commission</span><strong>{inr(commissionEarned(data))}</strong></div>
                 {data.type === "auction" && (
-                  <div className="kv"><span>Dividend per member</span><strong>{inr(data.auctions.at(-1)?.dividend || 0)}</strong></div>
+                  <div className="kv"><span>Dividend per member</span><strong>{inr(data.auctions.filter((a) => !a.method || a.method === "auction").at(-1)?.dividend || 0)}</strong></div>
                 )}
                 {data.type === "loan" && (
                   <div className="kv"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
@@ -159,10 +187,9 @@ export function ChitDetailPage() {
             <div className="card">
               <h2>Money in / out</h2>
               <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
-              <div className="kv"><span>Payouts</span><strong>{inr(payoutsOf(data))}</strong></div>
-              <div className="kv"><span>Commission taken</span><strong>{inr(commissionEarned(data))}</strong></div>
+              <div className="kv"><span>Money out</span><strong>{inr(moneyOut(data))}</strong></div>
               <div className="kv"><span>On hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
-              <p className="muted" style={{ marginTop: 12 }}>Cash on hand is collections minus payouts minus your monthly commission.</p>
+              <p className="muted" style={{ marginTop: 12 }}>Of which {inr(commissionEarned(data))} is your commission.</p>
               <div className="grid-2" style={{ marginTop: 8 }}>
                 <div className="kv"><span>Type</span><strong>{TYPE_LABEL[data.type].toUpperCase()}</strong></div>
                 <div className="kv"><span>Frequency</span><strong>{FREQ_LABEL[data.frequency]}</strong></div>
@@ -174,7 +201,7 @@ export function ChitDetailPage() {
                     <div className="kv"><span>Repayment tenure</span><strong>{data.repaymentTenure ? `${data.repaymentTenure} months` : "Rest of chit"}</strong></div>
                   </>
                 )}
-                {data.type === "fixed" && data.premiumAmount != null && data.premiumAmount > 0 && (
+                {fixedLike && data.premiumAmount != null && data.premiumAmount > 0 && (
                   <div className="kv"><span>Premium after prized</span><strong>{inr(data.premiumAmount)}</strong></div>
                 )}
                 <div className="kv"><span>Commission / month</span><strong>{
@@ -241,7 +268,7 @@ export function ChitDetailPage() {
             <div className="month-steps">
               <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
               <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>
-                2. {data.type === "loan" ? "Give loan" : data.type === "fixed" ? "Award pot" : "Auction"}
+                2. {data.type === "loan" ? "Give loan" : fixedLike ? "Award pot" : "Auction"}
               </span>
               <span className={`month-step ${lastWin || (data.type === "loan" && canSettleCycle(data)) ? "on" : ""}`}>3. Close month</span>
             </div>
@@ -329,12 +356,16 @@ export function ChitDetailPage() {
               <div className="month-head" style={{ padding: 0 }}>
                 <div>
                   <h2 style={{ margin: 0 }}>
-                    {data.type === "loan" ? "This month’s loan" : data.type === "fixed" ? "This month’s payout" : "This month’s auction"}
+                    {data.type === "loan" ? "This month’s loan" : fixedLike ? "This month’s payout" : "This month’s auction"}
                   </h2>
                   <p className="muted">
                     {data.type === "loan"
                       ? "Collect first. Giving a loan this month is optional — close the month when the books look right."
-                      : "Only after collections. Payout plus commission cannot exceed cash on hand."}
+                      : fixedLike
+                        ? nextSlot
+                          ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
+                          : "All slots have been prized."
+                        : "Only after collections. Payout plus commission cannot exceed cash on hand."}
                   </p>
                 </div>
                 <button
@@ -342,7 +373,7 @@ export function ChitDetailPage() {
                   disabled={
                     data.mode === "organise" && data.type === "auction" && !lastWin
                       ? true
-                      : data.mode === "organise" && data.type === "fixed" && !lastWin
+                      : data.mode === "organise" && fixedLike && !lastWin
                         ? true
                         : false
                   }
@@ -357,7 +388,7 @@ export function ChitDetailPage() {
                     <span>
                       {lastWin.method === "lucky_draw"
                         ? "Lucky draw winner"
-                        : data.type === "fixed"
+                        : fixedLike
                           ? "Awarded to"
                           : "Winner · Auction"}
                     </span>
@@ -371,7 +402,7 @@ export function ChitDetailPage() {
                 </div>
               ) : !canSettleCycle(data) ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
-                  Collect at least one payment this month before {data.type === "loan" ? "giving a loan" : data.type === "fixed" ? "awarding the pot" : "recording the auction"}.
+                  Collect at least one payment this month before {data.type === "loan" ? "giving a loan" : fixedLike ? "awarding the pot" : "recording the auction"}.
                 </p>
               ) : (
                 <div style={{ padding: "16px 0 0" }}>
@@ -484,12 +515,20 @@ export function ChitDetailPage() {
                       <p className="muted" style={{ marginTop: 12 }}>You can skip giving a loan this month and still close it after collections. On the last cycle, open the Settlement tab to return leftover cash.</p>
                     </>
                   )}
-                  {data.type === "fixed" && !lastWin && (
+                  {fixedLike && !lastWin && (
                     <>
+                      <p className="muted" style={{ marginBottom: 10 }}>
+                        Payout order follows member slots. You can override and award a different unprized member.
+                      </p>
                       <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                         <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
                           <option value="">Award pot to</option>
-                          {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
+                          {unprized.map((m) => (
+                            <option key={m.customerId} value={m.customerId}>
+                              Slot {m.slot} · {names[m.customerId]}
+                              {nextSlot?.customerId === m.customerId ? " · next" : ""}
+                            </option>
+                          ))}
                         </select>
                         <button
                           className="btn"
@@ -506,6 +545,9 @@ export function ChitDetailPage() {
                           <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                             <div className="kv"><span>Member receives</span><strong>{inr(preview.payout)}</strong></div>
                             <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
+                            {data.premiumAmount ? (
+                              <div className="kv"><span>Their due from next month</span><strong>{inr(data.premiumAmount)} premium</strong></div>
+                            ) : null}
                             <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
                           </div>
                         );
@@ -577,9 +619,10 @@ export function ChitDetailPage() {
                     <div className="grow">
                       <button className="link" style={{ fontWeight: 600 }} onClick={() => nav(`/customers/${m.customerId}`)}>{names[m.customerId]}</button>
                       <div className="muted">
+                        {fixedLike ? `Slot ${m.slot} · ` : ""}
                         Paid {inr(paid)}
                         {principal ? ` · loan ${inr(principal)}` : ""}
-                        {m.prizedCycle ? ` · from month ${m.prizedCycle}` : ""}
+                        {m.prizedCycle ? ` · prized month ${m.prizedCycle}` : ""}
                       </div>
                     </div>
                     <div className="num">{inr(left)} left to pay</div>
@@ -663,10 +706,34 @@ export function ChitDetailPage() {
                 setRemind(next);
                 void updateChitSettings(data.id, { remindDays: next ? (data.remindDays?.length ? data.remindDays : [3]) : [] });
               }} /> Payment reminders — automatically remind members before a contribution is due.</label>
+              {remind && (
+                <div className="seg" style={{ marginTop: 8 }}>
+                  {[1, 2, 3, 5, 7].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`chip ${(data.remindDays || []).includes(d) ? "on" : ""}`}
+                      onClick={() => {
+                        const cur = data.remindDays || [];
+                        const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort((a, b) => a - b);
+                        void updateChitSettings(data.id, { remindDays: next.length ? next : [3] });
+                      }}
+                    >
+                      {d} day{d > 1 ? "s" : ""} before
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="card">
               <h2>Reports</h2>
-              <button className="btn ghost" onClick={() => window.print()}>Export</button>
+              <p className="muted block">This chit’s books as a CSV table you can open in Excel.</p>
+              <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>Export</button>
+            </div>
+            <div className="card">
+              <h2>Edit chit</h2>
+              <p className="muted block">Rename this chit. Type, pot and duration stay fixed after create.</p>
+              <button className="btn ghost" onClick={() => { setEditName(data.name); setEditTitle(data.title || ""); setEditOpen(true); }}>Edit name</button>
             </div>
             <div className="danger-box">
               <div className="row-head" style={{ margin: 0 }}>
@@ -680,6 +747,32 @@ export function ChitDetailPage() {
           </div>
         )}
       </div>
+
+      {editOpen && (
+        <div className="modal-back" onClick={() => setEditOpen(false)}>
+          <form
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editName.trim()) return;
+              setEditSaving(true);
+              void updateChitSettings(data.id, { name: editName.trim(), title: editTitle.trim() })
+                .finally(() => { setEditSaving(false); setEditOpen(false); });
+            }}
+          >
+            <h2>Edit chit</h2>
+            <label className="label">Name</label>
+            <input className="field" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            <label className="label">Title (optional)</label>
+            <input className="field" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            <div className="toolbar" style={{ marginTop: 12 }}>
+              <button type="button" className="btn ghost" onClick={() => setEditOpen(false)}>Cancel</button>
+              <button className="btn" disabled={editSaving || !editName.trim()}>{editSaving ? "Saving…" : "Save"}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {payPick && !payFor && (
         <div className="modal-back" onClick={() => setPayPick(false)}>

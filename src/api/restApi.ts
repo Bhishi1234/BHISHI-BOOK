@@ -149,7 +149,12 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${chitId}`));
   },
 
-  async updateChitSettings(chitId: string, patch: { memberVisible?: boolean; remindDays?: number[] }) {
+  async updateChitSettings(chitId: string, patch: {
+    memberVisible?: boolean;
+    remindDays?: number[];
+    name?: string;
+    title?: string;
+  }) {
     await request(`/api/v1/chits/${chitId}/settings`, {
       method: "POST",
       body: JSON.stringify(patch),

@@ -161,6 +161,59 @@ export function treasuryOf(chit: Chit) {
   return moneyIn(chit) - moneyOut(chit);
 }
 
+/** Dividend pools already realised from auctions held (discount − commission). */
+export function dividendsHeld(chit: Chit) {
+  if (chit.type !== "auction") return 0;
+  return chit.auctions
+    .filter((a) => !a.method || a.method === "auction")
+    .reduce((s, a) => s + dividendFromAuction(chit, a) * memberCount(chit), 0);
+}
+
+/**
+ * Lifetime collections if every remaining month paid at today's known dues.
+ * Held auction dividends already reduce the contribution schedule.
+ */
+export function expectedLifeCollections(chit: Chit) {
+  const n = memberCount(chit);
+  const base = baseInstalment(chit) * n * chit.duration;
+  if (chit.type === "auction") return Math.max(0, base - dividendsHeld(chit));
+  if (chit.type === "base_premium" || (chit.type === "fixed" && chit.premiumAmount)) {
+    let total = 0;
+    for (let c = 1; c <= chit.duration; c++) {
+      for (const m of chit.members) total += rawCycleDue(chit, m.customerId, c);
+      // empty slots still expected at base until filled
+      const empty = Math.max(0, n - chit.members.length);
+      total += empty * baseInstalment(chit);
+    }
+    return total || base;
+  }
+  return base;
+}
+
+/**
+ * Planned pot after foreman commission. Dividends already held are deducted
+ * so the figure drops as auctions settle (ChitBook overview copy).
+ */
+export function plannedPot(chit: Chit) {
+  const lifeComm = commissionAmount(chit) * chit.duration;
+  return Math.max(0, expectedLifeCollections(chit) - lifeComm);
+}
+
+export function plannedPerMember(chit: Chit) {
+  return Math.round(plannedPot(chit) / memberCount(chit));
+}
+
+export function isFixedLike(chit: Chit) {
+  return chit.type === "fixed" || chit.type === "base_premium";
+}
+
+/** Next unprized member in slot order (Fixed / Base+premium payout queue). */
+export function nextBySlot(chit: Chit) {
+  return [...chit.members]
+    .filter((m) => !m.prizedCycle)
+    .sort((a, b) => a.slot - b.slot)[0];
+}
+
 export function expectedThisCycle(chit: Chit) {
   return chit.members.reduce((s, m) => s + rawCycleDue(chit, m.customerId, chit.currentCycle), 0);
 }

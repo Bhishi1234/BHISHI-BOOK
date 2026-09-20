@@ -7,6 +7,7 @@ import { ChitsPage, CustomersPage } from "./pages/ChitsCustomers";
 import { CustomerDetailPage } from "./pages/CustomerDetailPage";
 import { NewChitPage } from "./pages/NewChitPage";
 import { ChitDetailPage } from "./pages/ChitDetailPage";
+import { TrackedChitPage } from "./pages/TrackedChitPage";
 import { CollectionsPage } from "./pages/CollectionsPage";
 import {
   ProfilePage,
@@ -30,7 +31,7 @@ export default function App() {
       <Route path="/chits" element={<Guard><ChitsPage /></Guard>} />
       <Route path="/chits/new" element={<Guard><NewChitPage /></Guard>} />
       <Route path="/chits/:id" element={<Guard><ChitDetailPage /></Guard>} />
-      <Route path="/tracked/:id" element={<Guard><ChitDetailPage /></Guard>} />
+      <Route path="/tracked/:id" element={<Guard><TrackedChitPage /></Guard>} />
       <Route path="/collections" element={<Guard><CollectionsPage /></Guard>} />
       <Route path="/customers" element={<Guard><CustomersPage /></Guard>} />
       <Route path="/customers/:id" element={<Guard><CustomerDetailPage /></Guard>} />

@@ -24,7 +24,12 @@ type Backend = {
   createChit: (input: Omit<Chit, "id" | "payments" | "status">) => Promise<Chit>;
   cancelChit: (id: string) => Promise<Chit>;
   addMember: (chitId: string, customerId: string) => Promise<Chit>;
-  updateChitSettings: (chitId: string, patch: { memberVisible?: boolean; remindDays?: number[] }) => Promise<Chit>;
+  updateChitSettings: (chitId: string, patch: {
+    memberVisible?: boolean;
+    remindDays?: number[];
+    name?: string;
+    title?: string;
+  }) => Promise<Chit>;
   closeCycle: (id: string) => Promise<Chit>;
   recordPayment: (chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode) => Promise<unknown>;
   undoPayment: (chitId: string, paymentId: string) => Promise<unknown>;

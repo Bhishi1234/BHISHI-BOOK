@@ -32,6 +32,7 @@ export const API_ROUTES = {
 export const META_TYPES = [
   { id: "auction", label: "Auction chit" },
   { id: "fixed", label: "Fixed & committee" },
+  { id: "base_premium", label: "Base + premium" },
   { id: "loan", label: "Loan chit" },
 ] as const;
 

@@ -37,7 +37,12 @@ type Store = {
   addChit: (chit: Omit<Chit, "id" | "payments" | "status">) => Promise<string>;
   cancelChit: (id: string) => Promise<void>;
   addMember: (chitId: string, customerId: string) => Promise<void>;
-  updateChitSettings: (chitId: string, patch: { memberVisible?: boolean; remindDays?: number[] }) => Promise<void>;
+  updateChitSettings: (chitId: string, patch: {
+    memberVisible?: boolean;
+    remindDays?: number[];
+    name?: string;
+    title?: string;
+  }) => Promise<void>;
   recordPayment: (
     chitId: string,
     memberId: string,

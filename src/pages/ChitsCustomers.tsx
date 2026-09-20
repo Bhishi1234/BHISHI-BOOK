@@ -12,7 +12,7 @@ export function ChitsPage() {
   const nav = useNavigate();
   const [tab, setTab] = useState<"active" | "completed">("active");
   const pool = chits.filter((c) => (tab === "active" ? c.status === "running" : c.status !== "running"));
-  const managed = pool.filter((c) => c.mode === "organise" && c.members.length > 0);
+  const managed = pool.filter((c) => c.mode === "organise");
   const tracking = pool.filter((c) => c.mode === "tracking");
 
   return (

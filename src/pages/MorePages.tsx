@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
+import { TYPE_LABEL, inr } from "../lib/format";
 import { useStore } from "../store";
 
 export function SupportPage() {
@@ -147,22 +148,69 @@ export function SearchPage() {
   const { chits, customers } = useStore();
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
-  const chitHits = chits.filter((c) => !query || c.name.toLowerCase().includes(query));
+  const names = Object.fromEntries(customers.map((c) => [c.id, c.name]));
+
+  const chitHits = chits.filter((c) =>
+    !query
+    || c.name.toLowerCase().includes(query)
+    || (c.title || "").toLowerCase().includes(query)
+    || (TYPE_LABEL[c.type] || c.type).toLowerCase().includes(query),
+  );
+
+  const memberHits = customers.filter((c) =>
+    !query || c.name.toLowerCase().includes(query) || (c.phone || "").includes(query),
+  );
+
+  const receiptHits = !query ? [] : chits.flatMap((c) =>
+    c.payments
+      .filter((p) => {
+        const name = (names[p.memberId] || "").toLowerCase();
+        return name.includes(query)
+          || c.name.toLowerCase().includes(query)
+          || String(p.amount).includes(query)
+          || (p.mode || "").toLowerCase().includes(query);
+      })
+      .map((p) => ({ ...p, chitId: c.id, chitName: c.name, mode: c.mode })),
+  ).slice(0, 20);
+
   return (
     <AppShell crumb="Search">
       <div className="page">
         <div className="modal-back" style={{ position: "relative", background: "transparent", padding: 0, display: "block" }}>
           <div className="search-pop" style={{ margin: "0 auto" }}>
             <h2>Search</h2>
-            <p className="muted">Search your chits by name.</p>
-            <input className="field" autoFocus placeholder="Search chits..." value={q} onChange={(e) => setQ(e.target.value)} />
-            {chitHits.map((c) => (
-              <div key={c.id} className="search-hit"><Link to={c.mode === "tracking" ? `/tracked/${c.id}` : `/chits/${c.id}`}>{c.name}</Link> <span className="muted">{c.type} chit</span></div>
-            ))}
-            <p className="muted" style={{ marginTop: 16 }}>Searching members and receipts across chits isn’t available yet — open a chit to search within it.</p>
-            {customers.filter((c) => c.name.toLowerCase().includes(query)).slice(0, 6).map((c) => (
-              <div key={c.id} className="search-hit"><Link to={`/customers/${c.id}`}>{c.name}</Link> <span className="muted">{c.phone}</span></div>
-            ))}
+            <p className="muted">Search chits, members, and receipts.</p>
+            <input className="field" autoFocus placeholder="Search chits, members, receipts…" value={q} onChange={(e) => setQ(e.target.value)} />
+
+            <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Chits</p>
+            {chitHits.length ? chitHits.map((c) => (
+              <div key={c.id} className="search-hit">
+                <Link to={c.mode === "tracking" ? `/tracked/${c.id}` : `/chits/${c.id}`}>{c.name}</Link>
+                <span className="muted">{TYPE_LABEL[c.type] || c.type} · {c.mode}</span>
+              </div>
+            )) : <p className="muted">No chits match.</p>}
+
+            <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Members</p>
+            {memberHits.length ? memberHits.slice(0, 12).map((c) => (
+              <div key={c.id} className="search-hit">
+                <Link to={`/customers/${c.id}`}>{c.name}</Link>
+                <span className="muted">{c.phone}</span>
+              </div>
+            )) : <p className="muted">No members match.</p>}
+
+            {!!query && (
+              <>
+                <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Receipts</p>
+                {receiptHits.length ? receiptHits.map((p) => (
+                  <div key={p.id} className="search-hit">
+                    <Link to={p.mode === "tracking" ? `/tracked/${p.chitId}` : `/chits/${p.chitId}`}>
+                      {names[p.memberId] || "Member"} · {inr(p.amount)}
+                    </Link>
+                    <span className="muted">{p.chitName} · cycle {p.cycle}</span>
+                  </div>
+                )) : <p className="muted">No receipts match.</p>}
+              </>
+            )}
           </div>
         </div>
       </div>

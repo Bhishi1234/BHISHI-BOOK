@@ -167,12 +167,19 @@ export const supabaseApi = {
     return loadChit(chitId);
   },
 
-  async updateChitSettings(chitId: string, patch: { memberVisible?: boolean; remindDays?: number[] }) {
+  async updateChitSettings(chitId: string, patch: {
+    memberVisible?: boolean;
+    remindDays?: number[];
+    name?: string;
+    title?: string;
+  }) {
     const { sb } = await requireUser();
     const { error } = await sb.rpc("update_chit_settings", {
       p_chit_id: chitId,
       p_member_visible: patch.memberVisible ?? null,
       p_remind_days: patch.remindDays ?? null,
+      p_name: patch.name ?? null,
+      p_title: patch.title ?? null,
     });
     throwIf(error);
     return loadChit(chitId);

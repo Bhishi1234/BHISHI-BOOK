@@ -434,6 +434,8 @@ app.post("/api/v1/chits/:id/settings", async (c) => {
       p_chit_id: c.req.param("id"),
       p_member_visible: body.memberVisible ?? null,
       p_remind_days: body.remindDays ?? null,
+      p_name: body.name ?? null,
+      p_title: body.title ?? null,
     });
     if (error) return c.json({ error: rpcError(error) }, 400);
     return c.json(data);
