@@ -144,10 +144,15 @@ export function cycleDue(chit: Chit, memberId: string, cycle: number) {
   return raw + Math.abs(carry);
 }
 
+export function displayCycle(chit: Chit) {
+  return Math.min(Math.max(1, chit.currentCycle || 1), Math.max(1, chit.duration || 1));
+}
+
 export function memberBalance(chit: Chit, memberId: string) {
   let due = 0;
   let paid = 0;
-  for (let c = 1; c <= chit.currentCycle; c++) {
+  const through = displayCycle(chit);
+  for (let c = 1; c <= through; c++) {
     due += rawCycleDue(chit, memberId, c);
     paid += paidInCycle(chit, memberId, c);
   }
@@ -156,18 +161,20 @@ export function memberBalance(chit: Chit, memberId: string) {
 
 export function chitProgress(chit: Chit) {
   if (!chit.duration) return 0;
+  if (chit.status === "completed") return 100;
   if (chit.members.length && chit.payments.length) {
     const totals = chit.members.map((m) => memberBalance(chit, m.customerId));
     const due = totals.reduce((s, t) => s + t.due, 0);
     const paid = totals.reduce((s, t) => s + t.paid, 0);
     if (due > 0) return Math.min(100, Math.round((paid / due) * 100));
   }
-  return Math.min(100, Math.round(((chit.currentCycle - 1) / chit.duration) * 100));
+  return Math.min(100, Math.round(((displayCycle(chit) - 1) / chit.duration) * 100));
 }
 
 export function collectedThisCycle(chit: Chit) {
+  const cyc = displayCycle(chit);
   return chit.payments
-    .filter((p) => p.cycle === chit.currentCycle)
+    .filter((p) => p.cycle === cyc)
     .reduce((s, p) => s + p.amount, 0);
 }
 
@@ -241,7 +248,8 @@ export function nextBySlot(chit: Chit) {
 }
 
 export function expectedThisCycle(chit: Chit) {
-  return chit.members.reduce((s, m) => s + rawCycleDue(chit, m.customerId, chit.currentCycle), 0);
+  const cyc = displayCycle(chit);
+  return chit.members.reduce((s, m) => s + rawCycleDue(chit, m.customerId, cyc), 0);
 }
 
 export function commissionEarned(chit: Chit) {
@@ -251,12 +259,13 @@ export function commissionEarned(chit: Chit) {
 export function interestCollected(chit: Chit) {
   if (chit.type !== "loan" || !chit.interestRate) return 0;
   const rate = chit.interestRate;
+  const through = displayCycle(chit);
   return chit.members.reduce((sum, m) => {
     const principal = loanPrincipalOf(chit, m.customerId);
     if (!principal) return sum;
     const start = firstLoanCycle(chit, m.customerId);
     let extra = 0;
-    for (let c = start + 1; c <= chit.currentCycle; c++) {
+    for (let c = start + 1; c <= through; c++) {
       if (paidInCycle(chit, m.customerId, c) > 0) {
         extra += Math.round((principal * rate) / 100);
       }
@@ -266,7 +275,8 @@ export function interestCollected(chit: Chit) {
 }
 
 export function loansThisCycle(chit: Chit) {
-  return chit.auctions.filter((a) => a.cycle === chit.currentCycle && a.method === "fixed");
+  const cyc = displayCycle(chit);
+  return chit.auctions.filter((a) => a.cycle === cyc && a.method === "fixed");
 }
 
 export function settlementsOf(chit: Chit) {

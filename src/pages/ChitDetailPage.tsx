@@ -10,6 +10,7 @@ import {
   commissionEarned,
   cycleDue,
   cycleLedger,
+  displayCycle,
   expectedLifeCollections,
   expectedThisCycle,
   interestCollected,
@@ -82,17 +83,21 @@ export function ChitDetailPage() {
   }
 
   const data = chit;
-  const pending = data.members.filter((m) => paymentStatus(data, m.customerId, data.currentCycle) === "due").length;
-  const lastWin = data.auctions.find((a) => a.cycle === data.currentCycle && a.method !== "settlement");
+  const cycle = displayCycle(data);
+  const isRunning = data.status === "running";
+  const pending = data.members.filter((m) => paymentStatus(data, m.customerId, cycle) === "due").length;
+  const lastWin = data.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
   const monthLoans = loansThisCycle(data);
   const cashOnHand = treasuryOf(data);
-  const showSettlement = data.type === "loan" || data.currentCycle >= data.duration || data.status === "completed";
+  const showSettlement = data.type === "loan" || cycle >= data.duration || data.status === "completed";
   const monthDate = new Date(data.startDate);
-  monthDate.setMonth(monthDate.getMonth() + Math.min(data.currentCycle, data.duration) - 1);
-  const remainDue = data.members.filter((m) => {
-    const due = cycleDue(data, m.customerId, data.currentCycle);
-    return due - paidInCycle(data, m.customerId, data.currentCycle) > 0;
-  }).length;
+  monthDate.setMonth(monthDate.getMonth() + cycle - 1);
+  const remainDue = isRunning
+    ? data.members.filter((m) => {
+        const due = cycleDue(data, m.customerId, cycle);
+        return due - paidInCycle(data, m.customerId, cycle) > 0;
+      }).length
+    : 0;
   const unprized = [...data.members].filter((m) => !m.prizedCycle).sort((a, b) => a.slot - b.slot);
   const expectedLife = expectedLifeCollections(data);
   const ended = new Date(data.startDate);
@@ -122,16 +127,19 @@ export function ChitDetailPage() {
           <div className="toolbar" style={{ margin: 0 }}>
             <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>Export</button>
             <button className="btn ghost" onClick={() => { setEditName(data.name); setEditTitle(data.title || ""); setEditOpen(true); }}>Edit chit</button>
-            <button className="btn" onClick={() => setPayPick(true)}>+ Record collection</button>
+            <button className="btn" disabled={!isRunning} onClick={() => setPayPick(true)}>+ Record collection</button>
           </div>
         </div>
         {error && <p className="due">{error}</p>}
+        {!isRunning && (
+          <p className="muted block">This chit is {data.status}. Collections and monthly payouts are closed.</p>
+        )}
         <div className="stats six">
-          <div className="stat"><span>Month</span><strong>{data.currentCycle} / {data.duration}</strong></div>
+          <div className="stat"><span>Month</span><strong>{cycle} / {data.duration}</strong></div>
           <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
           <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
           <div className="stat"><span>Cash on hand</span><strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong></div>
-          <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === data.currentCycle)?.commission || 0)} this month</em></div>
+          <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month</em></div>
           <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
         </div>
         <div className="tabs">
@@ -151,8 +159,8 @@ export function ChitDetailPage() {
             </div>
             <div className="grid-2 block">
               <div className="card">
-                <h2>Month {data.currentCycle} of {data.duration}</h2>
-                <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round(((data.currentCycle - 1) / data.duration) * 100)}%` }} /></div>
+                <h2>Month {cycle} of {data.duration}</h2>
+                <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round((cycle / data.duration) * 100)}%` }} /></div>
                 <p className="muted block">{inr(moneyIn(data))} collected of {inr(expectedLife)} expected</p>
                 <div className="grid-2">
                   {data.type === "auction" ? (
@@ -281,15 +289,15 @@ export function ChitDetailPage() {
             <div className="card flush">
               <div className="card-pad month-head">
                 <div>
-                  <strong>Month {data.currentCycle}</strong>
+                  <strong>Month {cycle}</strong>
                   <span className="muted"> {monthDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-                  <span className="pill paid">Open</span>
+                  <span className={`pill ${isRunning ? "paid" : "partial"}`}>{isRunning ? "Open" : "Closed"}</span>
                   <div className="muted" style={{ marginTop: 6 }}>{collectedCount(data)} of {data.members.length} collected</div>
                 </div>
                 <div className="seg">
                   <button
                     className="btn"
-                    disabled={!remainDue || busyAll}
+                    disabled={!isRunning || !remainDue || busyAll}
                     onClick={() => {
                       setBusyAll(true);
                       void recordAllPayments(data.id).finally(() => setBusyAll(false));
@@ -297,7 +305,7 @@ export function ChitDetailPage() {
                   >
                     {busyAll ? "Recording…" : "Record all payments"}
                   </button>
-                  <button className="btn ghost" type="button" disabled={!remainDue} onClick={() => setUnpaidNoted(true)}>
+                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue} onClick={() => setUnpaidNoted(true)}>
                     Mark all unpaid
                   </button>
                 </div>
@@ -324,10 +332,10 @@ export function ChitDetailPage() {
                   </thead>
                   <tbody>
                     {data.members.map((m) => {
-                      const due = cycleDue(data, m.customerId, data.currentCycle);
-                      const paid = paidInCycle(data, m.customerId, data.currentCycle);
-                      const status = paymentStatus(data, m.customerId, data.currentCycle);
-                      const last = [...data.payments].reverse().find((p) => p.memberId === m.customerId && p.cycle === data.currentCycle);
+                      const due = cycleDue(data, m.customerId, cycle);
+                      const paid = paidInCycle(data, m.customerId, cycle);
+                      const status = paymentStatus(data, m.customerId, cycle);
+                      const last = [...data.payments].reverse().find((p) => p.memberId === m.customerId && p.cycle === cycle);
                       const label = status === "due" && unpaidNoted ? "Unpaid" : status[0].toUpperCase() + status.slice(1);
                       return (
                         <tr key={m.customerId}>
@@ -339,7 +347,7 @@ export function ChitDetailPage() {
                           <td>{last ? new Date(last.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</td>
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
-                            {status === "due" || status === "partial" ? (
+                            {isRunning && (status === "due" || status === "partial") ? (
                               <button className="btn ghost btn-sm" onClick={() => setPayFor(m.customerId)}>Record</button>
                             ) : (
                               <span className="muted">—</span>
@@ -371,18 +379,24 @@ export function ChitDetailPage() {
                 <button
                   className="btn green"
                   disabled={
-                    data.mode === "organise" && data.type === "auction" && !lastWin
+                    !isRunning
                       ? true
-                      : data.mode === "organise" && fixedLike && !lastWin
+                      : data.mode === "organise" && data.type === "auction" && !lastWin
                         ? true
-                        : false
+                        : data.mode === "organise" && fixedLike && !lastWin
+                          ? true
+                          : false
                   }
                   onClick={() => void closeCycle(data.id)}
                 >
                   Close month
                 </button>
               </div>
-              {lastWin && data.type !== "loan" ? (
+              {!isRunning ? (
+                <p className="muted" style={{ margin: "12px 0 0" }}>
+                  This chit is {data.status}. Monthly collections and payouts are closed.
+                </p>
+              ) : lastWin && data.type !== "loan" ? (
                 <div style={{ marginTop: 12 }}>
                   <div className="kv">
                     <span>
@@ -496,7 +510,7 @@ export function ChitDetailPage() {
                       {winnerId && Number(bid) > 0 && (() => {
                         const preview = settleWinner(data, winnerId, Number(bid), "fixed");
                         const cashAfter = cashOnHand - preview.payout - preview.commission;
-                        const start = data.currentCycle;
+                        const start = cycle;
                         const tenure = data.repaymentTenure || Math.max(1, data.duration - start);
                         const share = Math.ceil(Number(bid) / tenure);
                         const interest = Math.round((Number(bid) * (data.interestRate || 0)) / 100);
@@ -576,7 +590,7 @@ export function ChitDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: data.currentCycle }, (_, i) => i + 1).reverse().map((cyc) => {
+                {Array.from({ length: cycle }, (_, i) => i + 1).reverse().map((cyc) => {
                   const row = cycleLedger(data, cyc);
                   const when = new Date(data.startDate);
                   when.setMonth(when.getMonth() + cyc - 1);
@@ -671,7 +685,7 @@ export function ChitDetailPage() {
                         <td>{names[m.customerId]}</td>
                         <td>{loanPrincipalOf(data, m.customerId) ? inr(loanPrincipalOf(data, m.customerId)) : "—"}</td>
                         <td>{inr(data.payments.filter((p) => p.memberId === m.customerId).reduce((s, p) => s + p.amount, 0))}</td>
-                        <td>{inr(cycleDue(data, m.customerId, data.currentCycle))}</td>
+                        <td>{inr(cycleDue(data, m.customerId, cycle))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -794,8 +808,8 @@ export function ChitDetailPage() {
               {busyAll ? "Recording…" : "Record all payments"}
             </button>
             {data.members.map((m) => {
-              const due = cycleDue(data, m.customerId, data.currentCycle);
-              const paid = paidInCycle(data, m.customerId, data.currentCycle);
+              const due = cycleDue(data, m.customerId, cycle);
+              const paid = paidInCycle(data, m.customerId, cycle);
               const left = Math.max(0, due - paid);
               return (
                 <button
@@ -820,8 +834,8 @@ export function ChitDetailPage() {
       {payFor && (
         <PayModal
           name={names[payFor] || payFor}
-          cycle={data.currentCycle}
-          due={cycleDue(data, payFor, data.currentCycle) - paidInCycle(data, payFor, data.currentCycle)}
+          cycle={cycle}
+          due={cycleDue(data, payFor, cycle) - paidInCycle(data, payFor, cycle)}
           onClose={() => setPayFor(null)}
           onSave={(amount: number, kind: PaymentKind, mode: PayMode) => {
             void recordPayment(data.id, payFor, amount, kind, mode).then(() => setPayFor(null));

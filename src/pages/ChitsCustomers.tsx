@@ -3,7 +3,7 @@ import { useState } from "react";
 import { CircleX, Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
-import { chitProgress, memberBalance } from "../lib/chitMath";
+import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
 import { TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 
@@ -45,7 +45,7 @@ export function ChitsPage() {
                           </div>
                         </div>
                       </td>
-                      <td>{c.currentCycle} / {c.duration}</td>
+                      <td>{displayCycle(c)} / {c.duration}</td>
                       <td>{inr(c.instalment)}/M</td>
                       <td><div className="progress"><i style={{ width: `${pct}%` }} /></div></td>
                       <td><span className="pill paid">{c.status === "running" ? "Active" : c.status}</span></td>

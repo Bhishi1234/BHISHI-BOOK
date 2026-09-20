@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
-import { memberBalance, paidInCycle, rawCycleDue } from "../lib/chitMath";
+import { displayCycle, memberBalance, paidInCycle, rawCycleDue } from "../lib/chitMath";
 import { MODE_LABEL, TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 
@@ -179,7 +179,7 @@ export function CustomerDetailPage() {
               <table className="table">
                 <thead><tr><th>Cycle</th><th>Due</th><th>Paid</th><th>Balance</th></tr></thead>
                 <tbody>
-                  {Array.from({ length: ch.currentCycle }, (_, i) => i + 1).map((cyc) => {
+                  {Array.from({ length: displayCycle(ch) }, (_, i) => i + 1).map((cyc) => {
                     const due = rawCycleDue(ch, customer.id, cyc);
                     const paid = paidInCycle(ch, customer.id, cyc);
                     return (

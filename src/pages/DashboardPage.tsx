@@ -1,7 +1,7 @@
 import { CircleX, User } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
-import { chitProgress, collectedThisCycle, outstandingOf } from "../lib/chitMath";
+import { chitProgress, collectedThisCycle, displayCycle, outstandingOf } from "../lib/chitMath";
 import { TYPE_LABEL, chitPath, greeting, initials, inr, longDate } from "../lib/format";
 import { useStore } from "../store";
 
@@ -52,7 +52,7 @@ export function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="num">{c.currentCycle} / {c.duration}</td>
+                      <td className="num">{displayCycle(c)} / {c.duration}</td>
                       <td className="num">{inr(c.instalment)}/M</td>
                       <td>
                         <div className="progress"><i style={{ width: `${pct}%` }} /></div>

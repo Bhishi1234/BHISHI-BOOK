@@ -179,6 +179,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       recordAllPayments: async (chitId) => {
         const chit = chits.find((c) => c.id === chitId);
         if (!chit) throw new Error("Not found");
+        if (chit.status !== "running") throw new Error("Chit is not running");
         await guarded(async () => {
           for (const member of chit.members) {
             const due = cycleDue(chit, member.customerId, chit.currentCycle);

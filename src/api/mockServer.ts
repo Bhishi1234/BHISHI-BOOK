@@ -358,11 +358,10 @@ export const mockServer = {
       db.chits = db.chits.map((c) => {
         if (c.id !== id) return c;
         const next = c.currentCycle + 1;
-        return {
-          ...c,
-          currentCycle: next,
-          status: next > c.duration ? "completed" : "running",
-        };
+        if (next > c.duration) {
+          return { ...c, currentCycle: c.duration, status: "completed" as const };
+        }
+        return { ...c, currentCycle: next, status: "running" as const };
       });
       write(db);
       return this.get(id);
