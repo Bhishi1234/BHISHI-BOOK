@@ -7,8 +7,7 @@ import { useStore } from "../store";
 
 const TYPES: { id: ChitType; title: string; body: string }[] = [
   { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Discount − commission = dividend." },
-  { id: "fixed", title: "Fixed", body: "Predetermined payout order. Award the pot to the next slot each month." },
-  { id: "base_premium", title: "Base + premium", body: "Like fixed, but prized members pay a higher premium from their win month." },
+  { id: "fixed", title: "Fixed", body: "Predetermined payout order. Optional higher dues after someone wins." },
   { id: "loan", title: "Loan", body: "Member takes a loan; then pays deposit + interest on principal + principal share." },
 ];
 
@@ -33,6 +32,10 @@ export function NewChitPage() {
   const [interest, setInterest] = useState("5");
   const [tenure, setTenure] = useState("");
   const [premium, setPremium] = useState("");
+  const [fixedPayMode, setFixedPayMode] = useState<"flat" | "premium" | "variable">("flat");
+  const [winnerPayKind, setWinnerPayKind] = useState<"amount" | "interest">("amount");
+  const [winnerInterest, setWinnerInterest] = useState("");
+  const [winningMonthPolicy, setWinningMonthPolicy] = useState<"nothing" | "normal" | "premium">("normal");
   const [trackInstalment, setTrackInstalment] = useState("");
   const [remind, setRemind] = useState(true);
   const [remindDays, setRemindDays] = useState<number[]>([3]);
@@ -101,10 +104,19 @@ export function NewChitPage() {
       }
 
       const members = picked.map((customerId, i) => ({ customerId, slot: i + 1 }));
+      const winnerInterestN = Number(winnerInterest) || 0;
+      const resolvedPremium =
+        type === "fixed" && fixedPayMode === "premium" && winnerPayKind === "interest" && winnerInterestN > 0
+          ? Math.round((potN * winnerInterestN) / 100)
+          : premiumN;
+      const resolvedType: ChitType =
+        type === "fixed" && (fixedPayMode === "premium" || resolvedPremium > 0)
+          ? "base_premium"
+          : type;
       const id = await addChit({
         name: title.trim() || `${TYPES.find((t) => t.id === type)?.title} - ${inr(potN)}`,
         title: title.trim() || undefined,
-        type,
+        type: resolvedType,
         frequency: freq,
         pot: potN,
         instalment,
@@ -121,7 +133,11 @@ export function NewChitPage() {
         adjustmentStyle: type === "auction" ? adjust : "every_month",
         interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
-        premiumAmount: (type === "fixed" || type === "base_premium") && premiumN > 0 ? premiumN : undefined,
+        premiumAmount: type === "fixed" && resolvedPremium > 0 ? resolvedPremium : undefined,
+        fixedPayMode: type === "fixed" ? fixedPayMode : undefined,
+        winnerPayKind: type === "fixed" && fixedPayMode === "premium" ? winnerPayKind : undefined,
+        winnerInterestPct: type === "fixed" && winnerPayKind === "interest" ? winnerInterestN : undefined,
+        winningMonthPolicy: type === "fixed" ? winningMonthPolicy : undefined,
         remindDays: remind ? remindDays : [],
         memberVisible: visible,
       });
@@ -303,16 +319,47 @@ export function NewChitPage() {
                       <input className="field" placeholder="Blank = rest of the chit" value={tenure} onChange={(e) => setTenure(e.target.value)} />
                     </>
                   )}
-                  {(type === "fixed" || type === "base_premium") && (
+                  {(type === "fixed") && (
                     <>
-                      <label className="label">{type === "base_premium" ? "Premium after prized" : "Premium after prized (optional)"}</label>
-                      <input
-                        className="field"
-                        placeholder={instalment ? `e.g. ${Math.round(instalment * 1.2)}` : "e.g. 12000"}
-                        value={premium}
-                        onChange={(e) => setPremium(e.target.value)}
-                      />
-                      <p className="hint">Prized members pay this from their win month onward. Leave blank on Fixed for a flat committee.</p>
+                      <label className="label">Does everyone pay the same amount every month?</label>
+                      <div className="type-row" style={{ gridTemplateColumns: "1fr", gap: 8 }}>
+                        {([
+                          ["flat", "Yes, same every month", "One amount for everyone."],
+                          ["premium", "One amount for everyone, and one for members who have already won.", "Prized members pay a higher due."],
+                          ["variable", "No, it changes", "Custom table per month — coming next; uses flat dues for now."],
+                        ] as const).map(([id, title, body]) => (
+                          <button key={id} type="button" className={`type-pick ${fixedPayMode === id ? "active" : ""}`} onClick={() => setFixedPayMode(id)}>
+                            <h3 style={{ fontSize: 14 }}>{title}</h3>
+                            <p>{body}</p>
+                          </button>
+                        ))}
+                      </div>
+                      {fixedPayMode === "premium" && (
+                        <>
+                          <label className="label">Winner pays each month</label>
+                          <div className="seg" style={{ marginBottom: 12 }}>
+                            <button type="button" className={`chip ${winnerPayKind === "amount" ? "on" : ""}`} onClick={() => setWinnerPayKind("amount")}>Amount (₹)</button>
+                            <button type="button" className={`chip ${winnerPayKind === "interest" ? "on" : ""}`} onClick={() => setWinnerPayKind("interest")}>Interest (%)</button>
+                          </div>
+                          {winnerPayKind === "amount" ? (
+                            <input
+                              className="field"
+                              placeholder={instalment ? `e.g. ${Math.round(instalment * 1.2)}` : "e.g. 12000"}
+                              value={premium}
+                              onChange={(e) => setPremium(e.target.value)}
+                            />
+                          ) : (
+                            <input className="field" placeholder="e.g. 2" value={winnerInterest} onChange={(e) => setWinnerInterest(e.target.value)} />
+                          )}
+                          <p className="hint">After they take the chit — same as everyone else is fine (leave blank / 0).</p>
+                        </>
+                      )}
+                      <label className="label">In the winning month</label>
+                      <div className="seg">
+                        <button type="button" className={`chip ${winningMonthPolicy === "nothing" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("nothing")}>Pays nothing</button>
+                        <button type="button" className={`chip ${winningMonthPolicy === "normal" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("normal")}>Pays normal</button>
+                        <button type="button" className={`chip ${winningMonthPolicy === "premium" ? "on" : ""}`} onClick={() => setWinningMonthPolicy("premium")}>Pays after-win amount</button>
+                      </div>
                     </>
                   )}
                   {type === "auction" && (
@@ -362,7 +409,7 @@ export function NewChitPage() {
                     className="btn"
                     disabled={
                       !confirm
-                      || (mode === "tracking" ? (!instalment || !months) : (!potN || !n || (type === "loan" && !interestN) || (type === "base_premium" && !premiumN)))
+                      || (mode === "tracking" ? (!instalment || !months) : (!potN || !n || (type === "loan" && !interestN)))
                     }
                     onClick={() => setStep(2)}
                   >

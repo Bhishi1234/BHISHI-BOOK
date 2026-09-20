@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import { baseInstalment, paidInCycle } from "../lib/chitMath";
-import { inr } from "../lib/format";
+import { MODE_LABEL, inr, todayIso } from "../lib/format";
 import { useStore } from "../store";
+import type { PayMode } from "../types";
 
 /** Personal “I'm in someone else's bhishi” ledger — matches ChitBook /tracked/:id */
 export function TrackedChitPage() {
@@ -11,8 +12,12 @@ export function TrackedChitPage() {
   const nav = useNavigate();
   const { chits, customers, user, recordPayment, closeCycle, cancelChit, error } = useStore();
   const chit = chits.find((c) => c.id === id);
-  const [logging, setLogging] = useState<number | null>(null);
+  const [logging, setLogging] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [logMonth, setLogMonth] = useState<number | null>(null);
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(todayIso());
+  const [payMode, setPayMode] = useState<PayMode>("cash");
 
   const selfId = useMemo(() => {
     if (!chit) return "";
@@ -29,45 +34,56 @@ export function TrackedChitPage() {
     );
   }
 
-  const instalment = baseInstalment(chit);
-  const paid = selfId
-    ? chit.payments.filter((p) => p.memberId === selfId).reduce((s, p) => s + p.amount, 0)
-    : chit.payments.reduce((s, p) => s + p.amount, 0);
-  const totalDue = instalment * chit.duration;
-  const left = Math.max(0, totalDue - paid);
-  const cycle = Math.min(chit.currentCycle, chit.duration);
-  const monthLogged = selfId ? paidInCycle(chit, selfId, cycle) >= instalment && instalment > 0 : false;
-  const canAdvance = monthLogged && chit.status === "running" && cycle < chit.duration;
+  const data = chit;
 
-  async function logMonth(month: number) {
-    if (!selfId) return;
-    setLogging(month);
+  const instalment = baseInstalment(data);
+  const paid = selfId
+    ? data.payments.filter((p) => p.memberId === selfId).reduce((s, p) => s + p.amount, 0)
+    : data.payments.reduce((s, p) => s + p.amount, 0);
+  const totalDue = instalment * data.duration;
+  const left = Math.max(0, totalDue - paid);
+  const cycle = Math.min(data.currentCycle, data.duration);
+  const monthLogged = selfId ? paidInCycle(data, selfId, cycle) >= instalment && instalment > 0 : false;
+  const canAdvance = monthLogged && data.status === "running" && cycle < data.duration;
+
+  function openLog(month: number) {
+    const already = selfId ? paidInCycle(data, selfId, month) : 0;
+    setAmount(String(Math.max(0, instalment - already) || instalment));
+    setDate(todayIso());
+    setPayMode("cash");
+    setLogMonth(month);
+  }
+
+  async function saveLog() {
+    if (!selfId || logMonth == null) return;
+    const n = Number(amount);
+    if (!n) return;
+    setLogging(true);
     try {
-      const already = paidInCycle(chit!, selfId, month);
-      const due = Math.max(0, instalment - already);
-      if (due > 0) await recordPayment(chit!.id, selfId, due, "full", "cash");
+      await recordPayment(data.id, selfId, n, n >= instalment ? "full" : "partial", payMode);
+      setLogMonth(null);
     } finally {
-      setLogging(null);
+      setLogging(false);
     }
   }
 
   return (
-    <AppShell crumb="Chits" crumb2={chit.name}>
+    <AppShell crumb="Chits" crumb2={data.name}>
       <div className="page">
         <div className="row-head top">
           <div>
             <div className="title-row">
-              <h1>{chit.name}</h1>
+              <h1>{data.name}</h1>
               <span className="badge">Tracking</span>
-              <span className="pill paid">{chit.status === "running" ? "Active" : chit.status}</span>
+              <span className="pill paid">{data.status === "running" ? "Active" : data.status}</span>
             </div>
-            <p className="page-sub">{inr(instalment)}/Month · {chit.duration} months · started {new Date(chit.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</p>
+            <p className="page-sub">{inr(instalment)}/Month · {data.duration} months · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</p>
           </div>
           <button
             className="btn danger"
             onClick={() => {
               if (window.confirm("Cancel this tracked chit?")) {
-                void cancelChit(chit.id).then(() => nav("/chits"));
+                void cancelChit(data.id).then(() => nav("/chits"));
               }
             }}
           >
@@ -77,7 +93,7 @@ export function TrackedChitPage() {
         {error && <p className="due">{error}</p>}
 
         <div className="stats four">
-          <div className="stat"><span>Current month</span><strong>{cycle} / {chit.duration}</strong></div>
+          <div className="stat"><span>Current month</span><strong>{cycle} / {data.duration}</strong></div>
           <div className="stat"><span>Paid so far</span><strong>{inr(paid)}</strong></div>
           <div className="stat"><span>Left to pay</span><strong>{inr(left)}</strong></div>
           <div className="stat"><span>Month {cycle} due</span><strong>{inr(instalment)}</strong></div>
@@ -86,10 +102,10 @@ export function TrackedChitPage() {
         <div className="card block">
           <button
             className="btn wide"
-            disabled={!selfId || logging !== null || monthLogged || chit.status !== "running"}
-            onClick={() => void logMonth(cycle)}
+            disabled={!selfId || logging || monthLogged || data.status !== "running"}
+            onClick={() => openLog(cycle)}
           >
-            {logging === cycle ? "Logging…" : monthLogged ? "This month logged" : "Log this payment"}
+            {monthLogged ? "This month logged" : "Log this payment"}
           </button>
           {canAdvance && (
             <button
@@ -98,7 +114,7 @@ export function TrackedChitPage() {
               disabled={advancing}
               onClick={() => {
                 setAdvancing(true);
-                void closeCycle(chit.id).finally(() => setAdvancing(false));
+                void closeCycle(data.id).finally(() => setAdvancing(false));
               }}
             >
               {advancing ? "Advancing…" : "Advance to next month"}
@@ -109,8 +125,8 @@ export function TrackedChitPage() {
 
         <div className="card flush">
           <div className="card-pad"><h2>Your payment log</h2></div>
-          {Array.from({ length: chit.duration }, (_, i) => i + 1).map((month) => {
-            const paidM = selfId ? paidInCycle(chit, selfId, month) : 0;
+          {Array.from({ length: data.duration }, (_, i) => i + 1).map((month) => {
+            const paidM = selfId ? paidInCycle(data, selfId, month) : 0;
             const dueYet = month <= cycle;
             const logged = paidM >= instalment && instalment > 0;
             return (
@@ -121,10 +137,8 @@ export function TrackedChitPage() {
                     {!dueYet ? "Not due yet" : logged ? `Logged · ${inr(paidM)}` : paidM > 0 ? `Partial · ${inr(paidM)}` : "Not logged"}
                   </div>
                 </div>
-                {dueYet && !logged && chit.status === "running" ? (
-                  <button className="btn ghost btn-sm" disabled={logging !== null} onClick={() => void logMonth(month)}>
-                    {logging === month ? "…" : "Log"}
-                  </button>
+                {dueYet && !logged && data.status === "running" ? (
+                  <button className="btn ghost btn-sm" disabled={logging} onClick={() => openLog(month)}>Log</button>
                 ) : (
                   <span className="muted">{logged ? "✓" : "—"}</span>
                 )}
@@ -133,6 +147,35 @@ export function TrackedChitPage() {
           })}
         </div>
       </div>
+
+      {logMonth != null && (
+        <div className="modal-back" onClick={() => setLogMonth(null)}>
+          <form
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => { e.preventDefault(); void saveLog(); }}
+          >
+            <h2>Log this payment</h2>
+            <p className="muted">Month {logMonth}</p>
+            <label className="label">Amount</label>
+            <input className="field" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} />
+            <label className="label">Date</label>
+            <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <label className="label">Payment mode</label>
+            <div className="seg">
+              {(["cash", "upi", "bank", "cheque"] as PayMode[]).map((m) => (
+                <button key={m} type="button" className={`chip ${payMode === m ? "on" : ""}`} onClick={() => setPayMode(m)}>
+                  {MODE_LABEL[m]}
+                </button>
+              ))}
+            </div>
+            <div className="toolbar" style={{ marginTop: 16 }}>
+              <button type="button" className="btn ghost" onClick={() => setLogMonth(null)}>Cancel</button>
+              <button className="btn" disabled={logging || !Number(amount)}>{logging ? "Saving…" : "Save"}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </AppShell>
   );
 }

@@ -87,6 +87,13 @@ export type Chit = {
   adjustmentStyle?: "every_month" | "at_end";
   remindDays?: number[];
   memberVisible?: boolean;
+  /** Fixed: flat | prized pay premium | per-month table (table stored later). */
+  fixedPayMode?: "flat" | "premium" | "variable";
+  /** Fixed: prized member pays a ₹ amount or interest % of pot each month after win. */
+  winnerPayKind?: "amount" | "interest";
+  winnerInterestPct?: number;
+  /** Fixed: due in the prized month itself. */
+  winningMonthPolicy?: "nothing" | "normal" | "premium";
 };
 
 export type Ticket = {

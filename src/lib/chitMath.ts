@@ -48,11 +48,29 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
   if (chit.type === "auction") {
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
-  if (chit.type === "base_premium" || (chit.type === "fixed" && chit.premiumAmount)) {
+  if (chit.type === "base_premium" || chit.type === "fixed") {
     const member = chit.members.find((m) => m.customerId === memberId);
-    if (member?.prizedCycle && cycle >= member.prizedCycle) {
-      return Math.round(chit.premiumAmount ?? base * 1.2);
+    const prized = member?.prizedCycle;
+    if (!prized) return base;
+
+    const policy = chit.winningMonthPolicy || "normal";
+    if (cycle === prized && policy === "nothing") return 0;
+
+    const useAfterWin =
+      cycle > prized
+      || (cycle === prized && policy === "premium");
+
+    if (useAfterWin && (chit.fixedPayMode === "premium" || chit.type === "base_premium" || chit.premiumAmount || chit.winnerInterestPct)) {
+      if (chit.winnerPayKind === "interest" && (chit.winnerInterestPct || 0) > 0) {
+        // Interest (%) of pot, charged monthly after win (ChitBook Fixed).
+        return Math.round((chit.pot * (chit.winnerInterestPct || 0)) / 100);
+      }
+      if (chit.premiumAmount != null && chit.premiumAmount > 0) {
+        return Math.round(chit.premiumAmount);
+      }
+      if (chit.type === "base_premium") return Math.round(base * 1.2);
     }
+    return base;
   }
   if (chit.type === "loan") {
     return loanCycleDue(chit, memberId, cycle);
