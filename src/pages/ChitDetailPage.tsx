@@ -746,7 +746,7 @@ export function ChitDetailPage() {
                       ) : handSacrifice ? (
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
-                            Collect first. Early winners leave half an instalment ({inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.
+                            Collect first. Early winners leave one full instalment ({inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                             <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>

@@ -193,7 +193,7 @@ for (const m of af.members) {
 assert(treasuryOf(af) === 0, `af cash after month2 collect ${treasuryOf(af)}`);
 assert(balanceAfterCycle(af, 2) === 0, `af bal after month2 collect ${balanceAfterCycle(af, 2)}`);
 
-// Sacrifice hand: early take pot − half instalment; cash dividends to remaining; last takes full pot
+// Sacrifice hand: early take pot − one instalment; cash dividends to remaining; last takes full pot
 const hs = chit({
   members: members(5),
   type: "hand_sacrifice",
@@ -205,15 +205,15 @@ const hs = chit({
   commissionValue: 0,
 });
 collectAll(hs, 10000);
-assert(handSacrificeAmount(hs) === 5000, `hs sacrifice ${handSacrificeAmount(hs)}`);
+assert(handSacrificeAmount(hs) === 10000, `hs sacrifice ${handSacrificeAmount(hs)}`);
 const hs1 = settleWinner(hs, "m1", 50000, "fixed");
-assert(hs1.payout === 45000, `hs1 payout ${hs1.payout}`);
-assert(hs1.discount === 5000, `hs1 discount ${hs1.discount}`);
-assert(hs1.dividend === 1250, `hs1 div ${hs1.dividend}`);
+assert(hs1.payout === 40000, `hs1 payout ${hs1.payout}`);
+assert(hs1.discount === 10000, `hs1 discount ${hs1.discount}`);
+assert(hs1.dividend === 2500, `hs1 div ${hs1.dividend}`);
 hs.auctions.push(hs1);
 hs.members = hs.members.map((m) => (m.customerId === "m1" ? { ...m, prizedCycle: 1 } : m));
 assert(treasuryOf(hs) === 0, `hs cash after m1 ${treasuryOf(hs)}`);
-assert(handSacrificeDividendsReceived(hs, "m2") === 1250, `hs m2 div ${handSacrificeDividendsReceived(hs, "m2")}`);
+assert(handSacrificeDividendsReceived(hs, "m2") === 2500, `hs m2 div ${handSacrificeDividendsReceived(hs, "m2")}`);
 assert(handSacrificeDividendsReceived(hs, "m1") === 0, "hs winner gets no cash div");
 
 hs.currentCycle = 5;

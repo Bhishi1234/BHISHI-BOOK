@@ -1,24 +1,6 @@
--- Sacrifice-hand fixed subtype: early winners take pot − one full instalment;
--- that cut is paid as cash dividends to members still playing; last takes full pot.
+-- Sacrifice hand: cut is one full instalment (not half).
+-- Re-applies settle_payout with the corrected sacrifice amount.
 
-do $$ begin
-  alter type public.chit_type add value if not exists 'hand_sacrifice';
-exception
-  when duplicate_object then null;
-  when sqlstate '42710' then null; -- type already has value
-end $$;
-
--- Some Postgres versions lack IF NOT EXISTS on enum values.
-do $$ begin
-  if not exists (
-    select 1 from pg_enum e
-    join pg_type t on t.oid = e.enumtypid
-    where t.typname = 'chit_type' and e.enumlabel = 'hand_sacrifice'
-  ) then
-    alter type public.chit_type add value 'hand_sacrifice';
-  end if;
-exception when others then null;
-end $$;
 
 create or replace function public.settle_payout(
   p_chit_id uuid,
@@ -250,3 +232,4 @@ begin
   return rec;
 end;
 $$;
+

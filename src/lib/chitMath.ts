@@ -397,9 +397,9 @@ export function handSacrificeRecipients(chit: Chit, auction: AuctionRecord) {
     .map((m) => m.customerId);
 }
 
-/** Half an instalment left in the pot as cash dividends (matches ₹10k hand → ₹5k cut on ₹50k pot). */
+/** One full instalment left in the pot as cash dividends (e.g. ₹10k hand → ₹10k cut on ₹50k pot). */
 export function handSacrificeAmount(chit: Chit) {
-  return Math.floor(baseInstalment(chit) / 2);
+  return Math.max(0, Math.round(baseInstalment(chit)));
 }
 
 export function isLastHandSacrificeAward(chit: Chit) {
@@ -552,7 +552,7 @@ export function settleWinner(
   let dividend = 0;
   let discount = 0;
   if (handSacrifice) {
-    // Early winners leave half an instalment as cash dividends for members still playing.
+    // Early winners leave one full instalment as cash dividends for members still playing.
     // Last remaining member takes the full pot (no dividend pool).
     discount = lastHand ? 0 : handSacrificeAmount(chit);
     const facePrize = Math.max(0, chit.pot - discount - commission);

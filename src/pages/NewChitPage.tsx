@@ -39,7 +39,7 @@ const FIXED_STYLES: { id: FixedStyle; title: string; body: string }[] = [
   {
     id: "hand_sacrifice",
     title: "Sacrifice hand",
-    body: "Early winners take the pot minus half an instalment; that cut is paid as cash dividends to members still playing. The last member takes the full pot. Lucky draw available if no one steps up.",
+    body: "Early winners take the pot minus one full instalment; that cut is paid as cash dividends to members still playing. The last member takes the full pot. Lucky draw available if no one steps up.",
   },
 ];
 
@@ -411,7 +411,7 @@ export function NewChitPage() {
             <p className="muted block">
               {showPayoutOrder
                 ? fixedStyle === "hand_sacrifice"
-                  ? "Order is the usual take sequence — early slots sacrifice half a hand (cash dividends to those still playing). Last slot takes the full pot. Use the arrows to rearrange."
+                  ? "Order is the usual take sequence — early slots sacrifice one full hand (cash dividends to those still playing). Last slot takes the full pot. Use the arrows to rearrange."
                   : "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange."
                 : fixedStyle === "lucky_draw" && type === "fixed"
                   ? "Members who have not won yet stay in the draw each month. Order does not decide who wins."
