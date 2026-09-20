@@ -256,34 +256,15 @@ export function moneyOut(chit: Chit) {
 
 /**
  * Cash on hand.
- * Auction-first is peer settlement of each cycle’s winning bid: collections fund the
- * winner and never create a negative till. Unpaid shares show under Outstanding.
- * Only surplus above the bid (if any) remains as till.
+ * Auction-first is pure peer settlement of each winning bid (bid ÷ N each, including
+ * the winner’s self-share). Payments may be recorded in any month — once the books
+ * are funded, nothing sits in a till. Always ₹0 (unpaid amounts are Outstanding).
  */
 export function treasuryOf(chit: Chit) {
   if (!isAuctionFirst(chit)) {
     return moneyIn(chit) - moneyOut(chit);
   }
-  let bal = 0;
-  const through = Math.max(
-    displayCycle(chit),
-    ...chit.payments.map((p) => p.cycle),
-    ...chit.auctions.map((a) => a.cycle),
-    0,
-  );
-  for (let c = 1; c <= through; c++) {
-    const collected = auctionFirstCollectedInCycle(chit, c);
-    const a = auctionOfCycle(chit, c);
-    if (!a) {
-      // Auction-first: money taken before the bid is working capital for that month’s
-      // settlement — not a standing till balance.
-      continue;
-    }
-    // Settle against the winning bid (peer pays bid÷N). Payout may match bid.
-    const target = Math.max(Number(a.bid) || 0, Number(a.payout) || 0) + Math.max(0, Number(a.commission) || 0);
-    bal += Math.max(0, collected - target);
-  }
-  return bal;
+  return 0;
 }
 
 /** Receipts + winner self-contribution for one auction-first cycle. */
@@ -582,18 +563,7 @@ export function cycleLedger(chit: Chit, cycle: number) {
 }
 
 export function balanceAfterCycle(chit: Chit, cycle: number) {
-  if (isAuctionFirst(chit)) {
-    // Match till: never go negative; only surplus above each cycle’s bid remains.
-    let bal = 0;
-    for (let c = 1; c <= cycle; c++) {
-      const a = auctionOfCycle(chit, c);
-      if (!a) continue;
-      const collected = auctionFirstCollectedInCycle(chit, c);
-      const target = Math.max(Number(a.bid) || 0, Number(a.payout) || 0) + Math.max(0, Number(a.commission) || 0);
-      bal += Math.max(0, collected - target);
-    }
-    return bal;
-  }
+  if (isAuctionFirst(chit)) return 0;
   let bal = 0;
   for (let c = 1; c <= cycle; c++) {
     const row = cycleLedger(chit, c);

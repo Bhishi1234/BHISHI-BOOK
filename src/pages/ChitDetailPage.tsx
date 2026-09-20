@@ -158,7 +158,7 @@ export function ChitDetailPage() {
           <div className="stat">
             <span>{auctionFirst ? "Till (peer settlement)" : "Cash on hand"}</span>
             <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
-            {auctionFirst && <em>Should stay ₹0</em>}
+                {auctionFirst && <em>Always ₹0 — unpaid is Outstanding</em>}
           </div>
           <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month</em></div>
           <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
@@ -175,7 +175,7 @@ export function ChitDetailPage() {
           <>
             <p className="muted block">The books · every figure below comes from one ledger derivation</p>
             <div className="card block">
-              <div className="muted">{auctionFirst ? "Till · peer settlement (should stay ₹0)" : "Cash on hand · as on today"}</div>
+              <div className="muted">{auctionFirst ? "Till · peer settlement (always ₹0)" : "Cash on hand · as on today"}</div>
               <div className="hero-figure">{inr(treasuryOf(data))}</div>
             </div>
             <div className="grid-2 block">
@@ -252,7 +252,7 @@ export function ChitDetailPage() {
                   <div className="kv"><span>Winning bids settled</span><strong>{inr(moneyOut(data))}</strong></div>
                   <div className="kv"><span>Till (peer settlement)</span><strong>{inr(treasuryOf(data))}</strong></div>
                   <p className="muted" style={{ marginTop: 12 }}>
-                    Each month’s bid is settled peer-to-peer. The till stays ₹0 — unpaid shares show as Outstanding, not a negative till.
+                    Peer settlement of each winning bid. The till is always ₹0 — pay in any month; unpaid shares show as Outstanding.
                   </p>
                 </>
               ) : (
@@ -365,9 +365,9 @@ export function ChitDetailPage() {
               <div className="stat"><span>Collected</span><strong>{inr(collectedThisCycle(data))}</strong></div>
               <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
               <div className="stat">
-                <span>{auctionFirst ? "Till (should stay ₹0)" : "Cash on hand"}</span>
+                <span>{auctionFirst ? "Till (always ₹0)" : "Cash on hand"}</span>
                 <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
-                {auctionFirst && <em>Peer settlement of the bid</em>}
+                {auctionFirst && <em>Unpaid shares show as Outstanding</em>}
               </div>
             </div>
             <div className="card flush" style={auctionFirst ? { order: 3 } : undefined}>
