@@ -384,11 +384,11 @@ export function ChitDetailPage() {
                 </div>
               </div>
               {auctionFirst && !lastWin && (
-                <p className="month-hint">Record the auction above first. Then the other members each owe winning bid ÷ members — paid to the winner, so cash on hand stays ₹0.</p>
+                <p className="month-hint">Record the auction above first. Then each member owes winning bid ÷ members — the winner’s share counts as paid-in (self-contribution), so cash on hand stays ₹0.</p>
               )}
               {auctionFirst && lastWin && shareHint != null && (
                 <p className="month-hint">
-                  Winning bid {inr(lastWin.bid)} ÷ {data.members.length} = {inr(shareHint)} due from each of the other members (winner owes ₹0 this month). Face value stays {inr(data.pot)}. Till stays ₹0 once settled.
+                  Winning bid {inr(lastWin.bid)} ÷ {data.members.length} = {inr(shareHint)} due from each member (winner’s share is booked as paid-in). Face value stays {inr(data.pot)}. Till stays ₹0 once settled.
                 </p>
               )}
               {!auctionFirst && !canSettleCycle(data) && !lastWin && (
@@ -468,7 +468,7 @@ export function ChitDetailPage() {
                           ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
                           : "All slots have been prized."
                         : auctionFirst
-                          ? "Auction first. Enter the amount the winner takes (e.g. ₹95,000 of ₹1,00,000). The other members then each pay that amount ÷ members to the winner — cash on hand stays ₹0."
+                          ? "Auction first. Enter the amount the winner takes (e.g. ₹95,000 of ₹1,00,000). Each member then pays that amount ÷ members — the winner’s share is booked as paid-in (paying themselves). Cash on hand stays ₹0."
                           : "Only after collections. Payout plus commission cannot exceed cash on hand."}
                   </p>
                 </div>
@@ -522,7 +522,7 @@ export function ChitDetailPage() {
                         <>
                           <p className="muted" style={{ marginBottom: 12 }}>
                             {auctionFirst
-                              ? `Last cycle — no bidding. The remaining member is awarded the full pot (${inr(data.pot)}); the other members then each pay ${inr(computeInstalment(data.pot, data.members.length || 1))}.`
+                              ? `Last cycle — no bidding. The remaining member is awarded the full pot (${inr(data.pot)}); each member then pays ${inr(computeInstalment(data.pot, data.members.length || 1))} (winner’s share counts as paid-in).`
                               : `Last cycle — no auction. The remaining member takes the full cash on hand (${inr(cashOnHand)}), then you can close the chit.`}
                           </p>
                           <div className="month-auction" style={{ padding: 0 }}>
@@ -555,7 +555,7 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
                                 {auctionFirst ? (
-                                  <div className="kv"><span>Each other member then pays</span><strong>{inr(auctionFirstShare({ ...data, auctions: [...data.auctions, preview] }, cycle))}</strong></div>
+                                  <div className="kv"><span>Each member then pays</span><strong>{inr(auctionFirstShare({ ...data, auctions: [...data.auctions, preview] }, cycle))}</strong></div>
                                 ) : (
                                   <div className="kv"><span>Cash on hand after</span><strong>{inr(cashOnHand - preview.payout - preview.commission)}</strong></div>
                                 )}
@@ -590,7 +590,7 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
                                 {auctionFirst ? (
-                                  <div className="kv"><span>Each other member then pays</span><strong>{inr(nextShare || 0)}</strong></div>
+                                  <div className="kv"><span>Each member then pays</span><strong>{inr(nextShare || 0)}</strong></div>
                                 ) : (
                                   <>
                                     <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>

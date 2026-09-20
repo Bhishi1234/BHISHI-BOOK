@@ -92,7 +92,8 @@ begin
 end;
 $$;
 
--- Dues: auction_first uses this cycle's winning bid ÷ N (winner owes 0 that month).
+-- Dues: auction_first uses this cycle's winning bid ÷ N for every member
+-- (winner’s share is recorded as a self-contribution / paid-in).
 create or replace function public._raw_due(p_chit uuid, p_member uuid, p_cycle int)
 returns numeric
 language plpgsql
@@ -123,10 +124,6 @@ begin
         and method in ('auction', 'lucky_draw')
       limit 1;
       if found then
-        -- Winner receives the bid; peers settle bid ÷ N.
-        if this_a.winner_id = p_member then
-          return 0;
-        end if;
         share_of := this_a.bid;
         -- Match app computeInstalment: round, then bump if N × share < bid.
         share := round(share_of / n_members::numeric);
@@ -191,6 +188,8 @@ declare
   unprized int;
   last_auction boolean := false;
   auction_first boolean := false;
+  winner_share numeric;
+  already_paid numeric;
 begin
   c := public._owned_chit(p_chit_id);
   if c.status <> 'running' and p_method <> 'settlement' then
@@ -313,6 +312,29 @@ begin
     update public.chit_members
     set prized_cycle = coalesce(prized_cycle, c.current_cycle)
     where chit_id = p_chit_id and customer_id = p_winner_id;
+  end if;
+
+  -- Auction-first: book the winner’s bid÷N share as paid-in (self-contribution).
+  if auction_first and p_method in ('auction', 'lucky_draw') then
+    winner_share := round(safe_bid / n_members::numeric);
+    if winner_share * n_members < safe_bid then
+      winner_share := winner_share + 1;
+    end if;
+    select coalesce(sum(amount), 0) into already_paid
+    from public.payments
+    where chit_id = p_chit_id and member_id = p_winner_id and cycle = c.current_cycle;
+    if winner_share > already_paid then
+      insert into public.payments (chit_id, member_id, cycle, amount, kind, mode, note)
+      values (
+        p_chit_id,
+        p_winner_id,
+        c.current_cycle,
+        winner_share - already_paid,
+        'full',
+        'adjusted',
+        'Winner self-contribution (auction-first)'
+      );
+    end if;
   end if;
 
   return rec;

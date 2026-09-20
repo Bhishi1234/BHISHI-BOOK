@@ -70,20 +70,34 @@ export function auctionFirstShare(chit: Chit, cycle: number) {
 }
 
 export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
-  return chit.payments
+  const cash = chit.payments
     .filter((p) => p.memberId === memberId && p.cycle === cycle)
     .reduce((s, p) => s + p.amount, 0);
+  return cash + auctionFirstSelfCredit(chit, memberId, cycle, cash);
+}
+
+/**
+ * Auction-first: the winner still “pays” their bid÷N share (to themselves).
+ * Count it as paid-in for summaries even when no separate receipt exists yet.
+ */
+export function auctionFirstSelfCredit(
+  chit: Chit,
+  memberId: string,
+  cycle: number,
+  cashPaid = 0,
+) {
+  if (!isAuctionFirst(chit)) return 0;
+  const a = auctionOfCycle(chit, cycle);
+  if (!a || a.winnerId !== memberId) return 0;
+  const share = auctionFirstShare(chit, cycle);
+  return Math.max(0, share - cashPaid);
 }
 
 export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
   const base = baseInstalment(chit);
   if (chit.type === "auction") {
-    if (isAuctionFirst(chit)) {
-      const win = auctionOfCycle(chit, cycle);
-      // Winner receives the bid; the other members settle bid ÷ N to them.
-      if (win && win.winnerId === memberId) return 0;
-      return auctionFirstShare(chit, cycle);
-    }
+    // Everyone including the winner owes bid ÷ N (winner’s share is a self-contribution).
+    if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
   if (chit.type === "base_premium" || chit.type === "fixed") {
@@ -211,13 +225,31 @@ export function chitProgress(chit: Chit) {
 
 export function collectedThisCycle(chit: Chit) {
   const cyc = displayCycle(chit);
-  return chit.payments
+  let total = chit.payments
     .filter((p) => p.cycle === cyc)
     .reduce((s, p) => s + p.amount, 0);
+  if (isAuctionFirst(chit)) {
+    for (const m of chit.members) {
+      const cash = chit.payments
+        .filter((p) => p.memberId === m.customerId && p.cycle === cyc)
+        .reduce((s, p) => s + p.amount, 0);
+      total += auctionFirstSelfCredit(chit, m.customerId, cyc, cash);
+    }
+  }
+  return total;
 }
 
 export function moneyIn(chit: Chit) {
-  return chit.payments.reduce((s, p) => s + p.amount, 0);
+  let total = chit.payments.reduce((s, p) => s + p.amount, 0);
+  if (!isAuctionFirst(chit)) return total;
+  for (const a of chit.auctions) {
+    if (a.method && a.method !== "auction" && a.method !== "lucky_draw") continue;
+    const cash = chit.payments
+      .filter((p) => p.memberId === a.winnerId && p.cycle === a.cycle)
+      .reduce((s, p) => s + p.amount, 0);
+    total += auctionFirstSelfCredit(chit, a.winnerId, a.cycle, cash);
+  }
+  return total;
 }
 
 export function payoutsOf(chit: Chit) {
@@ -241,9 +273,18 @@ export function treasuryOf(chit: Chit) {
   let bal = 0;
   const through = Math.max(displayCycle(chit), ...chit.payments.map((p) => p.cycle), 0);
   for (let c = 1; c <= through; c++) {
-    const collected = chit.payments
+    const cash = chit.payments
       .filter((p) => p.cycle === c)
       .reduce((s, p) => s + p.amount, 0);
+    let collected = cash;
+    if (isAuctionFirst(chit)) {
+      for (const m of chit.members) {
+        const memberCash = chit.payments
+          .filter((p) => p.memberId === m.customerId && p.cycle === c)
+          .reduce((s, p) => s + p.amount, 0);
+        collected += auctionFirstSelfCredit(chit, m.customerId, c, memberCash);
+      }
+    }
     const a = auctionOfCycle(chit, c);
     if (a) {
       // Pass-through of the winning amount (+ any commission) as collections arrive.
@@ -298,11 +339,19 @@ export function plannedPerMember(chit: Chit) {
   return Math.round(plannedPot(chit) / memberCount(chit));
 }
 
-/** Cash a member has paid into the chit (all receipts). */
+/** Cash a member has paid into the chit (receipts + auction-first self-contribution). */
 export function memberPaidTotal(chit: Chit, memberId: string) {
-  return chit.payments
-    .filter((p) => p.memberId === memberId)
-    .reduce((s, p) => s + p.amount, 0);
+  let total = 0;
+  const through = Math.max(
+    displayCycle(chit),
+    ...chit.payments.filter((p) => p.memberId === memberId).map((p) => p.cycle),
+    ...chit.auctions.filter((a) => a.winnerId === memberId).map((a) => a.cycle),
+    0,
+  );
+  for (let c = 1; c <= through; c++) {
+    total += paidInCycle(chit, memberId, c);
+  }
+  return total;
 }
 
 /** Cash a member received from pot / loan / settlement payouts. */

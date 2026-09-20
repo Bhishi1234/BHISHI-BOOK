@@ -4,6 +4,8 @@ import {
   balanceAfterCycle,
   canSettleCycle,
   isLastAuctionCycle,
+  memberPaidTotal,
+  paidInCycle,
   rawCycleDue,
   settleWinner,
   treasuryOf,
@@ -123,8 +125,9 @@ af.members = af.members.map((m) =>
 assert(afRec.bid === 95000, `af bid ${afRec.bid}`);
 assert(afRec.commission === 0, `af commission ${afRec.commission}`);
 assert(afRec.dividend === 0, `af dividend ${afRec.dividend}`);
-assert(rawCycleDue(af, "m1", 1) === 0, `af winner due ${rawCycleDue(af, "m1", 1)}`);
+assert(rawCycleDue(af, "m1", 1) === 19000, `af winner due ${rawCycleDue(af, "m1", 1)}`);
 assert(rawCycleDue(af, "m2", 1) === 19000, `af share ${rawCycleDue(af, "m2", 1)}`);
+assert(paidInCycle(af, "m1", 1) === 19000, `af winner paid-in ${paidInCycle(af, "m1", 1)}`);
 assert(canSettleCycle(af) === true, "af can auction without collections");
 assert(treasuryOf(af) === 0, `af cash after auction ${treasuryOf(af)}`);
 for (const m of af.members) {
@@ -140,14 +143,16 @@ for (const m of af.members) {
   });
 }
 assert(treasuryOf(af) === 0, `af cash after collect ${treasuryOf(af)}`);
-// Full pot taken next cycle → each peer pays base instalment; till still ₹0
+assert(memberPaidTotal(af, "m1") === 19000, `af winner ledger paid ${memberPaidTotal(af, "m1")}`);
+// Full pot taken next cycle → each member pays base instalment; till still ₹0
 af.currentCycle = 2;
 const afFull = settleWinner(af, "m2", 100000, "auction");
 af.auctions.push(afFull);
 af.members = af.members.map((m) =>
   m.customerId === "m2" ? { ...m, prizedCycle: 2 } : m,
 );
-assert(rawCycleDue(af, "m2", 2) === 0, "af full-pot winner due 0");
+assert(rawCycleDue(af, "m2", 2) === 20000, "af full-pot winner due");
+assert(paidInCycle(af, "m2", 2) === 20000, "af full-pot winner paid-in");
 assert(rawCycleDue(af, "m3", 2) === 20000, `af full-pot share ${rawCycleDue(af, "m3", 2)}`);
 assert(treasuryOf(af) === 0, `af cash after full pot ${treasuryOf(af)}`);
 

@@ -490,11 +490,41 @@ export const mockServer = {
         }
         if (!bid || bid <= 0) throw new Error("Enter a loan / payout amount");
         record = assertCanSettlePayout(c, winnerId, bid, method);
+        const nextAuctions = isLoan || isSettlement
+          ? [...c.auctions, record!]
+          : [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record!];
+        let payments = c.payments;
+        const auctionFirst =
+          c.type === "auction" &&
+          c.auctionStyle === "auction_first" &&
+          (method === "auction" || method === "lucky_draw");
+        if (auctionFirst && record) {
+          const n = Math.max(1, c.members.length || c.membersCount || 1);
+          let share = Math.round(record.bid / n);
+          if (share * n < record.bid) share += 1;
+          const already = payments
+            .filter((p) => p.memberId === winnerId && p.cycle === c.currentCycle)
+            .reduce((s, p) => s + p.amount, 0);
+          if (share > already) {
+            payments = [
+              ...payments,
+              {
+                id: uid("p"),
+                memberId: winnerId,
+                cycle: c.currentCycle,
+                amount: share - already,
+                kind: "full" as const,
+                date: new Date().toISOString().slice(0, 10),
+                mode: "adjusted" as const,
+                note: "Winner self-contribution (auction-first)",
+              },
+            ];
+          }
+        }
         return {
           ...c,
-          auctions: isLoan || isSettlement
-            ? [...c.auctions, record!]
-            : [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record!],
+          auctions: nextAuctions,
+          payments,
           members: isSettlement
             ? c.members
             : c.members.map((m) =>
