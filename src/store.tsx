@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api/client";
-import { cycleDue, paidInCycle } from "./lib/chitMath";
+import { cycleDue, paidInCycle, treasuryOf } from "./lib/chitMath";
 import type {
   AuctionRecord,
   Chit,
@@ -53,6 +53,7 @@ type Store = {
     bid: number,
     method: AuctionRecord["method"],
   ) => Promise<AuctionRecord | null>;
+  settleBooksEqually: (chitId: string) => Promise<void>;
   luckyDraw: (chitId: string) => Promise<AuctionRecord | null>;
   closeCycle: (id: string) => Promise<void>;
   addTicket: (subject: string, message: string) => Promise<void>;
@@ -193,6 +194,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const rec = await guarded(() => api.settlePayout(chitId, winnerId, bid, method));
         await reload();
         return rec;
+      },
+      settleBooksEqually: async (chitId) => {
+        await guarded(async () => {
+          const chit = await api.chit(chitId);
+          const cash = treasuryOf(chit);
+          if (cash <= 0) throw new Error("No cash on hand left to settle");
+          if (!chit.members.length) throw new Error("No members");
+          const n = chit.members.length;
+          const each = Math.floor(cash / n);
+          const first = cash - each * (n - 1);
+          for (let i = 0; i < n; i++) {
+            const amt = i === 0 ? first : each;
+            if (amt > 0) {
+              await api.settlePayout(chitId, chit.members[i].customerId, amt, "settlement");
+            }
+          }
+        });
+        await reload();
       },
       luckyDraw: async (chitId) => {
         const rec = await guarded(() => api.luckyDraw(chitId));

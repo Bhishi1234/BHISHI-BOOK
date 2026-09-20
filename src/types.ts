@@ -46,12 +46,13 @@ export type AuctionRecord = {
   cycle: number;
   winnerId: string;
   bid: number;
-  method: "auction" | "lucky_draw" | "fixed";
+  method: "auction" | "lucky_draw" | "fixed" | "settlement";
   discount: number;
   commission: number;
   dividend: number;
   payout: number;
   arrearsWithheld: number;
+  id?: string;
 };
 
 export type ChitMember = {
@@ -79,6 +80,7 @@ export type Chit = {
   currentCycle: number;
   premiumAmount?: number;
   interestRate?: number;
+  repaymentTenure?: number;
   title?: string;
   commissionKind?: "amount" | "percent";
   commissionValue?: number;

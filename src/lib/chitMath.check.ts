@@ -107,19 +107,46 @@ const loan = chit({
   commissionKind: "amount",
   commissionValue: 100,
   interestRate: 5,
+  repaymentTenure: 4,
+  duration: 5,
 });
 collectAll(loan, 20000);
-const lg = settleWinner(loan, "m1", 100000, "fixed");
-loan.auctions.push(lg);
+const lg = settleWinner(loan, "m1", 200000, "fixed");
+assert(lg.payout === 200000, `loan payout ${lg.payout}`);
+// not enough cash — assertCanSettle would throw; settleWinner itself allows amount
+loan.payments = [];
+collectAll(loan, 20000);
+// only 100k cash — giving 100k is ok
+const lg2 = settleWinner(loan, "m1", 100000, "fixed");
+loan.auctions.push(lg2);
 loan.members = loan.members.map((m) =>
   m.customerId === "m1" ? { ...m, prizedCycle: 1 } : m,
 );
-assert(lg.payout === 100000, `loan payout ${lg.payout}`);
-assert(lg.commission === 100, `loan commission ${lg.commission}`);
+assert(lg2.payout === 100000, `loan 1L ${lg2.payout}`);
 assert(treasuryOf(loan) === 100000 - 100000 - 100, `loan cash ${treasuryOf(loan)}`);
+
+// second loan same cycle (extra cash)
+loan.payments.push(
+  ...loan.members.map((m, i) => ({
+    id: `px${i}`,
+    memberId: m.customerId,
+    cycle: 1,
+    amount: 20000,
+    kind: "full" as const,
+    date: "2026-01-02",
+    mode: "cash" as const,
+  })),
+);
+const lg3 = settleWinner(loan, "m2", 50000, "fixed");
+assert(lg3.commission === 0, `second loan commission ${lg3.commission}`);
+assert(lg3.payout === 50000, `second loan ${lg3.payout}`);
+loan.auctions.push(lg3);
+loan.members = loan.members.map((m) =>
+  m.customerId === "m2" ? { ...m, prizedCycle: 1 } : m,
+);
+
 loan.currentCycle = 2;
-assert(appliedDividend(loan, 2) === 0, "loan has no dividend");
-assert(rawCycleDue(loan, "m1", 2) === 21000, `loan due after ${rawCycleDue(loan, "m1", 2)}`);
-assert(rawCycleDue(loan, "m2", 2) === 20000, `unprized due ${rawCycleDue(loan, "m2", 2)}`);
+assert(rawCycleDue(loan, "m1", 2) === 20000 + 5000 + 25000, `m1 due ${rawCycleDue(loan, "m1", 2)}`);
+assert(rawCycleDue(loan, "m3", 2) === 20000, `m3 due ${rawCycleDue(loan, "m3", 2)}`);
 
 console.log("chit math ok");

@@ -416,19 +416,30 @@ export const mockServer = {
       db.chits = db.chits.map((c) => {
         if (c.id !== chitId) return c;
         if (c.status !== "running") throw new Error("Chit is not running");
-        if (c.auctions.some((a) => a.cycle === c.currentCycle)) {
+        const isLoan = c.type === "loan" && method === "fixed";
+        const isSettlement = method === "settlement";
+        if (!isLoan && !isSettlement && c.auctions.some((a) => a.cycle === c.currentCycle && a.method !== "settlement")) {
           throw new Error("This cycle is already settled");
         }
         const winner = c.members.find((m) => m.customerId === winnerId);
         if (!winner) throw new Error("Winner is not a member of this chit");
-        if (winner.prizedCycle) throw new Error("This member already won");
+        if (!isLoan && !isSettlement && winner.prizedCycle) {
+          throw new Error("This member already won");
+        }
+        if (!bid || bid <= 0) throw new Error("Enter a loan / payout amount");
         record = assertCanSettlePayout(c, winnerId, bid, method);
         return {
           ...c,
-          auctions: [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record],
-          members: c.members.map((m) =>
-            m.customerId === winnerId ? { ...m, prizedCycle: c.currentCycle } : m,
-          ),
+          auctions: isLoan || isSettlement
+            ? [...c.auctions, record!]
+            : [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record!],
+          members: isSettlement
+            ? c.members
+            : c.members.map((m) =>
+                m.customerId === winnerId
+                  ? { ...m, prizedCycle: m.prizedCycle || c.currentCycle }
+                  : m,
+              ),
         };
       });
       write(db);

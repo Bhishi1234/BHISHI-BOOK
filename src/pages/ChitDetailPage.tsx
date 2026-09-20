@@ -12,11 +12,15 @@ import {
   cycleLedger,
   expectedThisCycle,
   interestCollected,
+  loanPrincipalOf,
+  loansThisCycle,
   moneyIn,
   outstandingOf,
   paidInCycle,
   paymentStatus,
   payoutsOf,
+  memberBalance,
+  settlementsOf,
   settleWinner,
   treasuryOf,
 } from "../lib/chitMath";
@@ -27,12 +31,12 @@ import type { PayMode, PaymentKind } from "../types";
 export function ChitDetailPage() {
   const { id } = useParams();
   const {
-    chits, customers, recordPayment, recordAllPayments, recordAuction, luckyDraw, closeCycle,
+    chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, luckyDraw, closeCycle,
     cancelChit, addMember, undoPayment, updateChitSettings, error,
   } = useStore();
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
-  const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "settings">("overview");
+  const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "settlement" | "settings">("overview");
   const [payFor, setPayFor] = useState<string | null>(null);
   const [bid, setBid] = useState("");
   const [winnerId, setWinnerId] = useState("");
@@ -43,15 +47,20 @@ export function ChitDetailPage() {
   const [unpaidNoted, setUnpaidNoted] = useState(false);
   const [colRange, setColRange] = useState<"today" | "week" | "all">("all");
   const [busyAll, setBusyAll] = useState(false);
+  const [busySettle, setBusySettle] = useState(false);
 
   useEffect(() => {
     if (!chit) return;
     setVisible(Boolean(chit.memberVisible));
     setRemind(Boolean(chit.remindDays?.length));
-    if (chit.type === "loan" || chit.type === "fixed") {
-      setBid(String(chit.pot));
-    }
-  }, [chit]);
+  }, [chit?.id, chit?.memberVisible, chit?.remindDays]);
+
+  useEffect(() => {
+    if (!chit) return;
+    // Only seed the amount when opening a chit — never overwrite what the user typed
+    setBid(chit.type === "loan" || chit.type === "fixed" ? String(chit.pot) : "");
+    setWinnerId("");
+  }, [chit?.id]);
 
   const names = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
 
@@ -61,9 +70,12 @@ export function ChitDetailPage() {
 
   const data = chit;
   const pending = data.members.filter((m) => paymentStatus(data, m.customerId, data.currentCycle) === "due").length;
-  const lastWin = data.auctions.find((a) => a.cycle === data.currentCycle);
+  const lastWin = data.auctions.find((a) => a.cycle === data.currentCycle && a.method !== "settlement");
+  const monthLoans = loansThisCycle(data);
+  const cashOnHand = treasuryOf(data);
+  const showSettlement = data.type === "loan" || data.currentCycle >= data.duration || data.status === "completed";
   const monthDate = new Date(data.startDate);
-  monthDate.setMonth(monthDate.getMonth() + data.currentCycle - 1);
+  monthDate.setMonth(monthDate.getMonth() + Math.min(data.currentCycle, data.duration) - 1);
   const remainDue = data.members.filter((m) => {
     const due = cycleDue(data, m.customerId, data.currentCycle);
     return due - paidInCycle(data, m.customerId, data.currentCycle) > 0;
@@ -86,6 +98,7 @@ export function ChitDetailPage() {
             <p className="page-sub">
               {data.members.length} members · {inr(data.instalment)}/{data.frequency} · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })} · ends {ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}
               {data.type === "loan" && data.interestRate != null ? ` · interest ${data.interestRate}%` : ""}
+              {data.type === "loan" && data.repaymentTenure ? ` · repay ${data.repaymentTenure} mo` : ""}
               {data.commissionKind === "amount" && data.commissionValue
                 ? ` · commission ${inr(data.commissionValue)}`
                 : ` · commission ${data.commissionPct}%`}
@@ -107,7 +120,7 @@ export function ChitDetailPage() {
           <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
         </div>
         <div className="tabs">
-          {(["overview", "collections", "monthly", "cycles", "members", "settings"] as const).map((t) => (
+          {(["overview", "collections", "monthly", "cycles", "members", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const).map((t) => (
             <button key={t} className={`tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
               {t[0].toUpperCase() + t.slice(1)}
             </button>
@@ -156,7 +169,10 @@ export function ChitDetailPage() {
                 <div className="kv"><span>Contribution</span><strong>{inr(data.instalment)}</strong></div>
                 <div className="kv"><span>Duration</span><strong>{data.duration} months</strong></div>
                 {data.type === "loan" && (
-                  <div className="kv"><span>Interest</span><strong>{data.interestRate ?? 0}%</strong></div>
+                  <>
+                    <div className="kv"><span>Interest</span><strong>{data.interestRate ?? 0}%</strong></div>
+                    <div className="kv"><span>Repayment tenure</span><strong>{data.repaymentTenure ? `${data.repaymentTenure} months` : "Rest of chit"}</strong></div>
+                  </>
                 )}
                 {data.type === "fixed" && data.premiumAmount != null && data.premiumAmount > 0 && (
                   <div className="kv"><span>Premium after prized</span><strong>{inr(data.premiumAmount)}</strong></div>
@@ -335,24 +351,19 @@ export function ChitDetailPage() {
                   Close month
                 </button>
               </div>
-              {lastWin ? (
+              {lastWin && data.type !== "loan" ? (
                 <div style={{ marginTop: 12 }}>
                   <div className="kv">
                     <span>
-                      {data.type === "loan"
-                        ? "Borrower"
-                        : lastWin.method === "lucky_draw"
-                          ? "Lucky draw winner"
-                          : data.type === "fixed"
-                            ? "Awarded to"
-                            : "Winner · Auction"}
+                      {lastWin.method === "lucky_draw"
+                        ? "Lucky draw winner"
+                        : data.type === "fixed"
+                          ? "Awarded to"
+                          : "Winner · Auction"}
                     </span>
                     <strong>{names[lastWin.winnerId]}</strong>
                   </div>
-                  <div className="kv">
-                    <span>{data.type === "loan" ? "Loan given" : "Payout"}</span>
-                    <strong>{inr(lastWin.payout)}</strong>
-                  </div>
+                  <div className="kv"><span>Payout</span><strong>{inr(lastWin.payout)}</strong></div>
                   <div className="kv"><span>Your commission</span><strong>{inr(lastWin.commission)}</strong></div>
                   {lastWin.dividend > 0 && (
                     <div className="kv"><span>Dividend next month / member</span><strong>{inr(lastWin.dividend)}</strong></div>
@@ -382,7 +393,7 @@ export function ChitDetailPage() {
                       </div>
                       {winnerId && Number(bid) > 0 && (() => {
                         const preview = settleWinner(data, winnerId, Number(bid), "auction");
-                        const cashAfter = treasuryOf(data) - preview.payout - preview.commission;
+                        const cashAfter = cashOnHand - preview.payout - preview.commission;
                         return (
                           <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                             <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
@@ -397,37 +408,83 @@ export function ChitDetailPage() {
                   )}
                   {data.type === "loan" && (
                     <>
+                      {!!monthLoans.length && (
+                        <div className="card" style={{ marginBottom: 12, background: "#f8fafc" }}>
+                          <strong>Loans this month</strong>
+                          {monthLoans.map((l, i) => (
+                            <div className="kv" key={l.id || `${l.winnerId}-${i}`}>
+                              <span>{names[l.winnerId]}</span>
+                              <strong>{inr(l.payout)}{l.commission ? ` · commission ${inr(l.commission)}` : ""}</strong>
+                            </div>
+                          ))}
+                          <div className="kv"><span>Total loaned this month</span><strong>{inr(monthLoans.reduce((s, l) => s + l.payout, 0))}</strong></div>
+                          <div className="kv"><span>Cash still on hand</span><strong>{inr(cashOnHand)}</strong></div>
+                        </div>
+                      )}
+                      <p className="muted" style={{ marginBottom: 10 }}>
+                        Enter any amount up to cash on hand — e.g. ₹2,00,000 even if the monthly pot is ₹1,00,000. You can give more than one loan this month.
+                      </p>
                       <div className="month-auction" style={{ padding: 0 }}>
                         <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
                           <option value="">Borrower</option>
-                          {unprized.map((m) => <option key={m.customerId} value={m.customerId}>{names[m.customerId]}</option>)}
+                          {data.members.map((m) => (
+                            <option key={m.customerId} value={m.customerId}>
+                              {names[m.customerId]}
+                              {loanPrincipalOf(data, m.customerId) ? ` · already borrowed ${inr(loanPrincipalOf(data, m.customerId))}` : ""}
+                            </option>
+                          ))}
                         </select>
-                        <input className="field" placeholder="Loan amount" value={bid} onChange={(e) => setBid(e.target.value)} />
+                        <input
+                          className="field"
+                          inputMode="numeric"
+                          placeholder="Loan amount"
+                          value={bid}
+                          onChange={(e) => setBid(e.target.value.replace(/[^\d]/g, ""))}
+                        />
                         <button
                           className="btn"
-                          disabled={!winnerId || !Number(bid)}
-                          onClick={() => void recordAuction(data.id, winnerId, Number(bid) || data.pot, "fixed")}
+                          disabled={!winnerId || !Number(bid) || Number(bid) > cashOnHand}
+                          onClick={() => {
+                            const amount = Number(bid);
+                            void recordAuction(data.id, winnerId, amount, "fixed").then(() => {
+                              setBid(String(data.pot));
+                              setWinnerId("");
+                            });
+                          }}
                         >
                           Give loan
                         </button>
                       </div>
+                      <div className="quick" style={{ marginTop: 8 }}>
+                        {[data.pot, data.pot * 2, data.pot * 3, cashOnHand].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).map((v) => (
+                          <button key={v} type="button" className={`chip ${bid === String(v) ? "on" : ""}`} onClick={() => setBid(String(v))}>
+                            {inr(v)}{v === cashOnHand ? " · all cash" : ""}
+                          </button>
+                        ))}
+                      </div>
                       {winnerId && Number(bid) > 0 && (() => {
                         const preview = settleWinner(data, winnerId, Number(bid), "fixed");
-                        const cashAfter = treasuryOf(data) - preview.payout - preview.commission;
-                        const nextDue = Math.round(data.instalment + (data.instalment * (data.interestRate || 0)) / 100);
+                        const cashAfter = cashOnHand - preview.payout - preview.commission;
+                        const start = data.currentCycle;
+                        const tenure = data.repaymentTenure || Math.max(1, data.duration - start);
+                        const share = Math.ceil(Number(bid) / tenure);
+                        const interest = Math.round((Number(bid) * (data.interestRate || 0)) / 100);
                         return (
                           <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                            <div className="kv"><span>Loan given</span><strong>{inr(preview.payout)}</strong></div>
+                            <div className="kv"><span>Loan given now</span><strong>{inr(preview.payout)}</strong></div>
                             <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
-                            <div className="kv"><span>Borrower’s due from next month</span><strong>{inr(nextDue)} ({data.interestRate || 0}% interest)</strong></div>
+                            <div className="kv"><span>From next month · deposit</span><strong>{inr(data.instalment)}</strong></div>
+                            <div className="kv"><span>Interest / month</span><strong>{inr(interest)} ({data.interestRate || 0}% of principal)</strong></div>
+                            <div className="kv"><span>Principal share / month</span><strong>{inr(share)} over {tenure} mo</strong></div>
                             <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                            {cashAfter < 0 && <p className="due">Not enough cash on hand for this loan.</p>}
                           </div>
                         );
                       })()}
-                      <p className="muted" style={{ marginTop: 12 }}>You can skip giving a loan this month and still close it after collections.</p>
+                      <p className="muted" style={{ marginTop: 12 }}>You can skip giving a loan this month and still close it after collections. On the last cycle, open the Settlement tab to return leftover cash.</p>
                     </>
                   )}
-                  {data.type === "fixed" && (
+                  {data.type === "fixed" && !lastWin && (
                     <>
                       <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                         <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
@@ -444,7 +501,7 @@ export function ChitDetailPage() {
                       </div>
                       {winnerId && (() => {
                         const preview = settleWinner(data, winnerId, data.pot, "fixed");
-                        const cashAfter = treasuryOf(data) - preview.payout - preview.commission;
+                        const cashAfter = cashOnHand - preview.payout - preview.commission;
                         return (
                           <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                             <div className="kv"><span>Member receives</span><strong>{inr(preview.payout)}</strong></div>
@@ -512,13 +569,18 @@ export function ChitDetailPage() {
             <div className="card flush">
               {data.members.map((m) => {
                 const paid = data.payments.filter((p) => p.memberId === m.customerId).reduce((s, p) => s + p.amount, 0);
-                const left = Math.max(0, data.instalment * data.duration - paid);
+                const principal = loanPrincipalOf(data, m.customerId);
+                const left = Math.max(0, memberBalance(data, m.customerId).outstanding);
                 return (
                   <div key={m.customerId} className="list-row">
                     <div className="avatar">{initials(names[m.customerId] || "?")}</div>
                     <div className="grow">
                       <button className="link" style={{ fontWeight: 600 }} onClick={() => nav(`/customers/${m.customerId}`)}>{names[m.customerId]}</button>
-                      <div className="muted">Paid {inr(paid)}{m.prizedCycle ? ` · prized month ${m.prizedCycle}` : ""}</div>
+                      <div className="muted">
+                        Paid {inr(paid)}
+                        {principal ? ` · loan ${inr(principal)}` : ""}
+                        {m.prizedCycle ? ` · from month ${m.prizedCycle}` : ""}
+                      </div>
                     </div>
                     <div className="num">{inr(left)} left to pay</div>
                   </div>
@@ -526,6 +588,65 @@ export function ChitDetailPage() {
               })}
             </div>
           </>
+        )}
+
+        {tab === "settlement" && (
+          <div className="stack">
+            <div className="stats four">
+              <div className="stat"><span>Cash on hand</span><strong className={cashOnHand < 0 ? "neg" : ""}>{inr(cashOnHand)}</strong></div>
+              <div className="stat"><span>Loans disbursed</span><strong>{inr(data.auctions.filter((a) => a.method === "fixed").reduce((s, a) => s + a.payout, 0))}</strong></div>
+              <div className="stat"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
+              <div className="stat"><span>Already settled out</span><strong>{inr(settlementsOf(data).reduce((s, a) => s + a.payout, 0))}</strong></div>
+            </div>
+            <div className="card">
+              <h2>Final settlement</h2>
+              <p className="muted block">
+                At the end of a loan bhishi, leftover cash on hand is returned to members. This does not mark anyone as prized — it only clears the till so cash on hand becomes ₹0, the way ChitBook closes the books.
+              </p>
+              <div className="kv"><span>Cash available to return</span><strong>{inr(Math.max(0, cashOnHand))}</strong></div>
+              <div className="kv"><span>Equal share / member</span><strong>{inr(data.members.length ? Math.floor(Math.max(0, cashOnHand) / data.members.length) : 0)}</strong></div>
+              <button
+                className="btn"
+                style={{ marginTop: 16 }}
+                disabled={cashOnHand <= 0 || busySettle || !data.members.length}
+                onClick={() => {
+                  setBusySettle(true);
+                  void settleBooksEqually(data.id).finally(() => setBusySettle(false));
+                }}
+              >
+                {busySettle ? "Settling…" : "Settle equally to all members"}
+              </button>
+            </div>
+            <div className="card flush">
+              <div className="card-pad"><h2>Loan positions</h2></div>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Member</th><th>Loan taken</th><th>Paid in</th><th>This month due</th></tr></thead>
+                  <tbody>
+                    {data.members.map((m) => (
+                      <tr key={m.customerId}>
+                        <td>{names[m.customerId]}</td>
+                        <td>{loanPrincipalOf(data, m.customerId) ? inr(loanPrincipalOf(data, m.customerId)) : "—"}</td>
+                        <td>{inr(data.payments.filter((p) => p.memberId === m.customerId).reduce((s, p) => s + p.amount, 0))}</td>
+                        <td>{inr(cycleDue(data, m.customerId, data.currentCycle))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {!!settlementsOf(data).length && (
+              <div className="card flush">
+                <div className="card-pad"><h2>Settlement history</h2></div>
+                {settlementsOf(data).map((s, i) => (
+                  <div className="list-row" key={s.id || i}>
+                    <div className="grow"><strong>{names[s.winnerId]}</strong><div className="muted">Cycle {s.cycle}</div></div>
+                    <strong className="num">{inr(s.payout)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {tab === "settings" && (

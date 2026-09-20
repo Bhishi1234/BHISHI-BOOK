@@ -54,14 +54,53 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
       return Math.round(chit.premiumAmount ?? base * 1.2);
     }
   }
-  if (chit.type === "loan" && chit.interestRate) {
-    const member = chit.members.find((m) => m.customerId === memberId);
-    if (member?.prizedCycle && cycle > member.prizedCycle) {
-      return Math.round(base + (base * chit.interestRate) / 100);
-    }
-    return base;
+  if (chit.type === "loan") {
+    return loanCycleDue(chit, memberId, cycle);
   }
   return base;
+}
+
+/** Total principal this member has taken (loan disbursements only). */
+export function loanPrincipalOf(chit: Chit, memberId: string) {
+  return chit.auctions
+    .filter((a) => a.winnerId === memberId && a.method === "fixed")
+    .reduce((s, a) => s + a.payout, 0);
+}
+
+export function firstLoanCycle(chit: Chit, memberId: string) {
+  const cycles = chit.auctions
+    .filter((a) => a.winnerId === memberId && a.method === "fixed")
+    .map((a) => a.cycle);
+  return cycles.length ? Math.min(...cycles) : 0;
+}
+
+/**
+ * Loan bhishi due = deposit + interest on principal + amortised principal share.
+ * Interest and principal start the month AFTER the loan is given (ChitBook-style).
+ */
+export function loanCycleDue(chit: Chit, memberId: string, cycle: number) {
+  const base = baseInstalment(chit);
+  const principal = loanPrincipalOf(chit, memberId);
+  if (!principal) return base;
+  const start = firstLoanCycle(chit, memberId);
+  if (!start || cycle <= start) return base;
+  const rate = chit.interestRate || 0;
+  const interest = Math.round((principal * rate) / 100);
+  const tenure = Math.max(
+    1,
+    chit.repaymentTenure || Math.max(1, chit.duration - start),
+  );
+  const monthIndex = cycle - start; // 1 = first repayment month
+  const principalShare = monthIndex >= 1 && monthIndex <= tenure
+    ? Math.ceil(principal / tenure)
+    : 0;
+  // Last instalment adjustment so total principal shares ≈ principal
+  let share = principalShare;
+  if (monthIndex === tenure) {
+    const prior = Math.ceil(principal / tenure) * (tenure - 1);
+    share = Math.max(0, principal - prior);
+  }
+  return base + interest + share;
 }
 
 export function surplusBefore(chit: Chit, memberId: string, cycle: number) {
@@ -133,17 +172,30 @@ export function commissionEarned(chit: Chit) {
 export function interestCollected(chit: Chit) {
   if (chit.type !== "loan" || !chit.interestRate) return 0;
   const rate = chit.interestRate;
-  const base = baseInstalment(chit);
   return chit.members.reduce((sum, m) => {
-    if (!m.prizedCycle) return sum;
+    const principal = loanPrincipalOf(chit, m.customerId);
+    if (!principal) return sum;
+    const start = firstLoanCycle(chit, m.customerId);
     let extra = 0;
-    for (let c = m.prizedCycle + 1; c <= chit.currentCycle; c++) {
-      extra += paidInCycle(chit, m.customerId, c) > 0
-        ? Math.round((base * rate) / 100)
-        : 0;
+    for (let c = start + 1; c <= chit.currentCycle; c++) {
+      if (paidInCycle(chit, m.customerId, c) > 0) {
+        extra += Math.round((principal * rate) / 100);
+      }
     }
     return sum + extra;
   }, 0);
+}
+
+export function loansThisCycle(chit: Chit) {
+  return chit.auctions.filter((a) => a.cycle === chit.currentCycle && a.method === "fixed");
+}
+
+export function settlementsOf(chit: Chit) {
+  return chit.auctions.filter((a) => a.method === "settlement");
+}
+
+export function outstandingLoanPrincipal(chit: Chit) {
+  return chit.members.reduce((s, m) => s + loanPrincipalOf(chit, m.customerId), 0);
 }
 
 export function outstandingOf(chit: Chit) {
@@ -159,7 +211,17 @@ export function settleWinner(
   bid: number,
   method: AuctionRecord["method"],
 ): AuctionRecord {
-  const commission = commissionAmount(chit);
+  const alreadyLoanedThisCycle = chit.auctions.some(
+    (a) => a.cycle === chit.currentCycle && a.method === "fixed",
+  );
+  const commission =
+    method === "settlement"
+      ? 0
+      : method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle
+        ? 0
+        : method === "lucky_draw" || method === "auction" || method === "fixed"
+          ? commissionAmount(chit)
+          : 0;
   let safeBid: number;
   let dividend = 0;
   if (method === "auction") {
@@ -169,11 +231,11 @@ export function settleWinner(
   } else if (method === "lucky_draw") {
     safeBid = Math.max(0, chit.pot - commission);
   } else {
-    // fixed / loan: principal paid out; commission leaves the till separately
-    safeBid = Math.max(0, bid || chit.pot);
+    // loan / fixed / settlement: amount is whatever you enter (not capped at pot)
+    safeBid = Math.max(0, Number(bid) || 0);
   }
-  const discount = Math.max(0, chit.pot - Math.min(safeBid, chit.pot));
-  const arrearsWithheld = memberBalance(chit, winnerId).outstanding;
+  const discount = method === "auction" ? Math.max(0, chit.pot - safeBid) : 0;
+  const arrearsWithheld = method === "settlement" ? 0 : memberBalance(chit, winnerId).outstanding;
   const payout = Math.max(0, safeBid - arrearsWithheld);
   return {
     cycle: chit.currentCycle,
@@ -213,24 +275,29 @@ export function assertCanSettlePayout(
   bid: number,
   method: AuctionRecord["method"],
 ) {
-  if (!canSettleCycle(chit)) {
+  if (method !== "settlement" && !canSettleCycle(chit)) {
     throw new Error("Record this month's collections before the auction");
+  }
+  if (!bid || bid <= 0) {
+    throw new Error("Enter an amount greater than zero");
   }
   const rec = settleWinner(chit, winnerId, bid, method);
   const available = treasuryOf(chit);
-  if (rec.payout + rec.commission > Math.max(0, available)) {
-    throw new Error("Payout plus commission is more than cash on hand. Collect remaining dues or lower the winning bid.");
+  if (rec.payout + rec.commission > Math.max(0, available) + 0.001) {
+    throw new Error(
+      `Amount plus commission (₹${rec.payout + rec.commission}) is more than cash on hand (₹${Math.max(0, available)}). Collect more dues first, or lower the amount.`,
+    );
   }
   return rec;
 }
 
 export function cycleLedger(chit: Chit, cycle: number) {
   const collected = chit.payments.filter((p) => p.cycle === cycle).reduce((s, p) => s + p.amount, 0);
-  const a = chit.auctions.find((x) => x.cycle === cycle);
+  const rows = chit.auctions.filter((x) => x.cycle === cycle);
   return {
     collected,
-    payout: a?.payout || 0,
-    commission: a?.commission || 0,
+    payout: rows.reduce((s, a) => s + a.payout, 0),
+    commission: rows.reduce((s, a) => s + (a.commission || 0), 0),
     dividend: appliedDividend(chit, cycle),
   };
 }

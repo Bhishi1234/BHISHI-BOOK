@@ -39,6 +39,7 @@ export function mapPayment(row: Record<string, unknown>): Payment {
 
 export function mapAuction(row: Record<string, unknown>): AuctionRecord {
   return {
+    id: row.id ? String(row.id) : undefined,
     cycle: num(row.cycle),
     winnerId: String(row.winner_id ?? row.winnerId ?? ""),
     bid: num(row.bid),
@@ -86,6 +87,9 @@ export function mapChit(row: Record<string, unknown>): Chit {
     interestRate: row.interest_rate != null || row.interestRate != null
       ? num(row.interest_rate ?? row.interestRate)
       : undefined,
+    repaymentTenure: row.repayment_tenure != null || row.repaymentTenure != null
+      ? num(row.repayment_tenure ?? row.repaymentTenure)
+      : undefined,
     commissionKind: (row.commission_kind as Chit["commissionKind"]) || (row.commissionKind as Chit["commissionKind"]),
     commissionValue: num(row.commission_value ?? row.commissionValue),
     adjustmentStyle: (row.adjustment_style as Chit["adjustmentStyle"]) || (row.adjustmentStyle as Chit["adjustmentStyle"]),
@@ -120,6 +124,7 @@ export function chitPayload(input: Omit<Chit, "id" | "payments" | "status">) {
     mode: input.mode,
     premiumAmount: input.premiumAmount ?? "",
     interestRate: input.interestRate ?? "",
+    repaymentTenure: input.repaymentTenure ?? "",
     commissionKind: input.commissionKind ?? "percent",
     commissionValue: input.commissionValue ?? 0,
     adjustmentStyle: input.adjustmentStyle ?? "every_month",

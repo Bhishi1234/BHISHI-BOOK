@@ -28,6 +28,7 @@ export function NewChitPage() {
   const [comm, setComm] = useState("0");
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
   const [interest, setInterest] = useState("5");
+  const [tenure, setTenure] = useState("");
   const [premium, setPremium] = useState("");
   const [remind, setRemind] = useState(true);
   const [remindDays, setRemindDays] = useState<number[]>([3]);
@@ -46,6 +47,7 @@ export function NewChitPage() {
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
 
   const interestN = Number(interest) || 0;
+  const tenureN = Number(tenure) || 0;
   const premiumN = Number(premium) || 0;
 
   const preview = useMemo(() => ({
@@ -83,6 +85,7 @@ export function NewChitPage() {
         commissionValue: Number(comm) || 0,
         adjustmentStyle: type === "auction" ? adjust : "every_month",
         interestRate: type === "loan" ? interestN : undefined,
+        repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
         premiumAmount: type === "fixed" && premiumN > 0 ? premiumN : undefined,
         remindDays: remind ? remindDays : [],
         memberVisible: visible,
@@ -204,7 +207,10 @@ export function NewChitPage() {
                         <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
                       ))}
                     </div>
-                    <p className="hint">After a member takes the loan, their monthly due becomes base + this interest. Unprized members keep paying the base.</p>
+                    <p className="hint">After a member takes a loan, each following month they pay: deposit + interest on the loan principal + a share of the principal over the repayment tenure.</p>
+                    <label className="label">Repayment tenure (months)</label>
+                    <input className="field" placeholder={`e.g. ${months || 5} (blank = rest of the chit)`} value={tenure} onChange={(e) => setTenure(e.target.value)} />
+                    <p className="hint">How many months after the loan the principal is recovered. Leave blank to spread over the remaining months of the chit.</p>
                   </>
                 )}
                 {type === "fixed" && (
@@ -277,7 +283,8 @@ export function NewChitPage() {
               {type === "loan" && (
                 <>
                   <div className="kv"><span>Interest</span><strong>{preview.interest}</strong></div>
-                  <div className="kv"><span>Due after loan</span><strong>{preview.afterLoan}</strong></div>
+                  <div className="kv"><span>Due after loan (1st month)</span><strong>{preview.afterLoan}</strong></div>
+                  <div className="kv"><span>Repayment tenure</span><strong>{tenureN ? `${tenureN} months` : "Rest of chit"}</strong></div>
                 </>
               )}
               {type === "fixed" && Number(premium) > 0 && (
