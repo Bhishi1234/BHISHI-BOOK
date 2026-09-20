@@ -28,6 +28,9 @@ export function mapPayment(row: Record<string, unknown>): Payment {
   return {
     id: String(row.id),
     memberId: String(row.member_id ?? row.memberId ?? ""),
+    slot: row.member_slot != null || row.slot != null
+      ? num(row.member_slot ?? row.slot)
+      : undefined,
     cycle: num(row.cycle),
     amount: num(row.amount),
     kind: (row.kind as Payment["kind"]) || "full",

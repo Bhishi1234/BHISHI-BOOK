@@ -31,7 +31,7 @@ type Backend = {
     title?: string;
   }) => Promise<Chit>;
   closeCycle: (id: string) => Promise<Chit>;
-  recordPayment: (chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode) => Promise<unknown>;
+  recordPayment: (chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode, slot?: number) => Promise<unknown>;
   undoPayment: (chitId: string, paymentId: string) => Promise<unknown>;
   settlePayout: (chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) => Promise<AuctionRecord>;
   luckyDraw: (chitId: string) => Promise<AuctionRecord>;
@@ -60,8 +60,8 @@ const mockApi: Backend = {
   addMember: (chitId, customerId) => delay(mockServer.chits.addMember(chitId, customerId)),
   updateChitSettings: (chitId, patch) => delay(mockServer.chits.updateSettings(chitId, patch)),
   closeCycle: (id) => delay(mockServer.chits.closeCycle(id)),
-  recordPayment: (chitId, memberId, amount, kind, mode) =>
-    delay(mockServer.collections.create(chitId, memberId, amount, kind, mode)),
+  recordPayment: (chitId, memberId, amount, kind, mode, slot) =>
+    delay(mockServer.collections.create(chitId, memberId, amount, kind, mode, slot)),
   undoPayment: (chitId, paymentId) => delay(mockServer.collections.undo(chitId, paymentId)),
   settlePayout: (chitId, winnerId, bid, method, winnerSlot) =>
     delay(mockServer.auctions.create(chitId, winnerId, bid, method, winnerSlot)),

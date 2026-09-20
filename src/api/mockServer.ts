@@ -427,24 +427,26 @@ export const mockServer = {
   },
 
   collections: {
-    create(chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: Payment["mode"], note?: string) {
+    create(chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: Payment["mode"], slot?: number) {
       const db = read();
       needUser(db);
       db.chits = db.chits.map((c) => {
         if (c.id !== chitId) return c;
         if (c.status !== "running") throw new Error("Chit is not running");
-        if (!c.members.some((m) => m.customerId === memberId)) throw new Error("Not a member of this chit");
+        if (!c.members.some((m) => m.customerId === memberId && (slot == null || m.slot === slot))) {
+          throw new Error("Not a member of this chit");
+        }
         if (!(amount > 0)) throw new Error("Amount must be greater than 0");
-        const due = cycleDue(c, memberId, c.currentCycle);
+        const due = cycleDue(c, memberId, c.currentCycle, slot);
         const payment: Payment = {
           id: uid("p"),
           memberId,
+          slot,
           cycle: c.currentCycle,
           amount,
           kind: kind ?? inferKind(due, amount),
           date: new Date().toISOString(),
           mode: mode ?? "cash",
-          note,
         };
         return { ...c, payments: [...c.payments, payment] };
       });

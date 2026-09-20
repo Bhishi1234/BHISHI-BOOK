@@ -40,6 +40,8 @@ export type Customer = {
 export type Payment = {
   id: string;
   memberId: string;
+  /** Which hand/slot this receipt belongs to (multi-hand). */
+  slot?: number;
   cycle: number;
   amount: number;
   kind: PaymentKind;

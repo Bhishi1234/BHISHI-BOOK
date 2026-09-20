@@ -1,12 +1,15 @@
 import type { Chit, ChitMember } from "../types";
 import {
   appliedDividend,
+  assertCanSettlePayout,
   balanceAfterCycle,
   canCloseLastMonth,
+  canGiveLoan,
   canSettleCycle,
   handSacrificeAmount,
   handSacrificeDividendsReceived,
   isLastAuctionCycle,
+  loanPrincipalOf,
   memberPaidTotal,
   paidInCycle,
   rawCycleDue,
@@ -314,7 +317,7 @@ assert(rawCycleDue(late, "m1", 4) === 10000 + 0 + 10000, `late m4 due ${rawCycle
 loan.currentCycle = 5;
 assert(rawCycleDue(late, "m1", 5) === 10000 + 1000 + 10000, `late m5 due ${rawCycleDue(late, "m1", 5)}`);
 
-// Multi-hand: same person, 2 slots → 2× instalment
+// Multi-hand: same person, 2 slots → each hand independent (1× instalment each)
 const multi = chit({
   members: [
     { customerId: "m1", slot: 1 },
@@ -329,17 +332,17 @@ const multi = chit({
   commissionValue: 0,
 });
 assert(rawCycleDue(multi, "m1", 1) === 20000, `multi m1 due ${rawCycleDue(multi, "m1", 1)}`);
+assert(rawCycleDue(multi, "m1", 1, 1) === 10000, `multi m1 slot1 ${rawCycleDue(multi, "m1", 1, 1)}`);
+assert(rawCycleDue(multi, "m1", 1, 2) === 10000, `multi m1 slot2 ${rawCycleDue(multi, "m1", 1, 2)}`);
 assert(rawCycleDue(multi, "m2", 1) === 10000, `multi m2 due ${rawCycleDue(multi, "m2", 1)}`);
-collectAll(multi, 20000); // overpays m2; m1 exact if we collect per unique... collectAll uses members loop
-// fix: collect unique amounts
 multi.payments = [];
-for (const id of ["m1", "m2"]) {
-  const due = rawCycleDue(multi, id, 1);
+for (const m of multi.members) {
   multi.payments.push({
-    id: `pm${id}`,
-    memberId: id,
+    id: `pm${m.customerId}-${m.slot}`,
+    memberId: m.customerId,
+    slot: m.slot,
     cycle: 1,
-    amount: due,
+    amount: rawCycleDue(multi, m.customerId, 1, m.slot),
     kind: "full",
     date: "2026-01-01",
     mode: "cash",
@@ -348,12 +351,13 @@ for (const id of ["m1", "m2"]) {
 assert(canCloseLastMonth({ ...multi, currentCycle: 1, duration: 3 }).ok, "not last month yet");
 multi.currentCycle = 3;
 assert(!canCloseLastMonth(multi).ok, "last month unpaid should block");
-for (const id of ["m1", "m2"]) {
+for (const m of multi.members) {
   multi.payments.push({
-    id: `pm3${id}`,
-    memberId: id,
+    id: `pm3${m.customerId}-${m.slot}`,
+    memberId: m.customerId,
+    slot: m.slot,
     cycle: 3,
-    amount: rawCycleDue(multi, id, 3),
+    amount: rawCycleDue(multi, m.customerId, 3, m.slot),
     kind: "full",
     date: "2026-03-01",
     mode: "cash",
@@ -361,17 +365,63 @@ for (const id of ["m1", "m2"]) {
 }
 // still outstanding for cycle 2
 assert(!canCloseLastMonth(multi).ok, "cycle 2 outstanding blocks");
-for (const id of ["m1", "m2"]) {
+for (const m of multi.members) {
   multi.payments.push({
-    id: `pm2${id}`,
-    memberId: id,
+    id: `pm2${m.customerId}-${m.slot}`,
+    memberId: m.customerId,
+    slot: m.slot,
     cycle: 2,
-    amount: rawCycleDue(multi, id, 2),
+    amount: rawCycleDue(multi, m.customerId, 2, m.slot),
     kind: "full",
     date: "2026-02-01",
     mode: "cash",
   });
 }
 assert(canCloseLastMonth(multi).ok, "last month clear should allow");
+
+// Multi-hand loan: loan on slot 1 must not affect slot 2 dues
+const multiLoan = chit({
+  members: [
+    { customerId: "m1", slot: 1 },
+    { customerId: "m1", slot: 2 },
+    { customerId: "m2", slot: 3 },
+  ],
+  type: "loan",
+  pot: 30000,
+  instalment: 10000,
+  duration: 5,
+  interestRate: 5,
+  repaymentTenure: 4,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+for (const m of multiLoan.members) {
+  multiLoan.payments.push({
+    id: `ml1-${m.slot}`,
+    memberId: m.customerId,
+    slot: m.slot,
+    cycle: 1,
+    amount: 10000,
+    kind: "full",
+    date: "2026-01-01",
+    mode: "cash",
+  });
+}
+const ml = settleWinner(multiLoan, "m1", 20000, "fixed", 1);
+multiLoan.auctions.push(ml);
+assert(ml.winnerSlot === 1, `loan winnerSlot ${ml.winnerSlot}`);
+assert(loanPrincipalOf(multiLoan, "m1", 1) === 20000, `slot1 principal ${loanPrincipalOf(multiLoan, "m1", 1)}`);
+assert(loanPrincipalOf(multiLoan, "m1", 2) === 0, `slot2 must have no loan ${loanPrincipalOf(multiLoan, "m1", 2)}`);
+multiLoan.currentCycle = 2;
+assert(rawCycleDue(multiLoan, "m1", 2, 1) > 10000, `slot1 repay due ${rawCycleDue(multiLoan, "m1", 2, 1)}`);
+assert(rawCycleDue(multiLoan, "m1", 2, 2) === 10000, `slot2 deposit only ${rawCycleDue(multiLoan, "m1", 2, 2)}`);
+assert(canGiveLoan({ ...multiLoan, currentCycle: 4, duration: 5 }), "can loan before last");
+assert(!canGiveLoan({ ...multiLoan, currentCycle: 5, duration: 5 }), "no loan on last month");
+try {
+  assertCanSettlePayout({ ...multiLoan, currentCycle: 5 }, "m1", 10000, "fixed", 2);
+  assert(false, "last month loan should throw");
+} catch (e) {
+  assert(String(e).includes("last month"), `last month err ${e}`);
+}
 
 console.log("chit math ok");

@@ -223,7 +223,7 @@ export const supabaseApi = {
     return loadChit(id);
   },
 
-  async recordPayment(chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode) {
+  async recordPayment(chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode, slot?: number) {
     const { sb } = await requireUser();
     const { error } = await sb.rpc("record_payment", {
       p_chit_id: chitId,
@@ -232,6 +232,7 @@ export const supabaseApi = {
       p_kind: kind ?? null,
       p_mode: mode ?? "cash",
       p_note: null,
+      p_member_slot: slot ?? null,
     });
     throwIf(error);
     return loadPayments(chitId);

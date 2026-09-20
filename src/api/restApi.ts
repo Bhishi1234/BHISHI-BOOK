@@ -172,10 +172,10 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${id}`));
   },
 
-  async recordPayment(chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode) {
+  async recordPayment(chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode, slot?: number) {
     await request(`/api/v1/chits/${chitId}/payments`, {
       method: "POST",
-      body: JSON.stringify({ memberId, amount, kind, mode }),
+      body: JSON.stringify({ memberId, amount, kind, mode, slot }),
     });
     return (await mapChit(await request(`/api/v1/chits/${chitId}`))).payments;
   },

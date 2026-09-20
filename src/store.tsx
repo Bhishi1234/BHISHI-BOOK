@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api/client";
-import { cycleDue, canCloseLastMonth, loanSettlementPlan, paidInCycle, uniqueMemberIds } from "./lib/chitMath";
+import { cycleDue, canCloseLastMonth, loanSettlementPlan, paidInCycle } from "./lib/chitMath";
 import type {
   AuctionRecord,
   Chit,
@@ -49,6 +49,7 @@ type Store = {
     amount: number,
     kind?: PaymentKind,
     mode?: PayMode,
+    slot?: number,
   ) => Promise<void>;
   recordAllPayments: (chitId: string) => Promise<void>;
   undoPayment: (chitId: string, paymentId: string) => Promise<void>;
@@ -176,8 +177,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await guarded(() => api.updateChitSettings(chitId, patch));
         await reload();
       },
-      recordPayment: async (chitId, memberId, amount, kind, mode) => {
-        await guarded(() => api.recordPayment(chitId, memberId, amount, kind, mode));
+      recordPayment: async (chitId, memberId, amount, kind, mode, slot) => {
+        await guarded(() => api.recordPayment(chitId, memberId, amount, kind, mode, slot));
         await reload();
       },
       recordAllPayments: async (chitId) => {
@@ -185,12 +186,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!chit) throw new Error("Not found");
         if (chit.status !== "running") throw new Error("Chit is not running");
         await guarded(async () => {
-          for (const memberId of uniqueMemberIds(chit)) {
-            const due = cycleDue(chit, memberId, chit.currentCycle);
-            const paid = paidInCycle(chit, memberId, chit.currentCycle);
+          for (const member of chit.members) {
+            const due = cycleDue(chit, member.customerId, chit.currentCycle, member.slot);
+            const paid = paidInCycle(chit, member.customerId, chit.currentCycle, member.slot);
             const left = Math.max(0, due - paid);
             if (left > 0) {
-              await api.recordPayment(chitId, memberId, left, "full", "cash");
+              await api.recordPayment(chitId, member.customerId, left, "full", "cash", member.slot);
             }
           }
         });

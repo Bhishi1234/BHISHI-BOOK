@@ -485,6 +485,7 @@ app.post("/api/v1/chits/:id/payments", async (c) => {
       p_kind: body.kind ?? null,
       p_mode: body.mode ?? "cash",
       p_note: body.note ?? null,
+      p_member_slot: body.slot ?? null,
     });
     if (error) return c.json({ error: rpcError(error) }, 400);
     return c.json(data);

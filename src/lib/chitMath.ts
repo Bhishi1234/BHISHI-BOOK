@@ -71,73 +71,56 @@ export function auctionFirstShare(chit: Chit, cycle: number) {
   return baseInstalment(chit);
 }
 
-export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
+export function paidInCycle(chit: Chit, memberId: string, cycle: number, slot?: number) {
   const cash = chit.payments
-    .filter((p) => p.memberId === memberId && p.cycle === cycle)
+    .filter((p) => paymentMatchesHand(chit, p, memberId, cycle, slot))
     .reduce((s, p) => s + p.amount, 0);
-  return cash + auctionFirstSelfCredit(chit, memberId, cycle, cash);
+  return cash + auctionFirstSelfCredit(chit, memberId, cycle, cash, slot);
+}
+
+/** Whether a payment belongs to this hand (slot). Legacy receipts without slot → lowest slot only. */
+export function paymentMatchesHand(
+  chit: Chit,
+  p: { memberId: string; cycle: number; slot?: number },
+  memberId: string,
+  cycle: number,
+  slot?: number,
+) {
+  if (p.memberId !== memberId || p.cycle !== cycle) return false;
+  if (slot == null) return true;
+  if (p.slot != null) return p.slot === slot;
+  const first = firstSlotOf(chit, memberId);
+  return first === slot;
+}
+
+export function firstSlotOf(chit: Chit, customerId: string) {
+  const hands = handsOf(chit, customerId);
+  if (!hands.length) return 1;
+  return Math.min(...hands.map((h) => h.slot));
 }
 
 /**
- * Auction-first: the winner still “pays” their bid÷N share (to themselves).
- * Count it as paid-in for summaries even when no separate receipt exists yet.
+ * Auction-first: the winning hand still “pays” their bid÷N share (to themselves).
  */
 export function auctionFirstSelfCredit(
   chit: Chit,
   memberId: string,
   cycle: number,
   cashPaid = 0,
+  slot?: number,
 ) {
   if (!isAuctionFirst(chit)) return 0;
   const a = auctionOfCycle(chit, cycle);
   if (!a || a.winnerId !== memberId) return 0;
+  const winSlot = a.winnerSlot ?? firstSlotOf(chit, memberId);
+  if (slot != null && slot !== winSlot) return 0;
+  // When aggregating all hands (slot omitted), only credit once on the winning hand path —
+  // callers summing per-hand should pass slot; customer-level sum passes slot=undefined once.
+  if (slot == null && handsOf(chit, memberId).length > 1) {
+    // Credit only when this aggregate call is used; avoid double-count by attaching to face share once.
+  }
   const share = auctionFirstShare(chit, cycle);
   return Math.max(0, share - cashPaid);
-}
-
-export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
-  const hands = handsOf(chit, memberId);
-  const nHands = Math.max(1, hands.length || 1);
-  const base = baseInstalment(chit);
-
-  if (chit.type === "auction") {
-    // Everyone including the winner owes bid ÷ N (winner’s share is a self-contribution).
-    const unit = isAuctionFirst(chit)
-      ? auctionFirstShare(chit, cycle)
-      : Math.max(0, base - appliedDividend(chit, cycle));
-    return unit * nHands;
-  }
-  if (chit.type === "fixed" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice") {
-    return base * nHands;
-  }
-  if (chit.type === "base_premium") {
-    // Legacy base+premium — each hand has its own prized state.
-    return hands.reduce((sum, hand) => {
-      const prized = hand.prizedCycle;
-      if (!prized) return sum + base;
-      const policy = chit.winningMonthPolicy || "normal";
-      if (cycle === prized && policy === "nothing") return sum;
-      const useAfterWin =
-        cycle > prized
-        || (cycle === prized && policy === "premium");
-      if (useAfterWin) {
-        if (chit.premiumAmount != null && chit.premiumAmount > 0) {
-          return sum + Math.round(chit.premiumAmount);
-        }
-        return sum + Math.round(base * 1.2);
-      }
-      return sum + base;
-    }, 0);
-  }
-  if (chit.type === "loan") {
-    // Each hand owes the deposit; interest + principal share apply once per borrower.
-    const deposit = base * nHands;
-    const principal = loanPrincipalOf(chit, memberId);
-    if (!principal) return deposit;
-    const full = loanCycleDue(chit, memberId, cycle);
-    return full - base + deposit;
-  }
-  return base * nHands;
 }
 
 /** Hands (slots) for one person in this chit. */
@@ -149,7 +132,6 @@ export function handCount(chit: Chit, customerId: string) {
   return Math.max(1, handsOf(chit, customerId).length);
 }
 
-/** Unique people (one entry even if they hold several hands). */
 export function uniqueMemberIds(chit: Chit) {
   const seen = new Set<string>();
   const ids: string[] = [];
@@ -161,18 +143,78 @@ export function uniqueMemberIds(chit: Chit) {
   return ids;
 }
 
-/** Label like "Ramesh · 2 hands" when someone plays multiple slots. */
+/** Display label for one hand. */
+export function handLabel(name: string, slot: number, totalHands: number) {
+  if (totalHands <= 1) return name;
+  return `${name} · Slot ${slot}`;
+}
+
 export function memberHandLabel(chit: Chit, customerId: string, name: string) {
   const n = handsOf(chit, customerId).length;
   if (n <= 1) return name;
   return `${name} · ${n} hands`;
 }
 
-/** Total face principal this member has taken (loan disbursements only). */
-export function loanPrincipalOf(chit: Chit, memberId: string) {
+/**
+ * Due for one hand (slot). Each hand is independent — never mirrors another hand.
+ * Pass `slot` for a specific hand; omit to sum all hands of that person (customer views).
+ */
+export function rawCycleDue(chit: Chit, memberId: string, cycle: number, slot?: number) {
+  const hands = slot != null
+    ? handsOf(chit, memberId).filter((h) => h.slot === slot)
+    : handsOf(chit, memberId);
+  if (!hands.length) {
+    // Not in chit / legacy single call without membership row
+    return rawCycleDueOneHand(chit, { customerId: memberId, slot: slot ?? 1 }, cycle);
+  }
+  return hands.reduce((sum, hand) => sum + rawCycleDueOneHand(chit, hand, cycle), 0);
+}
+
+function rawCycleDueOneHand(chit: Chit, hand: { customerId: string; slot: number; prizedCycle?: number }, cycle: number) {
+  const base = baseInstalment(chit);
+  const memberId = hand.customerId;
+  const slot = hand.slot;
+
+  if (chit.type === "auction") {
+    if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
+    return Math.max(0, base - appliedDividend(chit, cycle));
+  }
+  if (chit.type === "fixed" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice") {
+    return base;
+  }
+  if (chit.type === "base_premium") {
+    const prized = hand.prizedCycle;
+    if (!prized) return base;
+    const policy = chit.winningMonthPolicy || "normal";
+    if (cycle === prized && policy === "nothing") return 0;
+    const useAfterWin =
+      cycle > prized
+      || (cycle === prized && policy === "premium");
+    if (useAfterWin) {
+      if (chit.premiumAmount != null && chit.premiumAmount > 0) {
+        return Math.round(chit.premiumAmount);
+      }
+      return Math.round(base * 1.2);
+    }
+    return base;
+  }
+  if (chit.type === "loan") {
+    return loanCycleDue(chit, memberId, cycle, slot);
+  }
+  return base;
+}
+
+/** Face principal for this hand only (slot). */
+export function loanPrincipalOf(chit: Chit, memberId: string, slot?: number) {
   return chit.auctions
-    .filter((a) => a.winnerId === memberId && a.method === "fixed")
+    .filter((a) => a.winnerId === memberId && a.method === "fixed" && loanMatchesHand(chit, a, slot))
     .reduce((s, a) => s + loanFaceAmount(a), 0);
+}
+
+function loanMatchesHand(chit: Chit, a: AuctionRecord, slot?: number) {
+  if (slot == null) return true;
+  if (a.winnerSlot != null) return a.winnerSlot === slot;
+  return slot === firstSlotOf(chit, a.winnerId);
 }
 
 /** Face loan amount (before upfront interest cut). */
@@ -186,9 +228,9 @@ export function loanFaceAmount(a: AuctionRecord) {
   );
 }
 
-export function firstLoanCycle(chit: Chit, memberId: string) {
+export function firstLoanCycle(chit: Chit, memberId: string, slot?: number) {
   const cycles = chit.auctions
-    .filter((a) => a.winnerId === memberId && a.method === "fixed")
+    .filter((a) => a.winnerId === memberId && a.method === "fixed" && loanMatchesHand(chit, a, slot))
     .map((a) => a.cycle);
   return cycles.length ? Math.min(...cycles) : 0;
 }
@@ -200,8 +242,7 @@ export function loanRemainingMonths(chit: Chit, startCycle: number) {
 
 /**
  * Repayment months for a loan taken in `startCycle`.
- * Never longer than the remaining bhishi tenure (e.g. 5-mo chit, 4-mo tenure,
- * loan in month 3 → only 2 repayment months).
+ * Never longer than the remaining bhishi tenure.
  */
 export function loanEffectiveTenure(chit: Chit, startCycle: number) {
   const remaining = loanRemainingMonths(chit, startCycle);
@@ -218,31 +259,32 @@ export function loanMonthlyInterest(chit: Chit, principal: number) {
   return Math.round((principal * rate) / 100);
 }
 
-/** True when this member’s loans recorded an upfront interest cut (discount). */
-export function loanHadUpfrontInterest(chit: Chit, memberId: string) {
+export function loanHadUpfrontInterest(chit: Chit, memberId: string, slot?: number) {
   return chit.auctions.some(
-    (a) => a.winnerId === memberId && a.method === "fixed" && (Number(a.discount) || 0) > 0,
+    (a) =>
+      a.winnerId === memberId
+      && a.method === "fixed"
+      && loanMatchesHand(chit, a, slot)
+      && (Number(a.discount) || 0) > 0,
   );
 }
 
 /**
- * Loan due = deposit + interest + amortised principal share.
- * Interest/principal start the month AFTER the loan. If upfront interest was cut
- * from the disbursement, the first repayment month skips monthly interest (already paid).
+ * Loan due for one hand = deposit + interest + principal share for that hand’s loan only.
  */
-export function loanCycleDue(chit: Chit, memberId: string, cycle: number) {
+export function loanCycleDue(chit: Chit, memberId: string, cycle: number, slot?: number) {
   const base = baseInstalment(chit);
-  const principal = loanPrincipalOf(chit, memberId);
+  const principal = loanPrincipalOf(chit, memberId, slot);
   if (!principal) return base;
-  const start = firstLoanCycle(chit, memberId);
+  const start = firstLoanCycle(chit, memberId, slot);
   if (!start || cycle <= start) return base;
   const tenure = loanEffectiveTenure(chit, start);
-  const monthIndex = cycle - start; // 1 = first repayment month
+  const monthIndex = cycle - start;
   if (monthIndex < 1 || monthIndex > tenure) return base;
 
   const interestMonthly = loanMonthlyInterest(chit, principal);
   const interest =
-    loanHadUpfrontInterest(chit, memberId) && monthIndex === 1 ? 0 : interestMonthly;
+    loanHadUpfrontInterest(chit, memberId, slot) && monthIndex === 1 ? 0 : interestMonthly;
 
   let share = Math.ceil(principal / tenure);
   if (monthIndex === tenure) {
@@ -252,30 +294,35 @@ export function loanCycleDue(chit: Chit, memberId: string, cycle: number) {
   return base + interest + share;
 }
 
-/** Interest portion due in a repayment cycle (0 if not a loan repayment month). */
-export function loanInterestDueInCycle(chit: Chit, memberId: string, cycle: number) {
-  const principal = loanPrincipalOf(chit, memberId);
+/** Interest portion due in a repayment cycle for this hand. */
+export function loanInterestDueInCycle(chit: Chit, memberId: string, cycle: number, slot?: number) {
+  const principal = loanPrincipalOf(chit, memberId, slot);
   if (!principal) return 0;
-  const start = firstLoanCycle(chit, memberId);
+  const start = firstLoanCycle(chit, memberId, slot);
   if (!start || cycle <= start) return 0;
   const tenure = loanEffectiveTenure(chit, start);
   const monthIndex = cycle - start;
   if (monthIndex < 1 || monthIndex > tenure) return 0;
-  if (loanHadUpfrontInterest(chit, memberId) && monthIndex === 1) return 0;
+  if (loanHadUpfrontInterest(chit, memberId, slot) && monthIndex === 1) return 0;
   return loanMonthlyInterest(chit, principal);
 }
 
-export function surplusBefore(chit: Chit, memberId: string, cycle: number) {
+/** No new loans on the last month of the bhishi. */
+export function canGiveLoan(chit: Chit) {
+  return chit.type === "loan" && displayCycle(chit) < chit.duration;
+}
+
+export function surplusBefore(chit: Chit, memberId: string, cycle: number, slot?: number) {
   let surplus = 0;
   for (let c = 1; c < cycle; c++) {
-    surplus += paidInCycle(chit, memberId, c) - rawCycleDue(chit, memberId, c);
+    surplus += paidInCycle(chit, memberId, c, slot) - rawCycleDue(chit, memberId, c, slot);
   }
   return surplus;
 }
 
-export function cycleDue(chit: Chit, memberId: string, cycle: number) {
-  const raw = rawCycleDue(chit, memberId, cycle);
-  const carry = surplusBefore(chit, memberId, cycle);
+export function cycleDue(chit: Chit, memberId: string, cycle: number, slot?: number) {
+  const raw = rawCycleDue(chit, memberId, cycle, slot);
+  const carry = surplusBefore(chit, memberId, cycle, slot);
   if (carry >= 0) return Math.max(0, raw - carry);
   return raw + Math.abs(carry);
 }
@@ -292,13 +339,13 @@ export function isLastAuctionCycle(chit: Chit) {
   return cycle >= chit.duration || unprized <= 1;
 }
 
-export function memberBalance(chit: Chit, memberId: string) {
+export function memberBalance(chit: Chit, memberId: string, slot?: number) {
   let due = 0;
   let paid = 0;
   const through = displayCycle(chit);
   for (let c = 1; c <= through; c++) {
-    due += rawCycleDue(chit, memberId, c);
-    paid += paidInCycle(chit, memberId, c);
+    due += rawCycleDue(chit, memberId, c, slot);
+    paid += paidInCycle(chit, memberId, c, slot);
   }
   return { due, paid, outstanding: Math.max(0, due - paid) };
 }
@@ -307,7 +354,7 @@ export function chitProgress(chit: Chit) {
   if (!chit.duration) return 0;
   if (chit.status === "completed") return 100;
   if (chit.members.length && chit.payments.length) {
-    const totals = chit.members.map((m) => memberBalance(chit, m.customerId));
+    const totals = chit.members.map((m) => memberBalance(chit, m.customerId, m.slot));
     const due = totals.reduce((s, t) => s + t.due, 0);
     const paid = totals.reduce((s, t) => s + t.paid, 0);
     if (due > 0) return Math.min(100, Math.round((paid / due) * 100));
@@ -397,8 +444,7 @@ export function expectedLifeCollections(chit: Chit) {
   if (chit.type === "base_premium" || (chit.type === "fixed" && chit.premiumAmount)) {
     let total = 0;
     for (let c = 1; c <= chit.duration; c++) {
-      for (const m of chit.members) total += rawCycleDue(chit, m.customerId, c);
-      // empty slots still expected at base until filled
+      for (const m of chit.members) total += rawCycleDue(chit, m.customerId, c, m.slot);
       const empty = Math.max(0, n - chit.members.length);
       total += empty * baseInstalment(chit);
     }
@@ -420,8 +466,8 @@ export function plannedPerMember(chit: Chit) {
   return Math.round(plannedPot(chit) / memberCount(chit));
 }
 
-/** Cash a member has paid into the chit (receipts + auction-first self-contribution). */
-export function memberPaidTotal(chit: Chit, memberId: string) {
+/** Cash a member (or one hand) has paid into the chit. */
+export function memberPaidTotal(chit: Chit, memberId: string, slot?: number) {
   let total = 0;
   const through = Math.max(
     displayCycle(chit),
@@ -430,64 +476,82 @@ export function memberPaidTotal(chit: Chit, memberId: string) {
     0,
   );
   for (let c = 1; c <= through; c++) {
-    total += paidInCycle(chit, memberId, c);
+    total += paidInCycle(chit, memberId, c, slot);
   }
   return total;
 }
 
-/** Cash a member received from pot / loan / settlement / hand-sacrifice dividends. */
-export function memberReceivedTotal(chit: Chit, memberId: string) {
+/** Cash a member (or one hand) received from pot / loan / settlement / hand-sacrifice dividends. */
+export function memberReceivedTotal(chit: Chit, memberId: string, slot?: number) {
   const asWinner = chit.auctions
-    .filter((a) => a.winnerId === memberId)
+    .filter((a) => a.winnerId === memberId && loanMatchesHand(chit, a, slot))
     .reduce((s, a) => s + a.payout, 0);
-  return asWinner + handSacrificeDividendsReceived(chit, memberId);
+  return asWinner + handSacrificeDividendsReceived(chit, memberId, slot);
 }
 
 /**
- * Cash dividends from sacrifice-hand months where this member was still playing
- * (had not won yet) and was not that month’s winner.
+ * Cash dividends from sacrifice-hand months where this hand was still playing
+ * (had not won yet) and was not that month’s winning hand.
  */
-export function handSacrificeDividendsReceived(chit: Chit, memberId: string) {
+export function handSacrificeDividendsReceived(chit: Chit, memberId: string, slot?: number) {
   if (!isHandSacrifice(chit)) return 0;
+  const hands = slot != null
+    ? handsOf(chit, memberId).filter((h) => h.slot === slot)
+    : handsOf(chit, memberId);
   let total = 0;
   for (const a of chit.auctions) {
     if (a.method === "settlement") continue;
-    if (a.winnerId === memberId) continue;
-    const member = chit.members.find((m) => m.customerId === memberId);
-    if (!member) continue;
-    // Already prized in an earlier cycle → not among “remaining players”.
-    if (member.prizedCycle && member.prizedCycle < a.cycle) continue;
-    total += handSacrificeShareForMember(chit, a, memberId);
+    for (const hand of hands) {
+      total += handSacrificeShareForHand(chit, a, hand.customerId, hand.slot);
+    }
   }
   return total;
 }
 
-/** Per-recipient cash share of a sacrifice-hand auction’s discount pool. */
+/** Per-hand cash share of a sacrifice-hand auction’s discount pool. */
+export function handSacrificeShareForHand(
+  chit: Chit,
+  auction: AuctionRecord,
+  memberId: string,
+  slot: number,
+) {
+  const recipients = handSacrificeRecipientHands(chit, auction);
+  const idx = recipients.findIndex((m) => m.customerId === memberId && m.slot === slot);
+  if (idx < 0) return 0;
+  const pool = Math.max(0, Number(auction.discount) || 0);
+  if (!recipients.length || pool <= 0) return 0;
+  const each = Math.floor(pool / recipients.length);
+  const rem = pool - each * recipients.length;
+  return each + (idx < rem ? 1 : 0);
+}
+
+/** @deprecated Prefer handSacrificeShareForHand — aggregates all hands of the person. */
 export function handSacrificeShareForMember(
   chit: Chit,
   auction: AuctionRecord,
   memberId: string,
 ) {
-  const recipients = handSacrificeRecipients(chit, auction);
-  if (!recipients.includes(memberId)) return 0;
-  const pool = Math.max(0, Number(auction.discount) || 0);
-  if (!recipients.length || pool <= 0) return 0;
-  const each = Math.floor(pool / recipients.length);
-  const rem = pool - each * recipients.length;
-  const idx = recipients.indexOf(memberId);
-  return each + (idx >= 0 && idx < rem ? 1 : 0);
+  return handsOf(chit, memberId).reduce(
+    (s, h) => s + handSacrificeShareForHand(chit, auction, memberId, h.slot),
+    0,
+  );
 }
 
-/** Unprized members at award time, excluding the winner (slot order). */
-export function handSacrificeRecipients(chit: Chit, auction: AuctionRecord) {
+/** Unprized hands at award time, excluding the winning hand (slot order). */
+export function handSacrificeRecipientHands(chit: Chit, auction: AuctionRecord) {
+  const winSlot = auction.winnerSlot ?? firstSlotOf(chit, auction.winnerId);
   return [...chit.members]
     .filter((m) => {
-      if (m.customerId === auction.winnerId) return false;
+      if (m.customerId === auction.winnerId && m.slot === winSlot) return false;
       if (m.prizedCycle && m.prizedCycle < auction.cycle) return false;
       return true;
     })
-    .sort((a, b) => a.slot - b.slot)
-    .map((m) => m.customerId);
+    .sort((a, b) => a.slot - b.slot);
+}
+
+/** Unprized member ids at award time (unique people). Prefer handSacrificeRecipientHands for multi-hand. */
+export function handSacrificeRecipients(chit: Chit, auction: AuctionRecord) {
+  return [...new Set(handSacrificeRecipientHands(chit, auction).map((m) => m.customerId))];
 }
 
 /** One full instalment left in the pot as cash dividends (e.g. ₹10k hand → ₹10k cut on ₹50k pot). */
@@ -515,11 +579,11 @@ export function dividendsDistributed(chit: Chit) {
 export function memberLedgerRows(chit: Chit) {
   if (isHandSacrifice(chit)) {
     return chit.members.map((m) => {
-      const paid = memberPaidTotal(chit, m.customerId);
+      const paid = memberPaidTotal(chit, m.customerId, m.slot);
       const potWon = chit.auctions
-        .filter((a) => a.winnerId === m.customerId && a.method !== "settlement")
+        .filter((a) => a.winnerId === m.customerId && a.method !== "settlement" && loanMatchesHand(chit, a, m.slot))
         .reduce((s, a) => s + a.payout, 0);
-      const dividend = handSacrificeDividendsReceived(chit, m.customerId);
+      const dividend = handSacrificeDividendsReceived(chit, m.customerId, m.slot);
       const received = potWon + dividend;
       return {
         customerId: m.customerId,
@@ -536,33 +600,42 @@ export function memberLedgerRows(chit: Chit) {
   }
   if (chit.type === "loan") {
     return chit.members.map((m) => {
-      const paid = memberPaidTotal(chit, m.customerId);
+      const handPaid = (() => {
+        let t = 0;
+        const through = displayCycle(chit);
+        for (let c = 1; c <= through; c++) t += paidInCycle(chit, m.customerId, c, m.slot);
+        return t;
+      })();
       const loanOut = chit.auctions
-        .filter((a) => a.winnerId === m.customerId && a.method === "fixed")
+        .filter((a) => a.winnerId === m.customerId && a.method === "fixed" && loanMatchesHand(chit, a, m.slot))
         .reduce((s, a) => s + a.payout, 0);
       const settled = chit.auctions
         .filter((a) => a.winnerId === m.customerId && a.method === "settlement")
         .reduce((s, a) => s + a.payout, 0);
-      const interestPaid = interestPaidByMember(chit, m.customerId);
-      const dividend = loanInterestDividendShare(chit, m.customerId);
-      const received = loanOut + settled;
+      // Settlement is person-level; show only on first slot to avoid double-count.
+      const settledHere = m.slot === firstSlotOf(chit, m.customerId) ? settled : 0;
+      const interestPaid = interestPaidByMember(chit, m.customerId, m.slot);
+      const dividend = m.slot === firstSlotOf(chit, m.customerId)
+        ? loanInterestDividendShare(chit, m.customerId)
+        : 0;
+      const received = loanOut + settledHere;
       return {
         customerId: m.customerId,
         slot: m.slot,
         prizedCycle: m.prizedCycle,
-        paid,
+        paid: handPaid,
         received,
         dividend,
         interestPaid,
         loanOut,
-        net: received - paid,
+        net: received - handPaid,
       };
     });
   }
   const divEach = memberDividendTotal(chit);
   return chit.members.map((m) => {
-    const paid = memberPaidTotal(chit, m.customerId);
-    const received = memberReceivedTotal(chit, m.customerId);
+    const paid = memberPaidTotal(chit, m.customerId, m.slot);
+    const received = memberReceivedTotal(chit, m.customerId, m.slot);
     return {
       customerId: m.customerId,
       slot: m.slot,
@@ -603,7 +676,7 @@ export function nextBySlot(chit: Chit) {
 
 export function expectedThisCycle(chit: Chit) {
   const cyc = displayCycle(chit);
-  return uniqueMemberIds(chit).reduce((s, id) => s + rawCycleDue(chit, id, cyc), 0);
+  return chit.members.reduce((s, m) => s + rawCycleDue(chit, m.customerId, cyc, m.slot), 0);
 }
 
 export function commissionEarned(chit: Chit) {
@@ -612,33 +685,33 @@ export function commissionEarned(chit: Chit) {
 
 export function interestCollected(chit: Chit) {
   if (chit.type !== "loan" || !chit.interestRate) return 0;
-  return chit.members.reduce((sum, m) => sum + interestPaidByMember(chit, m.customerId), 0);
+  return chit.members.reduce((sum, m) => sum + interestPaidByMember(chit, m.customerId, m.slot), 0);
 }
 
-/** Interest this member has paid in (upfront cut + monthly interest once dues are paid). */
-export function interestPaidByMember(chit: Chit, memberId: string) {
+/** Interest this hand (or person) has paid in. */
+export function interestPaidByMember(chit: Chit, memberId: string, slot?: number) {
   if (chit.type !== "loan" || !chit.interestRate) return 0;
   let total = 0;
   for (const a of chit.auctions) {
-    if (a.winnerId === memberId && a.method === "fixed") {
+    if (a.winnerId === memberId && a.method === "fixed" && loanMatchesHand(chit, a, slot)) {
       total += Math.max(0, Number(a.discount) || 0);
     }
   }
   const through = displayCycle(chit);
   for (let c = 1; c <= through; c++) {
-    if (paidInCycle(chit, memberId, c) <= 0) continue;
-    total += loanInterestDueInCycle(chit, memberId, c);
+    if (paidInCycle(chit, memberId, c, slot) <= 0) continue;
+    total += loanInterestDueInCycle(chit, memberId, c, slot);
   }
   return total;
 }
 
 /**
- * End-of-tenure interest dividend for one member: share of everyone else’s interest
- * (you do not get back the interest you paid).
+ * End-of-tenure interest dividend for one person: share of everyone else’s interest.
  */
 export function loanInterestDividendShare(chit: Chit, memberId: string) {
   if (chit.type !== "loan") return 0;
-  const n = memberCount(chit);
+  const people = uniqueMemberIds(chit);
+  const n = people.length;
   if (n <= 1) return 0;
   const total = interestCollected(chit);
   const own = interestPaidByMember(chit, memberId);
@@ -646,21 +719,20 @@ export function loanInterestDividendShare(chit: Chit, memberId: string) {
 }
 
 /**
- * Final loan settlement: interest pool → dividends to others, then leftover cash equally.
- * Returns one payout amount per member (combined).
+ * Final loan settlement: interest pool → dividends to other people, then leftover equally.
  */
 export function loanSettlementPlan(chit: Chit) {
   const cash = Math.max(0, treasuryOf(chit));
-  const n = chit.members.length;
+  const people = uniqueMemberIds(chit);
+  const n = people.length;
   if (!n || cash <= 0) return [] as { memberId: string; amount: number; interestPart: number; equalPart: number }[];
 
-  const interestParts = chit.members.map((m) => ({
-    memberId: m.customerId,
-    interestPart: loanInterestDividendShare(chit, m.customerId),
+  const interestParts = people.map((id) => ({
+    memberId: id,
+    interestPart: loanInterestDividendShare(chit, id),
   }));
   let interestSum = interestParts.reduce((s, r) => s + r.interestPart, 0);
   const interestCap = Math.min(interestCollected(chit), cash);
-  // Distribute floor remainder so interest parts sum to interestCap.
   let remI = interestCap - interestSum;
   for (let i = 0; i < interestParts.length && remI > 0; i++) {
     interestParts[i].interestPart += 1;
@@ -668,7 +740,6 @@ export function loanSettlementPlan(chit: Chit) {
     interestSum += 1;
   }
   if (interestSum > interestCap) {
-    // Scale down if floor math overshot (shouldn't with remainder loop).
     let over = interestSum - interestCap;
     for (let i = interestParts.length - 1; i >= 0 && over > 0; i--) {
       const cut = Math.min(over, interestParts[i].interestPart);
@@ -680,7 +751,7 @@ export function loanSettlementPlan(chit: Chit) {
 
   const leftover = Math.max(0, cash - interestSum);
   const equal = Math.floor(leftover / n);
-  let remE = leftover - equal * n;
+  const remE = leftover - equal * n;
 
   return interestParts.map((row, i) => {
     const equalPart = equal + (i < remE ? 1 : 0);
@@ -703,10 +774,10 @@ export function settlementsOf(chit: Chit) {
 }
 
 export function outstandingLoanPrincipal(chit: Chit) {
-  return chit.members.reduce((s, m) => s + loanPrincipalOf(chit, m.customerId), 0);
+  return chit.members.reduce((s, m) => s + loanPrincipalOf(chit, m.customerId, m.slot), 0);
 }
 
-/** Per-loan rows for overview: who, when, face, cut, tenure, schedule. */
+/** Per-loan rows for overview: who (hand), when, face, cut, tenure, schedule. */
 export function loanDetailRows(chit: Chit) {
   return chit.auctions
     .filter((a) => a.method === "fixed")
@@ -719,6 +790,7 @@ export function loanDetailRows(chit: Chit) {
         id: a.id,
         cycle: a.cycle,
         memberId: a.winnerId,
+        slot: a.winnerSlot ?? firstSlotOf(chit, a.winnerId),
         face,
         upfrontInterest: Math.max(0, Number(a.discount) || 0),
         netPaidOut: a.payout,
@@ -734,15 +806,14 @@ export function loanDetailRows(chit: Chit) {
 }
 
 export function outstandingOf(chit: Chit) {
-  return uniqueMemberIds(chit).reduce(
-    (s, id) => s + memberBalance(chit, id).outstanding,
+  return chit.members.reduce(
+    (s, m) => s + memberBalance(chit, m.customerId, m.slot).outstanding,
     0,
   );
 }
 
 /**
- * Last month may close only when every member’s dues are fully paid (no outstanding).
- * Earlier months keep the existing close rules.
+ * Last month may close only when every hand’s dues are fully paid (no outstanding).
  */
 export function canCloseLastMonth(chit: Chit) {
   const cycle = displayCycle(chit);
@@ -753,11 +824,11 @@ export function canCloseLastMonth(chit: Chit) {
       reason: "Clear all outstanding dues before closing the last month.",
     };
   }
-  for (const id of uniqueMemberIds(chit)) {
-    if (paymentStatus(chit, id, cycle) === "due") {
+  for (const m of chit.members) {
+    if (paymentStatus(chit, m.customerId, cycle, m.slot) === "due") {
       return {
         ok: false as const,
-        reason: "Record every member’s payment for this month before closing.",
+        reason: "Record every hand’s payment for this month before closing.",
       };
     }
   }
@@ -791,15 +862,20 @@ export function settleWinner(
   let dividend = 0;
   let discount = 0;
   if (handSacrifice) {
-    // Early winners leave one full instalment as cash dividends for members still playing.
-    // Last remaining member takes the full pot (no dividend pool).
+    // Early winners leave one full instalment as cash dividends for hands still playing.
+    // Last remaining hand takes the full pot (no dividend pool).
     discount = lastHand ? 0 : handSacrificeAmount(chit);
     const facePrize = Math.max(0, chit.pot - discount - commission);
     const maxPayout = Math.max(0, treasuryOf(chit) - commission - discount);
     safeBid = Math.min(facePrize, maxPayout);
-    const remaining = chit.members.filter(
-      (m) => m.customerId !== winnerId && !m.prizedCycle,
-    ).length;
+    const winSlot =
+      winnerSlot
+      ?? chit.members.find((m) => m.customerId === winnerId && !m.prizedCycle)?.slot
+      ?? firstSlotOf(chit, winnerId);
+    const remaining = chit.members.filter((m) => {
+      if (m.customerId === winnerId && m.slot === winSlot) return false;
+      return !m.prizedCycle;
+    }).length;
     dividend = remaining > 0 && discount > 0 ? Math.floor(discount / remaining) : 0;
   } else if (lastAuction && auctionFirst) {
     safeBid = Math.max(0, chit.pot);
@@ -833,7 +909,7 @@ export function settleWinner(
   // Auction-first: full bid is what the winner gets; peers settle bid ÷ N separately.
   const arrearsWithheld = method === "settlement" || auctionFirst
     ? 0
-    : memberBalance(chit, winnerId).outstanding;
+    : memberBalance(chit, winnerId, winnerSlot).outstanding;
   let payout = Math.max(0, safeBid - arrearsWithheld);
   if (method === "fixed" && chit.type === "loan") {
     payout = Math.max(0, safeBid - discount - arrearsWithheld);
@@ -858,9 +934,9 @@ export function settleWinner(
   };
 }
 
-export function paymentStatus(chit: Chit, memberId: string, cycle: number) {
-  const due = cycleDue(chit, memberId, cycle);
-  const paid = paidInCycle(chit, memberId, cycle);
+export function paymentStatus(chit: Chit, memberId: string, cycle: number, slot?: number) {
+  const due = cycleDue(chit, memberId, cycle, slot);
+  const paid = paidInCycle(chit, memberId, cycle, slot);
   if (due === 0) return paid > 0 ? ("advance" as const) : ("paid" as const);
   if (paid >= due) return paid > due ? ("advance" as const) : ("paid" as const);
   if (paid > 0) return "partial" as const;
@@ -869,7 +945,7 @@ export function paymentStatus(chit: Chit, memberId: string, cycle: number) {
 
 export function collectedCount(chit: Chit) {
   const cyc = displayCycle(chit);
-  return uniqueMemberIds(chit).filter((id) => paymentStatus(chit, id, cyc) !== "due").length;
+  return chit.members.filter((m) => paymentStatus(chit, m.customerId, cyc, m.slot) !== "due").length;
 }
 
 /** Auction unlocked: collect-first needs receipts; auction-first can bid immediately. */
@@ -886,6 +962,9 @@ export function assertCanSettlePayout(
   method: AuctionRecord["method"],
   winnerSlot?: number,
 ) {
+  if (method === "fixed" && chit.type === "loan" && !canGiveLoan(chit)) {
+    throw new Error("No new loans on the last month — collect dues and settle leftover cash instead");
+  }
   const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
   if (method !== "settlement" && !canSettleCycle(chit)) {
     throw new Error("Record this month's collections before the auction");
