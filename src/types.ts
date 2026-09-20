@@ -1,5 +1,8 @@
 export type ChitType = "auction" | "fixed" | "base_premium" | "loan" | "lucky_draw";
 
+/** Fixed bhishi subtype chosen at create: slot order vs lucky-draw roll. */
+export type FixedStyle = "fixed_order" | "lucky_draw";
+
 export type Frequency =
   | "daily"
   | "weekly"
@@ -90,14 +93,16 @@ export type Chit = {
   adjustmentStyle?: "every_month" | "at_end";
   /** Auction only: collect_first (default) or auction_first. */
   auctionStyle?: AuctionStyle;
+  /** Fixed family: fixed_order (default) or lucky_draw — mirrors chit type for lucky_draw. */
+  fixedStyle?: FixedStyle;
   remindDays?: number[];
   memberVisible?: boolean;
-  /** Fixed: flat | prized pay premium | per-month table (table stored later). */
+  /** @deprecated Legacy fixed premium modes — new chits are flat dues only. */
   fixedPayMode?: "flat" | "premium" | "variable";
-  /** Fixed: prized member pays a ₹ amount or interest % of pot each month after win. */
+  /** @deprecated */
   winnerPayKind?: "amount" | "interest";
   winnerInterestPct?: number;
-  /** Fixed: due in the prized month itself. */
+  /** @deprecated */
   winningMonthPolicy?: "nothing" | "normal" | "premium";
   /** owner = you organise this chit; member = shared via phone + member visibility. */
   viewerRole?: "owner" | "member";

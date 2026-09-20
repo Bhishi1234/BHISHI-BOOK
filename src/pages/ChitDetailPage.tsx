@@ -17,6 +17,7 @@ import {
   expectedThisCycle,
   interestCollected,
   isFixedLike,
+  isLuckyDrawChit,
   isAuctionFirst,
   isLastAuctionCycle,
   loanPrincipalOf,
@@ -112,6 +113,7 @@ export function ChitDetailPage() {
   const ended = new Date(data.startDate);
   ended.setMonth(ended.getMonth() + data.duration);
   const fixedLike = isFixedLike(data);
+  const luckyDrawChit = isLuckyDrawChit(data);
   const nextSlot = nextBySlot(data);
   const lastAuctionMonth = data.type === "auction" && isLastAuctionCycle(data);
   const lastMember = lastAuctionMonth ? unprized[0] : undefined;
@@ -131,6 +133,8 @@ export function ChitDetailPage() {
               <span className="badge">{TYPE_LABEL[data.type]}</span>
               {auctionFirst && <span className="badge">Auction first</span>}
               {data.type === "auction" && !auctionFirst && <span className="badge">Collect first</span>}
+              {data.type === "fixed" && <span className="badge">Fixed order</span>}
+              {data.type === "lucky_draw" && <span className="badge">Roll each month</span>}
             </div>
             <p className="page-sub">
               {data.members.length} members · {inr(data.instalment)}/{data.frequency} · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })} · ends {ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}
@@ -280,7 +284,7 @@ export function ChitDetailPage() {
                   </>
                 )}
                 {fixedLike && data.premiumAmount != null && data.premiumAmount > 0 && (
-                  <div className="kv"><span>Premium after prized</span><strong>{inr(data.premiumAmount)}</strong></div>
+                  <div className="kv"><span>Premium after prized (legacy)</span><strong>{inr(data.premiumAmount)}</strong></div>
                 )}
                 <div className="kv"><span>Commission / month</span><strong>{
                   data.commissionKind === "amount" && data.commissionValue
@@ -354,7 +358,7 @@ export function ChitDetailPage() {
                 <>
                   <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
                   <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>
-                    2. {data.type === "loan" ? "Give loan" : fixedLike ? "Award pot" : "Auction"}
+                    2. {data.type === "loan" ? "Give loan" : luckyDrawChit ? "Lucky draw" : fixedLike ? "Award pot" : "Auction"}
                   </span>
                   <span className={`month-step ${lastWin || (data.type === "loan" && canSettleCycle(data)) ? "on" : ""}`}>3. Close month</span>
                 </>
@@ -480,9 +484,13 @@ export function ChitDetailPage() {
                     {data.type === "loan"
                       ? "Collect first. Giving a loan this month is optional — close the month when the books look right."
                       : fixedLike
-                        ? nextSlot
-                          ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
-                          : "All slots have been prized."
+                        ? luckyDrawChit
+                          ? unprized.length
+                            ? `Roll among ${unprized.length} member${unprized.length === 1 ? "" : "s"} who have not won yet. Same dues every month.`
+                            : "All members have been prized."
+                          : nextSlot
+                            ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
+                            : "All slots have been prized."
                         : auctionFirst
                           ? "Auction first. Enter the amount the winner takes (e.g. ₹95,000 of ₹1,00,000). Each member then pays that amount ÷ members — the winner’s share is booked as paid-in (paying themselves). Cash on hand stays ₹0."
                           : "Only after collections. Payout plus commission cannot exceed cash on hand."}
@@ -701,41 +709,62 @@ export function ChitDetailPage() {
                   )}
                   {fixedLike && !lastWin && (
                     <>
-                      <p className="muted" style={{ marginBottom: 10 }}>
-                        Payout order follows member slots. You can override and award a different unprized member.
-                      </p>
-                      <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
-                        <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
-                          <option value="">Award pot to</option>
-                          {unprized.map((m) => (
-                            <option key={m.customerId} value={m.customerId}>
-                              Slot {m.slot} · {names[m.customerId]}
-                              {nextSlot?.customerId === m.customerId ? " · next" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="btn"
-                          disabled={!winnerId}
-                          onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed")}
-                        >
-                          Award pot
-                        </button>
-                      </div>
-                      {winnerId && (() => {
-                        const preview = settleWinner(data, winnerId, data.pot, "fixed");
-                        const cashAfter = cashOnHand - preview.payout - preview.commission;
-                        return (
-                          <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                            <div className="kv"><span>Member receives</span><strong>{inr(preview.payout)}</strong></div>
-                            <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
-                            {data.premiumAmount ? (
-                              <div className="kv"><span>Their due from next month</span><strong>{inr(data.premiumAmount)} premium</strong></div>
-                            ) : null}
-                            <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                      {luckyDrawChit ? (
+                        <>
+                          <p className="muted" style={{ marginBottom: 10 }}>
+                            Collect dues first, then roll the lucky draw among unprized members. Everyone pays the same instalment every month.
+                          </p>
+                          <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr" }}>
+                            <button
+                              className="btn"
+                              disabled={!canSettleCycle(data) || unprized.length === 0}
+                              onClick={() => void luckyDraw(data.id)}
+                            >
+                              Roll lucky draw ({unprized.length} left)
+                            </button>
                           </div>
-                        );
-                      })()}
+                          {unprized.length > 0 && (
+                            <p className="muted" style={{ marginTop: 10 }}>
+                              In the pot: {unprized.map((m) => names[m.customerId]).join(", ")}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="muted" style={{ marginBottom: 10 }}>
+                            Payout order follows member slots. You can override and award a different unprized member. Same dues every month.
+                          </p>
+                          <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
+                            <select className="field" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
+                              <option value="">Award pot to</option>
+                              {unprized.map((m) => (
+                                <option key={m.customerId} value={m.customerId}>
+                                  Slot {m.slot} · {names[m.customerId]}
+                                  {nextSlot?.customerId === m.customerId ? " · next" : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="btn"
+                              disabled={!winnerId || !canSettleCycle(data)}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed")}
+                            >
+                              Award pot
+                            </button>
+                          </div>
+                          {winnerId && (() => {
+                            const preview = settleWinner(data, winnerId, data.pot, "fixed");
+                            const cashAfter = cashOnHand - preview.payout - preview.commission;
+                            return (
+                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                                <div className="kv"><span>Member receives</span><strong>{inr(preview.payout)}</strong></div>
+                                <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
+                                <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                              </div>
+                            );
+                          })()}
+                        </>
+                      )}
                     </>
                   )}
                 </div>

@@ -95,6 +95,11 @@ export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerR
     commissionValue: num(row.commission_value ?? row.commissionValue),
     adjustmentStyle: (row.adjustment_style as Chit["adjustmentStyle"]) || (row.adjustmentStyle as Chit["adjustmentStyle"]),
     auctionStyle: (row.auction_style as Chit["auctionStyle"]) || (row.auctionStyle as Chit["auctionStyle"]) || "collect_first",
+    fixedStyle: (row.type === "lucky_draw" || row.fixedStyle === "lucky_draw"
+      ? "lucky_draw"
+      : row.type === "fixed" || row.type === "base_premium"
+        ? "fixed_order"
+        : undefined) as Chit["fixedStyle"],
     remindDays: (row.remind_days as number[]) || (row.remindDays as number[]) || [],
     memberVisible: Boolean(row.member_visible ?? row.memberVisible),
     members: members

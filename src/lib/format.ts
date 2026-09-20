@@ -40,7 +40,7 @@ export function uid(prefix: string) {
 
 export const TYPE_LABEL: Record<string, string> = {
   auction: "Auction",
-  fixed: "Fixed & committee",
+  fixed: "Fixed",
   base_premium: "Base + premium",
   loan: "Loan",
   lucky_draw: "Lucky draw",

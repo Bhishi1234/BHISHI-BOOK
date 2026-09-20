@@ -102,27 +102,24 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
     if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
-  if (chit.type === "base_premium" || chit.type === "fixed") {
+  if (chit.type === "fixed" || chit.type === "lucky_draw") {
+    return base;
+  }
+  if (chit.type === "base_premium") {
+    // Legacy base+premium chits only.
     const member = chit.members.find((m) => m.customerId === memberId);
     const prized = member?.prizedCycle;
     if (!prized) return base;
-
     const policy = chit.winningMonthPolicy || "normal";
     if (cycle === prized && policy === "nothing") return 0;
-
     const useAfterWin =
       cycle > prized
       || (cycle === prized && policy === "premium");
-
-    if (useAfterWin && (chit.fixedPayMode === "premium" || chit.type === "base_premium" || chit.premiumAmount || chit.winnerInterestPct)) {
-      if (chit.winnerPayKind === "interest" && (chit.winnerInterestPct || 0) > 0) {
-        // Interest (%) of pot, charged monthly after win (ChitBook Fixed).
-        return Math.round((chit.pot * (chit.winnerInterestPct || 0)) / 100);
-      }
+    if (useAfterWin) {
       if (chit.premiumAmount != null && chit.premiumAmount > 0) {
         return Math.round(chit.premiumAmount);
       }
-      if (chit.type === "base_premium") return Math.round(base * 1.2);
+      return Math.round(base * 1.2);
     }
     return base;
   }
@@ -376,7 +373,11 @@ export function memberLedgerRows(chit: Chit) {
 }
 
 export function isFixedLike(chit: Chit) {
-  return chit.type === "fixed" || chit.type === "base_premium";
+  return chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw";
+}
+
+export function isLuckyDrawChit(chit: Chit) {
+  return chit.type === "lucky_draw" || chit.fixedStyle === "lucky_draw";
 }
 
 /** Next unprized member in slot order (Fixed / Base+premium payout queue). */
@@ -474,7 +475,7 @@ export function settleWinner(
       const maxPayout = Math.max(0, treasuryOf(chit) - commission);
       safeBid = Math.min(safeBid, maxPayout);
     }
-  } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium")) {
+  } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw")) {
     const maxPayout = Math.max(0, treasuryOf(chit) - commission);
     safeBid = Math.min(Math.max(0, Number(bid) || 0), maxPayout);
   } else {
