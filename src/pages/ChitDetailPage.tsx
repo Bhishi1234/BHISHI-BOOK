@@ -98,7 +98,7 @@ export function ChitDetailPage() {
   const lastWin = data.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
   const monthLoans = loansThisCycle(data);
   const cashOnHand = treasuryOf(data);
-  const showSettlement = data.type === "loan" || cycle >= data.duration || data.status === "completed";
+  const showSettlement = data.type === "loan";
   const monthDate = new Date(data.startDate);
   monthDate.setMonth(monthDate.getMonth() + cycle - 1);
   const remainDue = isRunning
@@ -393,6 +393,11 @@ export function ChitDetailPage() {
               )}
               {!auctionFirst && !canSettleCycle(data) && !lastWin && (
                 <p className="month-hint">Record collections first — individually or with Record all payments. Auction stays locked so cash on hand cannot go negative.</p>
+              )}
+              {!auctionFirst && lastWin && (
+                <p className="month-hint">
+                  Cash left after payout and commission stays in the till as next month’s dividend credit (members pay less next cycle). It is not a separate cash payout.
+                </p>
               )}
               {unpaidNoted && remainDue > 0 && (
                 <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button{auctionFirst ? "." : "; auction still needs at least one receipt."}</p>
@@ -806,7 +811,7 @@ export function ChitDetailPage() {
           </>
         )}
 
-        {tab === "settlement" && (
+        {tab === "settlement" && showSettlement && (
           <div className="stack">
             <div className="stats four">
               <div className="stat"><span>Cash on hand</span><strong className={cashOnHand < 0 ? "neg" : ""}>{inr(cashOnHand)}</strong></div>

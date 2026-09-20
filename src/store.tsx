@@ -207,6 +207,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       settleBooksEqually: async (chitId) => {
         await guarded(async () => {
           const chit = await api.chit(chitId);
+          if (chit.type !== "loan") throw new Error("Settlement is only for loan bhishi");
           const cash = treasuryOf(chit);
           if (cash <= 0) throw new Error("No cash on hand left to settle");
           if (!chit.members.length) throw new Error("No members");

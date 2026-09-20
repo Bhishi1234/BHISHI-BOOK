@@ -266,8 +266,15 @@ begin
     safe_bid := cash_on_hand;
   elsif p_method = 'auction' then
     safe_bid := least(c.pot, greatest(0, coalesce(p_bid, 0)));
+    -- Collect-first: cannot pay out more than till after commission.
+    if not auction_first then
+      safe_bid := least(safe_bid, greatest(0, cash_on_hand - commission));
+    end if;
   elsif p_method = 'lucky_draw' then
     safe_bid := greatest(0, c.pot - commission);
+    if not auction_first then
+      safe_bid := least(safe_bid, greatest(0, cash_on_hand - commission));
+    end if;
   else
     safe_bid := greatest(0, coalesce(p_bid, 0));
     if safe_bid <= 0 then
@@ -338,5 +345,31 @@ begin
   end if;
 
   return rec;
+end;
+$$;
+
+-- Keep instalment math aligned with the app (round, then bump so N × share covers the pot).
+create or replace function public._base_instalment(c public.chits)
+returns numeric
+language plpgsql
+immutable
+as $$
+declare
+  n int;
+  share numeric;
+begin
+  n := greatest(1, coalesce(c.members_count, 1));
+  share := case
+    when coalesce(c.instalment, 0) > 0 then c.instalment
+    else round(coalesce(c.pot, 0) / n::numeric)
+  end;
+  -- Never under-collect the pot (fixes ₹1-short cash on hand).
+  if share * n < coalesce(c.pot, 0) then
+    share := round(coalesce(c.pot, 0) / n::numeric);
+    if share * n < coalesce(c.pot, 0) then
+      share := share + 1;
+    end if;
+  end if;
+  return greatest(0, share);
 end;
 $$;

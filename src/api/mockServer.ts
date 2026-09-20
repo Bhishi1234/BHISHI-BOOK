@@ -480,6 +480,9 @@ export const mockServer = {
         if (c.status !== "running") throw new Error("Chit is not running");
         const isLoan = c.type === "loan" && method === "fixed";
         const isSettlement = method === "settlement";
+        if (isSettlement && c.type !== "loan") {
+          throw new Error("Settlement is only for loan bhishi");
+        }
         if (!isLoan && !isSettlement && c.auctions.some((a) => a.cycle === c.currentCycle && a.method !== "settlement")) {
           throw new Error("This cycle is already settled");
         }

@@ -108,6 +108,25 @@ assert(last.dividend === 0, `last dividend ${last.dividend}`);
 assert(last.bid === cashBeforeLast, `last bid ${last.bid} vs ${cashBeforeLast}`);
 assert(treasuryOf(book) === 0, `last cash ${treasuryOf(book)}`);
 
+// Collect-first: short stored instalment must still cover the pot so cash is not ₹1 light
+const short = chit({
+  members: members(3),
+  pot: 100000,
+  instalment: 33333,
+  duration: 3,
+  commissionPct: 0,
+  commissionKind: "amount",
+  commissionValue: 0,
+  auctionStyle: "collect_first",
+});
+assert(rawCycleDue(short, "m1", 1) === 33334, `short instalment bumped ${rawCycleDue(short, "m1", 1)}`);
+collectAll(short, rawCycleDue(short, "m1", 1));
+assert(treasuryOf(short) === 100002, `short collect cash ${treasuryOf(short)}`);
+const shortWin = settleWinner(short, "m1", 90000, "auction");
+short.auctions.push(shortWin);
+assert(shortWin.payout === 90000, `short payout ${shortWin.payout}`);
+assert(treasuryOf({ ...short, auctions: [...short.auctions] }) === 100002 - 90000, `short cash after ${treasuryOf({ ...short, auctions: short.auctions })}`);
+
 // Auction-first: bid then each pays bid÷n
 const af = chit({
   members: members(5),

@@ -1,9 +1,11 @@
 import type { AuctionRecord, Chit, PaymentKind } from "../types";
 
 export function baseInstalment(chit: Chit) {
-  if (chit.instalment) return chit.instalment;
-  if (!chit.membersCount) return 0;
-  return computeInstalment(chit.pot, chit.membersCount);
+  const n = memberCount(chit);
+  const cover = computeInstalment(chit.pot, n);
+  // Prefer stored instalment, but never under-collect the pot (avoids ₹1 short cash-on-hand).
+  if (chit.instalment && chit.instalment > 0) return Math.max(chit.instalment, cover);
+  return cover;
 }
 
 /** Monthly due so N × instalment always covers the pot (avoids ₹1 shortfalls from rounding). */
@@ -20,7 +22,7 @@ export function memberCount(chit: Chit) {
 
 /** Foreman's cut each settled cycle. % is of the pot, taken every month. */
 export function commissionAmount(chit: Chit) {
-  if (chit.commissionKind === "amount" && (chit.commissionValue || 0) > 0) {
+  if (chit.commissionKind === "amount") {
     return Math.round(chit.commissionValue || 0);
   }
   return Math.round((chit.pot * (chit.commissionPct || 0)) / 100);
@@ -478,11 +480,18 @@ export function settleWinner(
   } else if (method === "auction") {
     safeBid = Math.min(chit.pot, Math.max(0, bid));
     if (!auctionFirst) {
+      // Collect-first: winner is paid from the till — never more than cash after commission.
+      const maxPayout = Math.max(0, treasuryOf(chit) - commission);
+      safeBid = Math.min(safeBid, maxPayout);
       const discount = Math.max(0, chit.pot - safeBid);
       dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
     }
   } else if (method === "lucky_draw") {
     safeBid = Math.max(0, chit.pot - commission);
+    if (!auctionFirst) {
+      const maxPayout = Math.max(0, treasuryOf(chit) - commission);
+      safeBid = Math.min(safeBid, maxPayout);
+    }
   } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium")) {
     const maxPayout = Math.max(0, treasuryOf(chit) - commission);
     safeBid = Math.min(Math.max(0, Number(bid) || 0), maxPayout);
