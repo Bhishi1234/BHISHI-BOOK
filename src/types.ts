@@ -15,6 +15,9 @@ export type PaymentKind = "full" | "partial" | "advance";
 export type PayMode = "cash" | "upi" | "bank" | "cheque" | "adjusted";
 export type PlanId = "free" | "pro" | "power";
 
+/** Collect first = pot gathered then auction; auction first = bid first, then each pays bid/n. */
+export type AuctionStyle = "collect_first" | "auction_first";
+
 export type User = {
   id?: string;
   name: string;
@@ -85,6 +88,8 @@ export type Chit = {
   commissionKind?: "amount" | "percent";
   commissionValue?: number;
   adjustmentStyle?: "every_month" | "at_end";
+  /** Auction only: collect_first (default) or auction_first. */
+  auctionStyle?: AuctionStyle;
   remindDays?: number[];
   memberVisible?: boolean;
   /** Fixed: flat | prized pay premium | per-month table (table stored later). */

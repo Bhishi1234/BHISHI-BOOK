@@ -94,6 +94,7 @@ export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerR
     commissionKind: (row.commission_kind as Chit["commissionKind"]) || (row.commissionKind as Chit["commissionKind"]),
     commissionValue: num(row.commission_value ?? row.commissionValue),
     adjustmentStyle: (row.adjustment_style as Chit["adjustmentStyle"]) || (row.adjustmentStyle as Chit["adjustmentStyle"]),
+    auctionStyle: (row.auction_style as Chit["auctionStyle"]) || (row.auctionStyle as Chit["auctionStyle"]) || "collect_first",
     remindDays: (row.remind_days as number[]) || (row.remindDays as number[]) || [],
     memberVisible: Boolean(row.member_visible ?? row.memberVisible),
     members: members
@@ -129,6 +130,7 @@ export function chitPayload(input: Omit<Chit, "id" | "payments" | "status">) {
     commissionKind: input.commissionKind ?? "percent",
     commissionValue: input.commissionValue ?? 0,
     adjustmentStyle: input.adjustmentStyle ?? "every_month",
+    auctionStyle: input.auctionStyle ?? "collect_first",
     remindDays: input.remindDays ?? [],
     memberVisible: Boolean(input.memberVisible),
     members: input.members.map((m) => ({ customerId: m.customerId, slot: m.slot })),

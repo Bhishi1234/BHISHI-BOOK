@@ -8,6 +8,7 @@ import {
   collectedThisCycle,
   collectedCount,
   commissionEarned,
+  computeInstalment,
   cycleDue,
   cycleLedger,
   displayCycle,
@@ -16,6 +17,7 @@ import {
   expectedThisCycle,
   interestCollected,
   isFixedLike,
+  isAuctionFirst,
   isLastAuctionCycle,
   loanPrincipalOf,
   loansThisCycle,
@@ -30,6 +32,7 @@ import {
   memberBalance,
   settlementsOf,
   settleWinner,
+  auctionFirstShare,
   treasuryOf,
 } from "../lib/chitMath";
 import { downloadChitCsv } from "../lib/exportCsv";
@@ -112,6 +115,10 @@ export function ChitDetailPage() {
   const nextSlot = nextBySlot(data);
   const lastAuctionMonth = data.type === "auction" && isLastAuctionCycle(data);
   const lastMember = lastAuctionMonth ? unprized[0] : undefined;
+  const auctionFirst = isAuctionFirst(data);
+  const shareHint = lastWin && auctionFirst
+    ? auctionFirstShare(data, cycle)
+    : null;
 
   return (
     <AppShell crumb="Chits" crumb2={data.name}>
@@ -122,6 +129,8 @@ export function ChitDetailPage() {
               <h1>{data.name}</h1>
               <span className="pill paid">{data.status === "running" ? "Active" : data.status}</span>
               <span className="badge">{TYPE_LABEL[data.type]}</span>
+              {auctionFirst && <span className="badge">Auction first</span>}
+              {data.type === "auction" && !auctionFirst && <span className="badge">Collect first</span>}
             </div>
             <p className="page-sub">
               {data.members.length} members · {inr(data.instalment)}/{data.frequency} · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })} · ends {ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}
@@ -313,11 +322,21 @@ export function ChitDetailPage() {
         {tab === "monthly" && (
           <div className="stack">
             <div className="month-steps">
-              <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
-              <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>
-                2. {data.type === "loan" ? "Give loan" : fixedLike ? "Award pot" : "Auction"}
-              </span>
-              <span className={`month-step ${lastWin || (data.type === "loan" && canSettleCycle(data)) ? "on" : ""}`}>3. Close month</span>
+              {auctionFirst ? (
+                <>
+                  <span className={`month-step ${!lastWin ? "on" : "done"}`}>1. Auction</span>
+                  <span className={`month-step ${lastWin && remainDue > 0 ? "on" : lastWin && remainDue === 0 ? "done" : ""}`}>2. Collect</span>
+                  <span className={`month-step ${lastWin && remainDue === 0 ? "on" : ""}`}>3. Close month</span>
+                </>
+              ) : (
+                <>
+                  <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
+                  <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>
+                    2. {data.type === "loan" ? "Give loan" : fixedLike ? "Award pot" : "Auction"}
+                  </span>
+                  <span className={`month-step ${lastWin || (data.type === "loan" && canSettleCycle(data)) ? "on" : ""}`}>3. Close month</span>
+                </>
+              )}
             </div>
             <div className="stats four">
               <div className="stat"><span>Expected this cycle</span><strong>{inr(expectedThisCycle(data))}</strong></div>
@@ -336,7 +355,7 @@ export function ChitDetailPage() {
                 <div className="seg">
                   <button
                     className="btn"
-                    disabled={!isRunning || !remainDue || busyAll}
+                    disabled={!isRunning || !remainDue || busyAll || (auctionFirst && !lastWin)}
                     onClick={() => {
                       setBusyAll(true);
                       void recordAllPayments(data.id).finally(() => setBusyAll(false));
@@ -344,16 +363,22 @@ export function ChitDetailPage() {
                   >
                     {busyAll ? "Recording…" : "Record all payments"}
                   </button>
-                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue} onClick={() => setUnpaidNoted(true)}>
+                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (auctionFirst && !lastWin)} onClick={() => setUnpaidNoted(true)}>
                     Mark all unpaid
                   </button>
                 </div>
               </div>
-              {!canSettleCycle(data) && !lastWin && (
+              {auctionFirst && !lastWin && (
+                <p className="month-hint">Auction first — record the winning bid, then each member’s due becomes (bid + commission) ÷ members. Collect after the auction.</p>
+              )}
+              {auctionFirst && lastWin && shareHint != null && (
+                <p className="month-hint">This month each member owes {inr(shareHint)} (winning amount split across the group). Face value stays {inr(data.pot)}.</p>
+              )}
+              {!auctionFirst && !canSettleCycle(data) && !lastWin && (
                 <p className="month-hint">Record collections first — individually or with Record all payments. Auction stays locked so cash on hand cannot go negative.</p>
               )}
               {unpaidNoted && remainDue > 0 && (
-                <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button; auction still needs at least one receipt.</p>
+                <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button{auctionFirst ? "." : "; auction still needs at least one receipt."}</p>
               )}
               <div className="table-wrap">
                 <table className="table month-table">
@@ -386,7 +411,7 @@ export function ChitDetailPage() {
                           <td>{last ? new Date(last.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</td>
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
-                            {isRunning && (status === "due" || status === "partial") ? (
+                            {isRunning && !(auctionFirst && !lastWin) && (status === "due" || status === "partial") ? (
                               <button className="btn ghost btn-sm" onClick={() => setPayFor(m.customerId)}>Record</button>
                             ) : (
                               <span className="muted">—</span>
@@ -464,7 +489,9 @@ export function ChitDetailPage() {
                       {lastAuctionMonth ? (
                         <>
                           <p className="muted" style={{ marginBottom: 12 }}>
-                            Last cycle — no auction. The remaining member takes the full cash on hand ({inr(cashOnHand)}), then you can close the chit.
+                            {auctionFirst
+                              ? `Last cycle — no bidding. The remaining member is awarded the full pot (${inr(data.pot)}); everyone then pays ${inr(computeInstalment(data.pot, data.members.length || 1))} each.`
+                              : `Last cycle — no auction. The remaining member takes the full cash on hand (${inr(cashOnHand)}), then you can close the chit.`}
                           </p>
                           <div className="month-auction" style={{ padding: 0 }}>
                             <select
@@ -479,10 +506,10 @@ export function ChitDetailPage() {
                             </select>
                             <button
                               className="btn"
-                              disabled={!(winnerId || lastMember?.customerId) || cashOnHand <= 0}
+                              disabled={!(winnerId || lastMember?.customerId) || (!auctionFirst && cashOnHand <= 0)}
                               onClick={() => {
                                 const who = winnerId || lastMember?.customerId || "";
-                                void recordAuction(data.id, who, cashOnHand, "auction");
+                                void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction");
                               }}
                             >
                               Award full pot
@@ -490,13 +517,16 @@ export function ChitDetailPage() {
                           </div>
                           {(winnerId || lastMember) && (() => {
                             const who = winnerId || lastMember!.customerId;
-                            const preview = settleWinner(data, who, cashOnHand, "auction");
-                            const cashAfter = cashOnHand - preview.payout - preview.commission;
+                            const preview = settleWinner(data, who, auctionFirst ? data.pot : cashOnHand, "auction");
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
-                                <div className="kv"><span>Cash on hand after</span><strong>{inr(cashAfter)}</strong></div>
+                                {auctionFirst ? (
+                                  <div className="kv"><span>Each member then pays</span><strong>{inr(auctionFirstShare({ ...data, auctions: [...data.auctions, preview] }, cycle))}</strong></div>
+                                ) : (
+                                  <div className="kv"><span>Cash on hand after</span><strong>{inr(cashOnHand - preview.payout - preview.commission)}</strong></div>
+                                )}
                               </div>
                             );
                           })()}
@@ -520,12 +550,21 @@ export function ChitDetailPage() {
                           {winnerId && Number(bid) > 0 && (() => {
                             const preview = settleWinner(data, winnerId, Number(bid), "auction");
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
+                            const nextShare = auctionFirst
+                              ? auctionFirstShare({ ...data, auctions: [...data.auctions.filter((a) => a.cycle !== cycle), preview] }, cycle)
+                              : null;
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>Winner takes</span><strong>{inr(preview.payout)}</strong></div>
-                                <div className="kv"><span>Your commission (leaves the till)</span><strong>{inr(preview.commission)}</strong></div>
-                                <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>
-                                <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                                <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
+                                {auctionFirst ? (
+                                  <div className="kv"><span>Each member then pays</span><strong>{inr(nextShare || 0)}</strong></div>
+                                ) : (
+                                  <>
+                                    <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>
+                                    <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
+                                  </>
+                                )}
                               </div>
                             );
                           })()}

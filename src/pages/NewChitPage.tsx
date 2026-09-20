@@ -1,15 +1,28 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
-import type { ChitType, Frequency } from "../types";
+import type { AuctionStyle, ChitType, Frequency } from "../types";
 import { FREQ_LABEL, inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
 import { useStore } from "../store";
 
 const TYPES: { id: ChitType; title: string; body: string }[] = [
-  { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Discount − commission = dividend. Last cycle pays the full pot to the remaining member." },
+  { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Choose collect-first or auction-first next." },
   { id: "fixed", title: "Fixed", body: "Predetermined payout order. Optional higher dues after someone wins." },
   { id: "loan", title: "Loan", body: "Member takes a loan; then pays deposit + interest on principal + principal share." },
+];
+
+const AUCTION_STYLES: { id: AuctionStyle; title: string; body: string }[] = [
+  {
+    id: "collect_first",
+    title: "Collect first, then auction",
+    body: "Gather this month’s contributions into the pot, then run the auction. Winner takes their bid from cash on hand; discount becomes dividend.",
+  },
+  {
+    id: "auction_first",
+    title: "Auction first, then collect",
+    body: "Run the auction first (e.g. winner wants ₹95,000 of a ₹1,00,000 pot). Everyone then pays bid ÷ members. Face value stays the full pot each month.",
+  },
 ];
 
 const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
@@ -17,8 +30,10 @@ const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly
 export function NewChitPage() {
   const { customers, addCustomer, addChit, error } = useStore();
   const nav = useNavigate();
+  /** 0 type · 1 auction style (auction only) · 2 terms · 3 members */
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ChitType>("auction");
+  const [auctionStyle, setAuctionStyle] = useState<AuctionStyle>("collect_first");
   const [pot, setPot] = useState("");
   const [count, setCount] = useState("");
   const [duration, setDuration] = useState("");
@@ -59,13 +74,30 @@ export function NewChitPage() {
     duration: months ? `${months} months` : "0 months",
     per: instalment ? inr(instalment) : "—",
     commission: commMonth ? inr(commMonth) : "—",
-  }), [n, months, instalment, commMonth]);
+    style: type === "auction"
+      ? (auctionStyle === "auction_first" ? "Auction first" : "Collect first")
+      : null,
+  }), [n, months, instalment, commMonth, type, auctionStyle]);
 
-  const stepper = [
-    ["Type", "How winners are decided"],
-    ["Terms", "Amount & duration"],
-    ["Members", "Payout order"],
-  ];
+  const stepper = type === "auction"
+    ? [
+        ["Type", "How winners are decided"],
+        ["Style", "When the auction runs"],
+        ["Terms", "Amount & duration"],
+        ["Members", "Who is in the group"],
+      ]
+    : [
+        ["Type", "How winners are decided"],
+        ["Terms", "Amount & duration"],
+        ["Members", "Who is in the group"],
+      ];
+
+  const displayStep = type === "auction" ? step : step === 0 ? 0 : step - 1;
+
+  function goFromType() {
+    if (type === "auction") setStep(1);
+    else setStep(2);
+  }
 
   async function create() {
     setSaving(true);
@@ -98,6 +130,7 @@ export function NewChitPage() {
         commissionKind: commKind,
         commissionValue: Number(comm) || 0,
         adjustmentStyle: type === "auction" ? adjust : "every_month",
+        auctionStyle: type === "auction" ? auctionStyle : undefined,
         interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
         premiumAmount: type === "fixed" && resolvedPremium > 0 ? resolvedPremium : undefined,
@@ -139,8 +172,8 @@ export function NewChitPage() {
 
         <div className="stepper">
           {stepper.map(([t, s], i) => (
-            <div key={t} className={`step ${i <= step ? "on" : ""}`}>
-              <b>{i < step ? "✓" : i + 1}</b>
+            <div key={t} className={`step ${i <= displayStep ? "on" : ""}`}>
+              <b>{i < displayStep ? "✓" : i + 1}</b>
               <div><div>{t}</div><small>{s}</small></div>
             </div>
           ))}
@@ -149,7 +182,7 @@ export function NewChitPage() {
 
         {step === 0 && (
           <div className="card">
-            <div className="row-head"><h2>Type</h2><span className="muted">Step 1 of 3</span></div>
+            <div className="row-head"><h2>Type</h2><span className="muted">Step 1</span></div>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
               {TYPES.map((t) => (
                 <button key={t.id} className={`type-pick ${type === t.id ? "active" : ""}`} onClick={() => setType(t.id)}>
@@ -160,16 +193,41 @@ export function NewChitPage() {
             </div>
             <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
               <span />
-              <button className="btn" onClick={() => setStep(1)}>Continue to terms →</button>
+              <button className="btn" onClick={goFromType}>
+                {type === "auction" ? "Continue to auction style →" : "Continue to terms →"}
+              </button>
             </div>
           </div>
         )}
 
-        {step === 1 && (
+        {step === 1 && type === "auction" && (
+          <div className="card">
+            <div className="row-head"><h2>Auction style</h2><span className="muted">Step 2</span></div>
+            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              {AUCTION_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`type-pick ${auctionStyle === s.id ? "active" : ""}`}
+                  onClick={() => setAuctionStyle(s.id)}
+                >
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </button>
+              ))}
+            </div>
+            <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
+              <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
+              <button className="btn" onClick={() => setStep(2)}>Continue to terms →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
           <div className="grid-2">
             <div>
               <div className="card">
-                <div className="row-head"><h2>Terms</h2><span className="muted">Step 2 of 3</span></div>
+                <div className="row-head"><h2>Terms</h2><span className="muted">Step {type === "auction" ? 3 : 2}</span></div>
                 <div className="grid-2">
                   <div>
                     <label className="label">Total amount</label>
@@ -214,9 +272,11 @@ export function NewChitPage() {
                 <p className="hint">
                   {type === "loan"
                     ? "Taken from cash on hand the first time you give a loan each month."
-                    : type === "auction"
-                      ? "Taken from the pot each month when you settle the auction (not on the last cycle)."
-                      : "Taken from cash on hand when you award the pot."}
+                    : type === "auction" && auctionStyle === "auction_first"
+                      ? "Added into each member’s share after the auction (bid + commission ÷ members)."
+                      : type === "auction"
+                        ? "Taken from the pot each month when you settle the auction (not on the last cycle)."
+                        : "Taken from cash on hand when you award the pot."}
                 </p>
                 {type === "loan" && (
                   <>
@@ -239,9 +299,9 @@ export function NewChitPage() {
                         ["flat", "Yes, same every month", "One amount for everyone."],
                         ["premium", "One amount for everyone, and one for members who have already won.", "Prized members pay a higher due."],
                         ["variable", "No, it changes", "Custom table per month — coming next; uses flat dues for now."],
-                      ] as const).map(([id, title, body]) => (
+                      ] as const).map(([id, t, body]) => (
                         <button key={id} type="button" className={`type-pick ${fixedPayMode === id ? "active" : ""}`} onClick={() => setFixedPayMode(id)}>
-                          <h3 style={{ fontSize: 14 }}>{title}</h3>
+                          <h3 style={{ fontSize: 14 }}>{t}</h3>
                           <p>{body}</p>
                         </button>
                       ))}
@@ -274,7 +334,7 @@ export function NewChitPage() {
                     </div>
                   </>
                 )}
-                {type === "auction" && (
+                {type === "auction" && auctionStyle === "collect_first" && (
                   <>
                     <label className="label">Adjustment style</label>
                     <div className="seg">
@@ -313,11 +373,11 @@ export function NewChitPage() {
                   I understand how this chit works and the details above are correct.
                 </label>
                 <div className="toolbar">
-                  <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
+                  <button className="btn ghost" onClick={() => setStep(type === "auction" ? 1 : 0)}>Back</button>
                   <button
                     className="btn"
                     disabled={!confirm || !potN || !n || (type === "loan" && !interestN)}
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(3)}
                   >
                     Continue to members
                   </button>
@@ -326,17 +386,18 @@ export function NewChitPage() {
             </div>
             <div className="card" style={{ alignSelf: "start" }}>
               <div className="row-head"><h2>Live preview</h2></div>
+              {preview.style && <div className="kv"><span>Auction style</span><strong>{preview.style}</strong></div>}
               <div className="kv"><span>Members</span><strong>{preview.members}</strong></div>
               <div className="kv"><span>Duration</span><strong>{preview.duration}</strong></div>
-              <div className="kv"><span>Per month</span><strong>{preview.per}</strong></div>
+              <div className="kv"><span>Per month (face)</span><strong>{preview.per}</strong></div>
               <div className="kv"><span>Commission / month</span><strong>{preview.commission}</strong></div>
             </div>
           </div>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <div className="card">
-            <div className="row-head"><h2>Members</h2><span className="muted">Step 3 of 3</span></div>
+            <div className="row-head"><h2>Members</h2><span className="muted">Step {type === "auction" ? 4 : 3}</span></div>
             <p className="muted block">
               {(type === "fixed" || type === "base_premium")
                 ? "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Drag with the arrows."
@@ -381,7 +442,7 @@ export function NewChitPage() {
             }}>Add customer</button>
             <p className="muted" style={{ margin: "12px 0 16px" }}>{picked.length} of {n || 0} slots filled.</p>
             <div className="toolbar">
-              <button className="btn ghost" onClick={() => setStep(1)}>Back</button>
+              <button className="btn ghost" onClick={() => setStep(2)}>Back</button>
               <button className="btn" disabled={saving} onClick={() => void create()}>{saving ? "Creating…" : "Create chit"}</button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import type { Chit, ChitMember } from "../types";
 import {
   appliedDividend,
   balanceAfterCycle,
+  canSettleCycle,
   isLastAuctionCycle,
   rawCycleDue,
   settleWinner,
@@ -105,6 +106,23 @@ assert(last.dividend === 0, `last dividend ${last.dividend}`);
 assert(last.bid === cashBeforeLast, `last bid ${last.bid} vs ${cashBeforeLast}`);
 assert(treasuryOf(book) === 0, `last cash ${treasuryOf(book)}`);
 
+// Auction-first: bid then each pays bid÷n
+const af = chit({
+  members: members(5),
+  auctionStyle: "auction_first",
+  commissionPct: 0,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+assert(rawCycleDue(af, "m1", 1) === 20000, `af provisional due ${rawCycleDue(af, "m1", 1)}`);
+const afRec = settleWinner(af, "m1", 95000, "auction");
+af.auctions.push(afRec);
+af.members = af.members.map((m) =>
+  m.customerId === "m1" ? { ...m, prizedCycle: 1 } : m,
+);
+assert(afRec.bid === 95000, `af bid ${afRec.bid}`);
+assert(rawCycleDue(af, "m2", 1) === 19000, `af share ${rawCycleDue(af, "m2", 1)}`);
+assert(canSettleCycle(af) === true, "af can auction without collections");
 
 const lucky = chit({ members: members(5) });
 collectAll(lucky, 20000);

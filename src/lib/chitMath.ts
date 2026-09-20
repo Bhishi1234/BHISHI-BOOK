@@ -35,6 +35,8 @@ export function dividendFromAuction(chit: Chit, auction: Pick<AuctionRecord, "bi
 
 export function appliedDividend(chit: Chit, cycle: number) {
   if (chit.type !== "auction") return 0;
+  // Auction-first: this month's due is bid÷n — no carry-forward dividend credit.
+  if (chit.auctionStyle === "auction_first") return 0;
   if ((chit.adjustmentStyle || "every_month") === "at_end") {
     if (cycle !== chit.duration) return 0;
     return chit.auctions
@@ -43,6 +45,29 @@ export function appliedDividend(chit: Chit, cycle: number) {
   }
   const prev = chit.auctions.find((a) => a.cycle === cycle - 1);
   return prev ? dividendFromAuction(chit, prev) : 0;
+}
+
+export function isAuctionFirst(chit: Chit) {
+  return chit.type === "auction" && chit.auctionStyle === "auction_first";
+}
+
+/** Winning auction / lucky-draw row for a cycle, if any. */
+export function auctionOfCycle(chit: Chit, cycle: number) {
+  return chit.auctions.find(
+    (a) => a.cycle === cycle && (!a.method || a.method === "auction" || a.method === "lucky_draw"),
+  );
+}
+
+/**
+ * Auction-first monthly share: each member pays (winning bid) ÷ N.
+ * Face value / provision stays the pot; dues drop to the bid split after auction.
+ */
+export function auctionFirstShare(chit: Chit, cycle: number) {
+  const n = memberCount(chit);
+  const a = auctionOfCycle(chit, cycle);
+  if (a) return computeInstalment(a.bid + (a.commission || 0), n);
+  // Before auction: provisional face-value share (pot ÷ N).
+  return baseInstalment(chit);
 }
 
 export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
@@ -54,6 +79,7 @@ export function paidInCycle(chit: Chit, memberId: string, cycle: number) {
 export function rawCycleDue(chit: Chit, memberId: string, cycle: number) {
   const base = baseInstalment(chit);
   if (chit.type === "auction") {
+    if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
   if (chit.type === "base_premium" || chit.type === "fixed") {
@@ -356,6 +382,7 @@ export function settleWinner(
     (a) => a.cycle === chit.currentCycle && a.method === "fixed",
   );
   const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
+  const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
   const commission =
     method === "settlement" || lastAuction
       ? 0
@@ -366,8 +393,11 @@ export function settleWinner(
           : 0;
   let safeBid: number;
   let dividend = 0;
-  if (lastAuction) {
-    // Drain the till: last member gets every rupee of cash on hand.
+  if (lastAuction && auctionFirst) {
+    // Full face value; members then each pay pot ÷ N.
+    safeBid = Math.max(0, chit.pot);
+  } else if (lastAuction) {
+    // Collect-first last cycle: drain the till.
     safeBid = Math.max(0, treasuryOf(chit));
   } else if (method === "auction") {
     safeBid = Math.min(chit.pot, Math.max(0, bid));
@@ -412,9 +442,10 @@ export function collectedCount(chit: Chit) {
   return chit.members.filter((m) => paymentStatus(chit, m.customerId, chit.currentCycle) !== "due").length;
 }
 
-/** Auction / lucky draw only after this month has collections, or cash on hand goes negative. */
+/** Auction unlocked: collect-first needs receipts; auction-first can bid immediately. */
 export function canSettleCycle(chit: Chit) {
   if (!chit.members.length) return false;
+  if (isAuctionFirst(chit)) return true;
   return collectedThisCycle(chit) > 0;
 }
 
@@ -424,6 +455,7 @@ export function assertCanSettlePayout(
   bid: number,
   method: AuctionRecord["method"],
 ) {
+  const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
   if (method !== "settlement" && !canSettleCycle(chit)) {
     throw new Error("Record this month's collections before the auction");
   }
@@ -432,11 +464,13 @@ export function assertCanSettlePayout(
     throw new Error("Enter an amount greater than zero");
   }
   const rec = settleWinner(chit, winnerId, bid, method);
-  const available = treasuryOf(chit);
-  if (rec.payout + rec.commission > Math.max(0, available) + 0.001) {
-    throw new Error(
-      `Amount plus commission (₹${rec.payout + rec.commission}) is more than cash on hand (₹${Math.max(0, available)}). Collect more dues first, or lower the amount.`,
-    );
+  if (!auctionFirst) {
+    const available = treasuryOf(chit);
+    if (rec.payout + rec.commission > Math.max(0, available) + 0.001) {
+      throw new Error(
+        `Amount plus commission (₹${rec.payout + rec.commission}) is more than cash on hand (₹${Math.max(0, available)}). Collect more dues first, or lower the amount.`,
+      );
+    }
   }
   return rec;
 }
