@@ -340,8 +340,8 @@ textarea.field { min-height: 100px; resize: vertical; }
 
 /* Dashboard chit cards */
 .dash-chits {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 .dash-chit {
@@ -743,7 +743,7 @@ body.native-app {
 }
 
 @media (max-width: 1100px) {
-  .stats, .cards, .grid-2, .grid-3, .type-row { grid-template-columns: 1fr; }
+  .stats, .cards, .grid-2, .grid-3, .type-row, .dash-chits { grid-template-columns: 1fr; }
   .stats.four,
   .stats.six {
     grid-template-columns: 1fr 1fr;
