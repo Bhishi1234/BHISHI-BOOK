@@ -31,7 +31,7 @@ export function ChitsPage() {
           <div className="dash-chits block">
             {managed.map((c, i) => {
               const pct = chitProgress(c);
-              const featured = i === 0;
+              const featured = i % 2 === 0;
               return (
                 <article
                   key={c.id}
@@ -90,30 +90,39 @@ export function ChitsPage() {
         )}
         {!!shared.length && (
           <div className="dash-chits block">
-            {shared.map((c) => {
+            {shared.map((c, i) => {
               const pct = chitProgress(c);
+              const featured = i % 2 === 0;
               return (
-                <article key={c.id} className="dash-chit" onClick={() => nav(chitPath(c))}>
+                <article
+                  key={c.id}
+                  className={`dash-chit${featured ? " featured" : ""}`}
+                  onClick={() => nav(chitPath(c))}
+                >
                   <div className="dash-chit-top">
                     <div className="dash-chit-avatar">{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
-                      <span>{TYPE_LABEL[c.type]} · Shared · {displayCycle(c)} / {c.duration}</span>
+                      <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
                     </div>
                     <span className="dash-chit-status">Shared</span>
                   </div>
                   <div className="dash-chit-divider" />
                   <div className="dash-chit-meta">
                     <div>
+                      <span>Cycle</span>
+                      <strong>{displayCycle(c)} / {c.duration}</strong>
+                    </div>
+                    <div>
                       <span>Per cycle</span>
                       <strong>{inr(c.instalment)}</strong>
                     </div>
-                    <div>
+                  </div>
+                  <div className="dash-chit-progress">
+                    <div className="dash-chit-progress-head">
                       <span>Collection</span>
                       <strong>{pct}%</strong>
                     </div>
-                  </div>
-                  <div className="dash-chit-progress">
                     <div className="progress"><i style={{ width: `${pct}%` }} /></div>
                   </div>
                 </article>

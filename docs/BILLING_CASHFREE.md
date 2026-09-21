@@ -1,4 +1,4 @@
-# Cashfree Subscriptions (Bhishi Book)
+# Cashfree Subscriptions (Bhishi Circle)
 
 Webhook-driven billing. The success page only polls status — plans are activated when Cashfree hits our webhook.
 

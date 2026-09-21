@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const phone = String(profile?.phone || "").replace(/\D/g, "").slice(-10) || "9999999999";
     const email = String(profile?.email || user.email || `${user.id}@bhishibook.local`);
-    const name = String(profile?.name || "Bhishi Book user");
+    const name = String(profile?.name || "Bhishi Circle user");
 
     const merchantSubId = `bb_${user.id.replace(/-/g, "").slice(0, 12)}_${Date.now()}`;
     const returnUrl = `${siteUrl()}/billing/success?sub_id=${encodeURIComponent(merchantSubId)}`;

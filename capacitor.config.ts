@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.bhishi.bhishiapp",
-  appName: "Bhishi Book",
+  appName: "Bhishi Circle",
   webDir: "dist",
   server: {
     androidScheme: "https",

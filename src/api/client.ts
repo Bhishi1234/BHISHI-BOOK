@@ -8,8 +8,8 @@ import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "..
 type Backend = {
   authHint: () => string;
   onAuthChange: (cb: () => void) => () => void;
-  sendOtp: (phone: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
-  verifyOtp: (phone: string, otp: string) => Promise<unknown>;
+  sendOtp: (phone: string, name?: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
+  verifyOtp: (phone: string, otp: string, name?: string) => Promise<unknown>;
   logout: () => Promise<unknown>;
   profile: () => Promise<User>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
@@ -42,8 +42,8 @@ type Backend = {
 const mockApi: Backend = {
   authHint: () => "Demo login: any 6-digit OTP works until Supabase phone auth is connected.",
   onAuthChange: () => () => undefined,
-  sendOtp: (phone) => delay(mockServer.auth.sendOtp(phone)),
-  verifyOtp: (phone, otp) => delay(mockServer.auth.verifyOtp(phone, otp)),
+  sendOtp: (phone, name) => delay(mockServer.auth.sendOtp(phone, name)),
+  verifyOtp: (phone, otp, name) => delay(mockServer.auth.verifyOtp(phone, otp, name)),
   logout: () => delay(mockServer.auth.logout()),
   profile: () => delay(mockServer.auth.profile()),
   updateProfile: (patch) => delay(mockServer.auth.updateProfile(patch)),

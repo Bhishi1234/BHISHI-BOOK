@@ -17,7 +17,7 @@ let client: SupabaseClient | null = null;
 
 export function getSupabase() {
   if (!isSupabaseConfigured()) {
-    throw new Error("Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to connect Bhishi Book.");
+    throw new Error("Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to connect Bhishi Circle.");
   }
   if (!client) {
     client = createClient(url, anon, {

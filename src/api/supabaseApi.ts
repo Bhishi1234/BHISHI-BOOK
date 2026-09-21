@@ -20,6 +20,21 @@ async function syncProfilePhone(sb: ReturnType<typeof getSupabase>, digits: stri
   }
 }
 
+async function syncProfileName(sb: ReturnType<typeof getSupabase>, name: string | undefined) {
+  const display = (name || "").trim();
+  if (!display) return;
+  const { user } = await requireUser();
+  await sb
+    .from("profiles")
+    .update({ name: display })
+    .eq("id", user.id);
+  try {
+    await sb.auth.updateUser({ data: { name: display, phone10: right10(user.phone) } });
+  } catch {
+    // Metadata update is best-effort.
+  }
+}
+
 async function requireUser() {
   const sb = getSupabase();
   const { data, error } = await sb.auth.getUser();
@@ -55,15 +70,26 @@ export const supabaseApi = {
     return () => data.subscription.unsubscribe();
   },
 
-  async sendOtp(phone: string) {
+  async sendOtp(phone: string, name?: string) {
     const digits = phone10(phone);
+    const display = (name || "").trim();
     const sb = getSupabase();
     // Prefer native Supabase Phone Auth (Twilio / MessageBird / etc.).
-    const { error } = await sb.auth.signInWithOtp({ phone: e164in(digits) });
+    const { error } = await sb.auth.signInWithOtp({
+      phone: e164in(digits),
+      options: {
+        data: {
+          phone10: digits,
+          ...(display ? { name: display } : {}),
+        },
+      },
+    });
     if (!error) return { ok: true as const, provider: "PHONE" };
 
     // Optional fallback: custom edge function (MSG91 / legacy).
-    const invoked = await sb.functions.invoke("auth-otp-send", { body: { phone: digits } });
+    const invoked = await sb.functions.invoke("auth-otp-send", {
+      body: { phone: digits, name: display || undefined },
+    });
     if (!invoked.error && invoked.data && !invoked.data.error) {
       return {
         ok: true as const,
@@ -74,7 +100,7 @@ export const supabaseApi = {
     throw new Error(error.message || invoked.data?.error || invoked.error?.message || "Could not send OTP");
   },
 
-  async verifyOtp(phone: string, otp: string) {
+  async verifyOtp(phone: string, otp: string, name?: string) {
     const digits = phone10(phone);
     const code = otp.replace(/\D/g, "");
     if (code.length !== 6) throw new Error("otp must be 6 digits");
@@ -87,11 +113,14 @@ export const supabaseApi = {
     });
     if (!error) {
       await syncProfilePhone(sb, digits);
+      await syncProfileName(sb, name);
       await sb.rpc("reactivate_if_allowed");
       return { ok: true };
     }
 
-    const invoked = await sb.functions.invoke("auth-otp-verify", { body: { phone: digits, otp: code } });
+    const invoked = await sb.functions.invoke("auth-otp-verify", {
+      body: { phone: digits, otp: code, name: (name || "").trim() || undefined },
+    });
     if (!invoked.error && invoked.data?.session) {
       const { error: sessionError } = await sb.auth.setSession({
         access_token: invoked.data.session.access_token,
@@ -99,6 +128,7 @@ export const supabaseApi = {
       });
       throwIf(sessionError);
       await syncProfilePhone(sb, digits);
+      await syncProfileName(sb, name);
       await sb.rpc("reactivate_if_allowed");
       return { ok: true };
     }

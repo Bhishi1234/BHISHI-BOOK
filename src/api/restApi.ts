@@ -48,17 +48,21 @@ export const restApi = {
     return () => undefined;
   },
 
-  async sendOtp(phone: string) {
+  async sendOtp(phone: string, name?: string) {
     return request("/api/v1/auth/send-otp", {
       method: "POST",
-      body: JSON.stringify({ phone: phone10(phone) }),
+      body: JSON.stringify({ phone: phone10(phone), name: name?.trim() || undefined }),
     });
   },
 
-  async verifyOtp(phone: string, otp: string) {
+  async verifyOtp(phone: string, otp: string, name?: string) {
     const data = await request("/api/v1/auth/verify-otp", {
       method: "POST",
-      body: JSON.stringify({ phone: phone10(phone), otp }),
+      body: JSON.stringify({
+        phone: phone10(phone),
+        otp,
+        name: name?.trim() || undefined,
+      }),
     });
     if (!data.session?.access_token) throw new Error("Could not start session");
     writeSession({

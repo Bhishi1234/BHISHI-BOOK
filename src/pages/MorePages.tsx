@@ -211,7 +211,7 @@ export function ProfilePage() {
         </div>
         <div className="card center">
           <h2>Invite friends</h2>
-          <p className="muted">Share Bhishi Book with friends and family</p>
+          <p className="muted">Share Bhishi Circle with friends and family</p>
           <button className="btn ghost" onClick={() => void navigator.clipboard.writeText(window.location.origin)}>Share</button>
         </div>
         <div className="card">

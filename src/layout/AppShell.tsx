@@ -52,7 +52,7 @@ export function AppShell({
     crumb2 ||
     crumb ||
     NAV.find((n) => n.to === loc.pathname)?.label ||
-    "Bhishi Book";
+    "Bhishi Circle";
 
   useEffect(() => {
     setOpen(false);
@@ -82,7 +82,7 @@ export function AppShell({
 
   const side = (
     <>
-      <NavLink to="/" className="logo">Bhishi Book</NavLink>
+      <NavLink to="/" className="logo">Bhishi Circle</NavLink>
       {NAV.map((n) => (
         <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => `nav-btn${isActive ? " active" : ""}`}>
           <n.icon size={18} />

@@ -1,4 +1,4 @@
-# Android / Google Play — Bhishi Book
+# Android / Google Play — Bhishi Circle
 
 Web and Android share the same React codebase. The web host (e.g. Vercel) keeps deploying from `npm run build:web`. Android packages the same `dist/` via Capacitor.
 
@@ -73,7 +73,7 @@ Output:
 
 ## Play Console checklist
 
-1. Create app **Bhishi Book** (Finance / business tools).
+1. Create app **Bhishi Circle** (Finance / business tools).
 2. Upload the AAB to **Internal testing** first.
 3. Store listing: short/long description, screenshots (phone), feature graphic.
 4. **Privacy policy** URL (required) — host a page covering Supabase account data, chit/member records.

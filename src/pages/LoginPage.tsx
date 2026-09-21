@@ -5,6 +5,8 @@ import { useStore } from "../store";
 export function LoginPage() {
   const { sendOtp, verifyOtp, logout, user, authHint, error } = useStore();
   const nav = useNavigate();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -14,12 +16,14 @@ export function LoginPage() {
   const refs = useRef<Array<HTMLInputElement | null>>([]);
 
   const digits = phone.replace(/\D/g, "").slice(0, 10);
+  const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+  const canSend = digits.length === 10 && firstName.trim().length >= 1 && lastName.trim().length >= 1;
 
   async function send() {
-    if (digits.length !== 10) return;
+    if (!canSend) return;
     setSending(true);
     try {
-      const sent = await sendOtp(digits);
+      const sent = await sendOtp(digits, fullName);
       setDevOtp(sent.devOtp || null);
       setOtp(["", "", "", "", "", ""]);
       setStep("otp");
@@ -33,7 +37,7 @@ export function LoginPage() {
     if (code.length !== 6 || verifying) return;
     setVerifying(true);
     try {
-      await verifyOtp(digits, code);
+      await verifyOtp(digits, code, fullName);
       nav("/");
     } finally {
       setVerifying(false);
@@ -58,11 +62,13 @@ export function LoginPage() {
       <div className="login-wrap">
         <div style={{ width: "min(420px, 100%)" }}>
           <div className="brand-mark">₹</div>
-          <h1>Bhishi Book</h1>
+          <h1>Bhishi Circle</h1>
           <p className="sub">You are signed in</p>
           <div className="login-card">
             <p className="sub" style={{ marginBottom: 16 }}>
-              {user.phone ? `+91 ${user.phone}` : user.name}
+              {[user.name && user.name !== "Organiser" ? user.name : null, user.phone ? `+91 ${user.phone}` : null]
+                .filter(Boolean)
+                .join(" · ") || user.name}
             </p>
             <button className="btn wide" onClick={() => nav("/")}>Go to dashboard</button>
             <button className="btn ghost wide" style={{ marginTop: 10 }} onClick={() => void logout()}>Sign out</button>
@@ -76,11 +82,35 @@ export function LoginPage() {
     <div className="login-wrap">
       <div style={{ width: "min(420px, 100%)" }}>
         <div className="brand-mark">₹</div>
-        <h1>Bhishi Book</h1>
+        <h1>Bhishi Circle</h1>
         <p className="sub">Manage your chit funds with confidence</p>
         <div className="login-card">
           {step === "phone" ? (
             <>
+              <div className="grid-2" style={{ gap: 10, marginBottom: 0 }}>
+                <div>
+                  <label className="label" htmlFor="firstName">First name</label>
+                  <input
+                    id="firstName"
+                    className="field"
+                    autoComplete="given-name"
+                    placeholder="Ramesh"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="lastName">Last name</label>
+                  <input
+                    id="lastName"
+                    className="field"
+                    autoComplete="family-name"
+                    placeholder="Kumar"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                  />
+                </div>
+              </div>
               <label className="label" htmlFor="phone">Mobile number</label>
               <div className="phone-row">
                 <span>+91</span>
@@ -96,14 +126,14 @@ export function LoginPage() {
               </div>
               <p className="hint">We’ll text a one-time code to this number via SMS.</p>
               {error && <p className="due">{error}</p>}
-              <button className="btn wide" disabled={sending || digits.length !== 10} onClick={() => void send()}>
+              <button className="btn wide" disabled={sending || !canSend} onClick={() => void send()}>
                 {sending ? "Sending…" : "Send OTP"}
               </button>
             </>
           ) : (
             <>
               <p className="sub" style={{ marginBottom: 12, textAlign: "left" }}>
-                Enter the OTP sent to +91 {digits}
+                Hi {firstName.trim()}, enter the OTP sent to +91 {digits}
               </p>
               <div className="otp-boxes">
                 {otp.map((n, i) => (
@@ -135,14 +165,14 @@ export function LoginPage() {
                   className="link"
                   onClick={() => { setStep("phone"); setDevOtp(null); setOtp(["", "", "", "", "", ""]); }}
                 >
-                  Change number
+                  Change details
                 </button>
               </p>
             </>
           )}
         </div>
         <p className="fine">
-          By continuing, you agree to our Terms and Privacy Policy. Bhishi Book is a
+          By continuing, you agree to our Terms and Privacy Policy. Bhishi Circle is a
           record-keeping utility.
         </p>
       </div>

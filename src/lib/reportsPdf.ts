@@ -68,7 +68,7 @@ async function savePdf(doc: jsPDF, filename: string) {
     await Share.share({
       title: filename,
       url: uri,
-      dialogTitle: "Share Bhishi Book report",
+      dialogTitle: "Share Bhishi Circle report",
     });
   } catch {
     // Fallback if native share fails
@@ -82,7 +82,7 @@ function brandHeader(doc: Doc, title: string, subtitle: string) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Bhishi Book", MARGIN, 12);
+  doc.text("Bhishi Circle", MARGIN, 12);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(title, MARGIN, 20);
@@ -97,7 +97,7 @@ function footer(doc: Doc) {
     doc.setFontSize(8);
     doc.setTextColor(120, 120, 120);
     doc.text(
-      `Generated ${new Date().toLocaleString("en-IN")} · Page ${i} of ${pages} · Bhishi Book`,
+      `Generated ${new Date().toLocaleString("en-IN")} · Page ${i} of ${pages} · Bhishi Circle`,
       MARGIN,
       290,
     );
@@ -488,7 +488,7 @@ export function downloadReceiptPdf(
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
   doc.text(
-    "This is a computer-generated receipt from Bhishi Book for record-keeping. It is not a tax invoice.",
+    "This is a computer-generated receipt from Bhishi Circle for record-keeping. It is not a tax invoice.",
     MARGIN,
     y,
     { maxWidth: CONTENT_W },

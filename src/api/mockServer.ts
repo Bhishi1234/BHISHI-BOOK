@@ -241,7 +241,7 @@ export const mockServer = {
   },
 
   auth: {
-    sendOtp(phone: string) {
+    sendOtp(phone: string, _name?: string) {
       const digits = phone.replace(/\D/g, "").slice(-10);
       if (digits.length !== 10) throw new Error("phone must be 10 digits");
       const db = read();
@@ -249,16 +249,17 @@ export const mockServer = {
       write(db);
       return { ok: true as const, provider: "MOCK", devOtp: "123456" };
     },
-    verifyOtp(phone: string, otp: string) {
+    verifyOtp(phone: string, otp: string, name?: string) {
       const digits = phone.replace(/\D/g, "").slice(-10);
       if (otp.replace(/\D/g, "").length !== 6) throw new Error("otp must be 6 digits");
       const db = read();
+      const display = (name || "").trim() || db.session?.user.name || "Organiser";
       db.session = {
         token: uid("tok"),
         user: {
           ...demoUser,
           phone: digits,
-          name: db.session?.user.name || "Organiser",
+          name: display,
         },
       };
       db.pendingPhone = null;

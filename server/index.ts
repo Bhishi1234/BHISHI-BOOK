@@ -13,7 +13,7 @@ const pepper = process.env.OTP_PEPPER || "bhishi-book-dev-pepper";
 const port = Number(process.env.PORT || 8787);
 
 if (!url || !anon) {
-  console.warn("Bhishi Book API: set SUPABASE_URL and SUPABASE_ANON_KEY (and SERVICE_ROLE_KEY for OTP).");
+  console.warn("Bhishi Circle API: set SUPABASE_URL and SUPABASE_ANON_KEY (and SERVICE_ROLE_KEY for OTP).");
 }
 
 function admin() {
@@ -573,5 +573,5 @@ app.post("/api/v1/tickets", async (c) => {
 });
 
 serve({ fetch: app.fetch, port }, () => {
-  console.log(`Bhishi Book API listening on http://127.0.0.1:${port}`);
+  console.log(`Bhishi Circle API listening on http://127.0.0.1:${port}`);
 });
