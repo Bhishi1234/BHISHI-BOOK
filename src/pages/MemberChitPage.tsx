@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { AlertCircle, Calendar, PiggyBank, Wallet } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import {
@@ -10,6 +11,7 @@ import {
 } from "../lib/chitMath";
 import { MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
 import { useStore } from "../store";
+import { StatCard } from "../ui/StatCard";
 
 /** Read-only passbook for a chit the user belongs to via phone match. */
 export function MemberChitPage() {
@@ -77,10 +79,10 @@ export function MemberChitPage() {
         )}
 
         <div className="stats four">
-          <div className="stat"><span>Current month</span><strong>{cycle} / {data.duration}</strong></div>
-          <div className="stat"><span>This month due</span><strong>{inr(monthDue)}</strong></div>
-          <div className="stat"><span>Paid this month</span><strong>{inr(monthPaid)}</strong></div>
-          <div className="stat"><span>Outstanding</span><strong>{inr(bal.outstanding)}</strong></div>
+          <StatCard label="Current month" value={`${cycle} / ${data.duration}`} hint="cycle progress" tone="blue" icon={Calendar} />
+          <StatCard label="This month due" value={inr(monthDue)} hint="your share" tone="amber" icon={Wallet} />
+          <StatCard label="Paid this month" value={inr(monthPaid)} hint="already paid" tone="green" icon={PiggyBank} />
+          <StatCard label="Outstanding" value={inr(bal.outstanding)} hint="still due" tone="rose" icon={AlertCircle} />
         </div>
 
         <div className="card block">

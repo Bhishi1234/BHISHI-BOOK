@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
+  AlertCircle,
   Calendar,
   CalendarRange,
   ChevronLeft,
   ChevronRight,
   Percent,
+  PiggyBank,
   Users,
   Wallet,
 } from "lucide-react";
 import { PayModal } from "../components/PayModal";
 import { AppShell } from "../layout/AppShell";
+import { StatCard } from "../ui/StatCard";
 import {
   balanceAfterCycle,
   canCloseLastMonth,
@@ -323,16 +326,42 @@ export function ChitDetailPage() {
 
         {tab === "overview" && (
           <div className="stats six">
-            <div className="stat"><span>Month</span><strong>{cycle} / {data.duration}</strong></div>
-            <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
-            <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
-            <div className="stat">
-              <span>{auctionFirst ? "Till (peer settlement)" : "Cash on hand"}</span>
-              <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
-              {auctionFirst && <em>Always ₹0 — unpaid is Outstanding</em>}
-            </div>
-            <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month</em></div>
-            <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
+            <StatCard label="Month" value={`${cycle} / ${data.duration}`} hint="current cycle" tone="blue" icon={Calendar} />
+            <StatCard
+              label="Collected this month"
+              value={inr(collectedThisCycle(data))}
+              hint={`of ${inr(expectedThisCycle(data))} expected`}
+              tone="green"
+              icon={PiggyBank}
+            />
+            <StatCard
+              label="Outstanding"
+              value={inr(outstandingOf(data))}
+              hint={`${pending} members pending`}
+              tone="rose"
+              icon={AlertCircle}
+            />
+            <StatCard
+              label={auctionFirst ? "Till (peer settlement)" : "Cash on hand"}
+              value={<span className={treasuryOf(data) < 0 ? "neg" : undefined}>{inr(treasuryOf(data))}</span>}
+              hint={auctionFirst ? "Always ₹0 — unpaid is Outstanding" : "treasury today"}
+              tone="teal"
+              icon={Wallet}
+            />
+            <StatCard
+              label="Commission earned"
+              value={inr(commissionEarned(data))}
+              hint={`${inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month`}
+              tone="violet"
+              icon={Percent}
+            />
+            <StatCard
+              label="Members"
+              value={data.members.length}
+              hint={`of ${data.membersCount} slots`}
+              tone="amber"
+              icon={Users}
+            />
           </div>
         )}
 
@@ -692,14 +721,16 @@ export function ChitDetailPage() {
             {monthSub === "collect" && (
             <>
             <div className="stats four">
-              <div className="stat"><span>Expected this cycle</span><strong>{inr(expectedThisCycle(data))}</strong></div>
-              <div className="stat"><span>Collected</span><strong>{inr(collectedThisCycle(data))}</strong></div>
-              <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
-              <div className="stat">
-                <span>{auctionFirst ? "Till (always ₹0)" : "Cash on hand"}</span>
-                <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
-                {auctionFirst && <em>Unpaid shares show as Outstanding</em>}
-              </div>
+              <StatCard label="Expected this cycle" value={inr(expectedThisCycle(data))} hint="target" tone="blue" icon={Wallet} />
+              <StatCard label="Collected" value={inr(collectedThisCycle(data))} hint="received" tone="green" icon={PiggyBank} />
+              <StatCard label="Outstanding" value={inr(outstandingOf(data))} hint="still due" tone="rose" icon={AlertCircle} />
+              <StatCard
+                label={auctionFirst ? "Till (always ₹0)" : "Cash on hand"}
+                value={<span className={treasuryOf(data) < 0 ? "neg" : undefined}>{inr(treasuryOf(data))}</span>}
+                hint={auctionFirst ? "Unpaid shares show as Outstanding" : "treasury"}
+                tone="teal"
+                icon={Wallet}
+              />
             </div>
             <div className="card flush">
               <div className="card-pad month-head">
@@ -1360,10 +1391,28 @@ export function ChitDetailPage() {
         {tab === "settlement" && showSettlement && (
           <div className="stack">
             <div className="stats four">
-              <div className="stat"><span>Cash on hand</span><strong className={cashOnHand < 0 ? "neg" : ""}>{inr(cashOnHand)}</strong></div>
-              <div className="stat"><span>Loans disbursed</span><strong>{inr(data.auctions.filter((a) => a.method === "fixed").reduce((s, a) => s + a.payout, 0))}</strong></div>
-              <div className="stat"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
-              <div className="stat"><span>Already settled out</span><strong>{inr(settlementsOf(data).reduce((s, a) => s + a.payout, 0))}</strong></div>
+              <StatCard
+                label="Cash on hand"
+                value={<span className={cashOnHand < 0 ? "neg" : undefined}>{inr(cashOnHand)}</span>}
+                hint="available now"
+                tone="teal"
+                icon={Wallet}
+              />
+              <StatCard
+                label="Loans disbursed"
+                value={inr(data.auctions.filter((a) => a.method === "fixed").reduce((s, a) => s + a.payout, 0))}
+                hint="principal out"
+                tone="blue"
+                icon={PiggyBank}
+              />
+              <StatCard label="Interest collected" value={inr(interestCollected(data))} hint="earned" tone="green" icon={Percent} />
+              <StatCard
+                label="Already settled out"
+                value={inr(settlementsOf(data).reduce((s, a) => s + a.payout, 0))}
+                hint="paid out"
+                tone="amber"
+                icon={Wallet}
+              />
             </div>
             <div className="card">
               <h2>Final settlement</h2>

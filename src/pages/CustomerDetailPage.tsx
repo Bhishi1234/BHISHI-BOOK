@@ -1,8 +1,10 @@
+import { AlertCircle, Layers, PiggyBank, Wallet } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import { displayCycle, memberBalance, paidInCycle, rawCycleDue } from "../lib/chitMath";
 import { MODE_LABEL, TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
+import { StatCard } from "../ui/StatCard";
 
 export function CustomerDetailPage() {
   const { id } = useParams();
@@ -103,10 +105,16 @@ export function CustomerDetailPage() {
         </div>
 
         <div className="stats four">
-          <div className="stat"><span>Contributed</span><strong>{inr(contributed)}</strong><em>lifetime</em></div>
-          <div className="stat"><span>Received</span><strong>{inr(received)}</strong><em>payouts &amp; loans</em></div>
-          <div className="stat"><span>Outstanding</span><strong className={outstanding ? "neg" : ""}>{inr(outstanding)}</strong></div>
-          <div className="stat"><span>Active chits</span><strong>{memberships.filter((m) => m.ch.status === "running").length}</strong></div>
+          <StatCard label="Contributed" value={inr(contributed)} hint="lifetime" tone="teal" icon={PiggyBank} />
+          <StatCard label="Received" value={inr(received)} hint="payouts & loans" tone="blue" icon={Wallet} />
+          <StatCard
+            label="Outstanding"
+            value={<span className={outstanding ? "neg" : undefined}>{inr(outstanding)}</span>}
+            hint="still due"
+            tone="rose"
+            icon={AlertCircle}
+          />
+          <StatCard label="Active chits" value={memberships.filter((m) => m.ch.status === "running").length} hint="running now" tone="green" icon={Layers} />
         </div>
 
         <div className="grid-2 block">

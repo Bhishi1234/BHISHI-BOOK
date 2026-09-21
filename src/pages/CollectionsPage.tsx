@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
+import { Banknote, FileText, Landmark, Receipt, Users, Wallet } from "lucide-react";
 import { AppShell } from "../layout/AppShell";
 import { MODE_LABEL, initials, inr } from "../lib/format";
 import { downloadDayBookPdf, downloadReceiptPdf } from "../lib/reportsPdf";
 import { useStore } from "../store";
 import type { PayMode } from "../types";
+import { StatCard } from "../ui/StatCard";
 
 export function CollectionsPage() {
   const { chits, customers } = useStore();
@@ -85,12 +87,12 @@ export function CollectionsPage() {
           <input className="field" style={{ margin: 0, maxWidth: 220 }} placeholder="Find a member or chit" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="stats six">
-          <div className="stat"><span>Collected</span><strong>{inr(collected)}</strong></div>
-          <div className="stat"><span>Receipts</span><strong>{receipts.length}</strong></div>
-          <div className="stat"><span>Members paid</span><strong>{membersPaid}</strong></div>
-          <div className="stat"><span>Cash</span><strong>{inr(byMode("cash"))}</strong></div>
-          <div className="stat"><span>UPI & bank</span><strong>{inr(byMode("upi") + byMode("bank"))}</strong></div>
-          <div className="stat"><span>Adjusted from payouts</span><strong>{inr(byMode("adjusted"))}</strong></div>
+          <StatCard label="Collected" value={inr(collected)} hint="in this filter" tone="green" icon={Wallet} />
+          <StatCard label="Receipts" value={receipts.length} hint="payment rows" tone="blue" icon={Receipt} />
+          <StatCard label="Members paid" value={membersPaid} hint="unique people" tone="violet" icon={Users} />
+          <StatCard label="Cash" value={inr(byMode("cash"))} hint="cash mode" tone="amber" icon={Banknote} />
+          <StatCard label="UPI & bank" value={inr(byMode("upi") + byMode("bank"))} hint="digital" tone="teal" icon={Landmark} />
+          <StatCard label="Adjusted from payouts" value={inr(byMode("adjusted"))} hint="netted off" tone="rose" icon={FileText} />
         </div>
         <div className="grid-2">
           <div className="card flush">

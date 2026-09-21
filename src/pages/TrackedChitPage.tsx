@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { Calendar, PiggyBank, Wallet, CircleDollarSign } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import { baseInstalment, paidInCycle } from "../lib/chitMath";
 import { MODE_LABEL, inr, todayIso } from "../lib/format";
 import { useStore } from "../store";
 import type { PayMode } from "../types";
+import { StatCard } from "../ui/StatCard";
 
 /** Personal “I'm in someone else's bhishi” ledger — matches ChitBook /tracked/:id */
 export function TrackedChitPage() {
@@ -93,10 +95,10 @@ export function TrackedChitPage() {
         {error && <p className="due">{error}</p>}
 
         <div className="stats four">
-          <div className="stat"><span>Current month</span><strong>{cycle} / {data.duration}</strong></div>
-          <div className="stat"><span>Paid so far</span><strong>{inr(paid)}</strong></div>
-          <div className="stat"><span>Left to pay</span><strong>{inr(left)}</strong></div>
-          <div className="stat"><span>Month {cycle} due</span><strong>{inr(instalment)}</strong></div>
+          <StatCard label="Current month" value={`${cycle} / ${data.duration}`} hint="cycle progress" tone="blue" icon={Calendar} />
+          <StatCard label="Paid so far" value={inr(paid)} hint="lifetime logged" tone="green" icon={PiggyBank} />
+          <StatCard label="Left to pay" value={inr(left)} hint="remaining" tone="rose" icon={CircleDollarSign} />
+          <StatCard label={`Month ${cycle} due`} value={inr(instalment)} hint="this instalment" tone="amber" icon={Wallet} />
         </div>
 
         <div className="card block">

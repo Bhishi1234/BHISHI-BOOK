@@ -1,11 +1,12 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { CircleX, Plus } from "lucide-react";
+import { AlertCircle, ArrowUpRight, CircleX, PiggyBank, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
 import { TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
+import { StatCard, toneAt } from "../ui/StatCard";
 
 export function ChitsPage() {
   const { chits, cancelChit, user } = useStore();
@@ -39,14 +40,17 @@ export function ChitsPage() {
                   onClick={() => nav(chitPath(c))}
                 >
                   <div className="dash-chit-top">
-                    <div className="dash-chit-avatar">{initials(c.name)}</div>
+                    <div className={`dash-chit-avatar tone-${toneAt(i)}`}>{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
                       <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
                     </div>
-                    <span className={`dash-chit-status${c.status === "running" ? " live" : ""}`}>
-                      {c.status === "running" ? "Active" : c.status}
-                    </span>
+                    <div className="dash-chit-actions">
+                      <span className={`dash-chit-status${c.status === "running" ? " live" : ""}`}>
+                        {c.status === "running" ? "Active" : c.status}
+                      </span>
+                      <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
+                    </div>
                   </div>
                   <div className="dash-chit-divider" />
                   <div className="dash-chit-meta">
@@ -100,12 +104,15 @@ export function ChitsPage() {
                   onClick={() => nav(chitPath(c))}
                 >
                   <div className="dash-chit-top">
-                    <div className="dash-chit-avatar">{initials(c.name)}</div>
+                    <div className={`dash-chit-avatar tone-${toneAt(i + 2)}`}>{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
                       <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
                     </div>
-                    <span className="dash-chit-status">Shared</span>
+                    <div className="dash-chit-actions">
+                      <span className="dash-chit-status">Shared</span>
+                      <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
+                    </div>
                   </div>
                   <div className="dash-chit-divider" />
                   <div className="dash-chit-meta">
@@ -137,23 +144,31 @@ export function ChitsPage() {
               <h2>Tracking</h2>
             </div>
             <div className="dash-chits block">
-              {tracking.map((c) => {
+              {tracking.map((c, i) => {
                 const pct = chitProgress(c);
+                const featured = i % 2 === 0;
                 return (
-                  <article key={c.id} className="dash-chit" onClick={() => nav(chitPath(c))}>
+                  <article
+                    key={c.id}
+                    className={`dash-chit${featured ? " featured" : ""}`}
+                    onClick={() => nav(chitPath(c))}
+                  >
                     <div className="dash-chit-top">
-                      <div className="dash-chit-avatar">{initials(c.name)}</div>
+                      <div className={`dash-chit-avatar tone-${toneAt(i + 1)}`}>{initials(c.name)}</div>
                       <div className="dash-chit-heading">
                         <strong>{c.name}</strong>
                         <span>Tracking · {inr(c.instalment)}/mo · {c.duration} months</span>
                       </div>
-                      <button
-                        className="link"
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}
-                      >
-                        <CircleX size={14} /> Cancel
-                      </button>
+                      <div className="dash-chit-actions">
+                        <button
+                          className="link"
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}
+                        >
+                          <CircleX size={14} /> Cancel
+                        </button>
+                        <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
+                      </div>
                     </div>
                     <div className="dash-chit-divider" />
                     {pct === 0 ? (
@@ -235,10 +250,10 @@ export function CustomersPage() {
           <button className="btn">Add customer</button>
         </form>
         <div className="stats four">
-          <div className="stat"><span>People</span><strong>{customers.length}</strong><em>in your directory</em></div>
-          <div className="stat"><span>In an active chit</span><strong>{inActive}</strong><em>{customers.length - inActive} not mapped yet</em></div>
-          <div className="stat"><span>Collected from all</span><strong>{inr(collected)}</strong><em>lifetime</em></div>
-          <div className="stat"><span>Outstanding</span><strong>{inr(outstanding)}</strong></div>
+          <StatCard label="People" value={customers.length} hint="in your directory" tone="blue" icon={UserRound} />
+          <StatCard label="In an active chit" value={inActive} hint={`${customers.length - inActive} not mapped yet`} tone="green" icon={Users} />
+          <StatCard label="Collected from all" value={inr(collected)} hint="lifetime" tone="teal" icon={PiggyBank} />
+          <StatCard label="Outstanding" value={inr(outstanding)} hint="still due" tone="rose" icon={AlertCircle} />
         </div>
         <div className="toolbar">
           <input className="field" placeholder="Search by name or phone" value={q} onChange={(e) => setQ(e.target.value)} style={{ margin: 0, maxWidth: 360 }} />
