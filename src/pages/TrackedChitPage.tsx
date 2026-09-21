@@ -1,9 +1,16 @@
 import { useMemo, useState } from "react";
-import { Calendar, PiggyBank, Wallet, CircleDollarSign } from "lucide-react";
+import {
+  Calendar,
+  CalendarRange,
+  CircleDollarSign,
+  PiggyBank,
+  Route,
+  Wallet,
+} from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import { baseInstalment, paidInCycle } from "../lib/chitMath";
-import { MODE_LABEL, inr, todayIso } from "../lib/format";
+import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr, todayIso } from "../lib/format";
 import { useStore } from "../store";
 import type { PayMode } from "../types";
 import { StatCard } from "../ui/StatCard";
@@ -47,6 +54,10 @@ export function TrackedChitPage() {
   const cycle = Math.min(data.currentCycle, data.duration);
   const monthLogged = selfId ? paidInCycle(data, selfId, cycle) >= instalment && instalment > 0 : false;
   const canAdvance = monthLogged && data.status === "running" && cycle < data.duration;
+  const isRunning = data.status === "running";
+  const ended = new Date(data.startDate);
+  ended.setMonth(ended.getMonth() + data.duration);
+  const pct = totalDue > 0 ? Math.min(100, Math.round((paid / totalDue) * 100)) : 0;
 
   function openLog(month: number) {
     const already = selfId ? paidInCycle(data, selfId, month) : 0;
@@ -72,15 +83,69 @@ export function TrackedChitPage() {
   return (
     <AppShell crumb="Chits" crumb2={data.name}>
       <div className="page">
-        <div className="row-head top">
-          <div>
-            <div className="title-row">
+        <section className="chit-hero">
+          <div className="chit-hero-top">
+            <div className="chit-hero-avatar">{initials(data.name)}</div>
+            <div className="chit-hero-heading">
               <h1>{data.name}</h1>
-              <span className="badge">Tracking</span>
-              <span className="pill paid">{data.status === "running" ? "Active" : data.status}</span>
+              <p>
+                {TYPE_LABEL[data.type] || "Bhishi"} · Tracking
+                {data.title ? ` · ${data.title}` : ""}
+              </p>
             </div>
-            <p className="page-sub">{inr(instalment)}/Month · {data.duration} months · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</p>
+            <span className={`chit-hero-pill${isRunning ? " live" : ""}`}>
+              {isRunning ? "Active" : data.status}
+            </span>
           </div>
+          <div className="chit-hero-divider" />
+          <div className="chit-hero-grid">
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Instalment</span>
+                <strong>{inr(instalment)}/{FREQ_LABEL[data.frequency] || "mo"}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Duration</span>
+                <strong>{data.duration} months</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Started</span>
+                <strong>{new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Ends</span>
+                <strong>{ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Route size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Progress</span>
+                <strong>{pct}% paid</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Month</span>
+                <strong>{cycle} / {data.duration}</strong>
+              </div>
+            </div>
+          </div>
+          <p className="chit-hero-note">Personal tracking · log what you pay each month</p>
+        </section>
+
+        <div className="row-head" style={{ marginBottom: 12 }}>
           <button
             className="btn danger"
             onClick={() => {
@@ -89,9 +154,10 @@ export function TrackedChitPage() {
               }
             }}
           >
-            Cancel
+            Cancel tracking
           </button>
         </div>
+
         {error && <p className="due">{error}</p>}
 
         <div className="stats four">

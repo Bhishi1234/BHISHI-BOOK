@@ -1,5 +1,13 @@
 import { useMemo } from "react";
-import { AlertCircle, Calendar, PiggyBank, Wallet } from "lucide-react";
+import {
+  AlertCircle,
+  Calendar,
+  CalendarRange,
+  PiggyBank,
+  UserRound,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import {
@@ -9,7 +17,7 @@ import {
   paymentStatus,
   rawCycleDue,
 } from "../lib/chitMath";
-import { MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
+import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard } from "../ui/StatCard";
 
@@ -50,22 +58,76 @@ export function MemberChitPage() {
   const monthPaid = selfId ? paidInCycle(data, selfId, cycle) : 0;
   const monthStatus = selfId ? paymentStatus(data, selfId, cycle) : "due";
   const wins = data.auctions.filter((a) => a.method !== "settlement");
+  const isRunning = data.status === "running";
+  const ended = new Date(data.startDate);
+  ended.setMonth(ended.getMonth() + data.duration);
 
   return (
     <AppShell crumb="Chits" crumb2={data.name}>
       <div className="page">
-        <div className="row-head top">
-          <div>
-            <div className="title-row">
+        <section className="chit-hero">
+          <div className="chit-hero-top">
+            <div className="chit-hero-avatar">{initials(data.name)}</div>
+            <div className="chit-hero-heading">
               <h1>{data.name}</h1>
-              <span className="badge">Shared</span>
-              <span className="pill paid">{data.status === "running" ? "Active" : data.status}</span>
-              <span className="badge">{TYPE_LABEL[data.type]}</span>
+              <p>
+                {TYPE_LABEL[data.type]} · Shared
+                {data.title ? ` · ${data.title}` : ""}
+              </p>
             </div>
-            <p className="page-sub">
-              Read-only view · {data.members.length} members · {inr(data.instalment)}/{data.frequency}
-            </p>
+            <span className={`chit-hero-pill${isRunning ? " live" : ""}`}>
+              {isRunning ? "Active" : data.status}
+            </span>
           </div>
+          <div className="chit-hero-divider" />
+          <div className="chit-hero-grid">
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Users size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Members</span>
+                <strong>{data.members.length} of {data.membersCount}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Instalment</span>
+                <strong>{inr(data.instalment)}/{FREQ_LABEL[data.frequency] || data.frequency}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Started</span>
+                <strong>{new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Ends</span>
+                <strong>{ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><UserRound size={16} strokeWidth={2} /></div>
+              <div>
+                <span>You</span>
+                <strong>{selfName}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Month</span>
+                <strong>{cycle} / {data.duration}</strong>
+              </div>
+            </div>
+          </div>
+          <p className="chit-hero-note">Read-only passbook · organiser records collections</p>
+        </section>
+
+        <div className="row-head" style={{ marginBottom: 12 }}>
           <Link className="btn ghost" to="/chits">All chits</Link>
         </div>
 
@@ -87,7 +149,7 @@ export function MemberChitPage() {
 
         <div className="card block">
           <div className="person" style={{ marginBottom: 12 }}>
-            <div className="avatar">{initials(selfName)}</div>
+            <div className="avatar tone-blue">{initials(selfName)}</div>
             <div>
               <strong>{selfName}</strong>
               <div className="muted">{user?.phone || "—"} · month status: {monthStatus}</div>
