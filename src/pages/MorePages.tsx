@@ -47,13 +47,44 @@ export function SupportPage() {
 }
 
 export function UpgradePage() {
-  const { user, setPlan } = useStore();
-  const [tab, setTab] = useState<"payg" | "month" | "year">("payg");
+  const { user, setPlan, error } = useStore();
+  const [tab, setTab] = useState<"payg" | "month" | "year">("month");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  async function startPaid(plan: "pro" | "power") {
+    if (tab === "payg") return;
+    setLocalError(null);
+    setBusy(`${plan}-${tab}`);
+    try {
+      const { createBillingSubscription, openSubscriptionCheckout } = await import("../lib/billing");
+      const { isSupabaseConfigured } = await import("../lib/supabase");
+      if (!isSupabaseConfigured()) {
+        // Local mock / no Supabase: keep demo behaviour
+        await setPlan(plan);
+        return;
+      }
+      const session = await createBillingSubscription(plan, tab);
+      sessionStorage.setItem("bhishi_billing_sub", session.merchantSubscriptionId);
+      await openSubscriptionCheckout(session.subscriptionSessionId, session.cashfreeEnv);
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : "Checkout failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <AppShell crumb="Plan & billing">
       <div className="page">
         <h1>Upgrade</h1>
-        <p className="page-sub">Current plan: {user?.plan.toUpperCase()}</p>
+        <p className="page-sub">
+          Current plan: <strong>{user?.plan.toUpperCase()}</strong>
+          {user?.planExpiresAt
+            ? ` · renews / ends ${new Date(user.planExpiresAt).toLocaleDateString("en-IN")}`
+            : ""}
+        </p>
+        {(localError || error) && <p className="due">{localError || error}</p>}
         <div className="seg center">
           <button className={`chip ${tab === "payg" ? "dark" : ""}`} onClick={() => setTab("payg")}>Pay as you go</button>
           <button className={`chip ${tab === "month" ? "on" : ""}`} onClick={() => setTab("month")}>Monthly</button>
@@ -65,7 +96,7 @@ export function UpgradePage() {
             <p className="muted">Start a chit and pay for the months it runs. Nothing to subscribe to, and it stops when the chit closes.</p>
             <div className="kv"><span>Your first chit</span><strong>Free</strong></div>
             <div className="kv"><span>Every chit after that</span><strong>₹100 a month</strong></div>
-            <p className="muted">Every Pro feature is included — nothing is locked behind a plan.</p>
+            <p className="muted">Per-chit Cashfree charging will follow in a later release. Subscribe to Pro/Power for unlimited organised capacity now.</p>
           </div>
         )}
         {tab !== "payg" && (
@@ -74,16 +105,31 @@ export function UpgradePage() {
               <h2>Pro</h2>
               <p className="price">{tab === "month" ? "₹199 / month" : "₹1,999 / year"}</p>
               <ul><li>Up to 5 active chits</li><li>PDF ledger and passbooks</li><li>Payment reminders</li></ul>
-              <button className="btn" onClick={() => void setPlan("pro")}>{user?.plan === "pro" ? "Current plan" : "Upgrade to Pro"}</button>
+              <button
+                className="btn"
+                disabled={!!busy || user?.plan === "pro"}
+                onClick={() => void startPaid("pro")}
+              >
+                {user?.plan === "pro" ? "Current plan" : busy === `pro-${tab}` ? "Opening Cashfree…" : "Subscribe to Pro"}
+              </button>
             </div>
             <div className="card">
               <h2>Power</h2>
               <p className="price">{tab === "month" ? "₹499 / month" : "₹4,999 / year"}</p>
               <ul><li>Unlimited chits</li><li>Custom member messages</li><li>Onboarding help</li></ul>
-              <button className="btn" onClick={() => void setPlan("power")}>{user?.plan === "power" ? "Current plan" : "Upgrade to Power"}</button>
+              <button
+                className="btn"
+                disabled={!!busy || user?.plan === "power"}
+                onClick={() => void startPaid("power")}
+              >
+                {user?.plan === "power" ? "Current plan" : busy === `power-${tab}` ? "Opening Cashfree…" : "Subscribe to Power"}
+              </button>
             </div>
           </div>
         )}
+        <p className="muted" style={{ marginTop: 16 }}>
+          Payments are processed by Cashfree. Your plan activates after webhook confirmation (not only the success redirect).
+        </p>
       </div>
     </AppShell>
   );

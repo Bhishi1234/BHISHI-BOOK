@@ -33,6 +33,7 @@ type Store = {
   deactivateAccount: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<void>;
   setPlan: (plan: PlanId) => Promise<void>;
+  refresh: () => Promise<void>;
   addCustomer: (name: string, phone: string) => Promise<Customer>;
   addChit: (chit: Omit<Chit, "id" | "payments" | "status">) => Promise<string>;
   cancelChit: (id: string) => Promise<void>;
@@ -154,6 +155,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPlan: async (plan) => {
         const next = await guarded(() => api.setPlan(plan));
         setUser(next);
+      },
+      refresh: async () => {
+        await reload();
       },
       addCustomer: async (name, phone) => {
         const c = await guarded(() => api.addCustomer(name, phone));

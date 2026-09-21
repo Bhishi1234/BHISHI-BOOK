@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.bhishibook.app",
+  appId: "com.bhishi.bhishiapp",
   appName: "Bhishi Book",
   webDir: "dist",
   server: {

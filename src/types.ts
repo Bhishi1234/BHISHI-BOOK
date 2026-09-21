@@ -29,6 +29,7 @@ export type User = {
   plan: PlanId;
   language?: string;
   billingMode?: "subscription" | "payg";
+  planExpiresAt?: string | null;
 };
 
 export type Customer = {

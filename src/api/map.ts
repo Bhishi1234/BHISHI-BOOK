@@ -5,14 +5,22 @@ function num(v: unknown) {
 }
 
 export function mapUser(row: Record<string, unknown>): User {
+  const planRaw = (row.plan as User["plan"]) || "free";
+  const expiresRaw = row.plan_expires_at ?? row.planExpiresAt;
+  const expires = expiresRaw != null ? String(expiresRaw) : null;
+  const expired =
+    (planRaw === "pro" || planRaw === "power") &&
+    expires != null &&
+    new Date(expires).getTime() <= Date.now();
   return {
     id: String(row.id ?? ""),
     name: String(row.name || "Organiser"),
     email: String(row.email || ""),
     phone: String(row.phone || ""),
-    plan: (row.plan as User["plan"]) || "free",
+    plan: expired ? "free" : planRaw,
     language: String(row.language || "en"),
     billingMode: (row.billing_mode as User["billingMode"]) || (row.billingMode as User["billingMode"]) || "payg",
+    planExpiresAt: expires,
   };
 }
 

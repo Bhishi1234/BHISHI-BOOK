@@ -1,4 +1,4 @@
 storePassword=YOUR_STORE_PASSWORD
 keyPassword=YOUR_KEY_PASSWORD
-keyAlias=bhishi
-storeFile=../bhishi-upload.keystore
+keyAlias=android
+storeFile=../android-play.keystore

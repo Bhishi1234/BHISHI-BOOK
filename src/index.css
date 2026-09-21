@@ -237,12 +237,76 @@ textarea.field { min-height: 120px; resize: vertical; }
 }
 .list-row strong.num { margin-left: auto; }
 
-.stepper { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; margin: 4px 0 24px; }
+.stepper { display: none; }
 .step { display: flex; align-items: flex-start; gap: 10px; color: var(--muted); padding-right: 16px; }
 .step b { width: 22px; height: 22px; border-radius: 50%; background: #eef2f6; display: grid; place-items: center; font-size: 12px; flex: none; font-weight: 600; }
 .step.on { color: var(--ink); }
 .step.on b { background: var(--blue); color: #fff; }
 .step small { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; font-size: 12.5px; }
+
+/* Segmented wizard tabs (mobile-first create flow) */
+.wizard-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 4px 0 20px;
+  padding: 4px;
+  background: #eef1f5;
+  border-radius: 999px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.wizard-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+}
+.wizard-tab:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 1px;
+  background: #d5dae3;
+}
+.wizard-tab.active::after,
+.wizard-tab.active + .wizard-tab::after,
+.wizard-tab:disabled {
+  /* hide divider next to active; keep disabled look */
+}
+.wizard-tab.active {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.1);
+  z-index: 1;
+}
+.wizard-tab.active::after { display: none; }
+.wizard-tab.done { color: #374151; }
+.wizard-tab:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.wizard-tab-label { display: block; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 4px;
+}
+.wizard-actions .btn { min-width: 110px; }
 
 .type-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .type-pick {
@@ -380,6 +444,17 @@ body.native-app {
   .bottom-tab.active { color: var(--blue); font-weight: 600; }
   .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
   .tab { flex: none; }
+  .wizard-tabs { margin-bottom: 16px; }
+  .wizard-tab { font-size: 12.5px; padding: 11px 6px; }
+  .new-chit-page .page-sub { font-size: 13px; }
+  .new-chit-terms .live-preview-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 12px;
+    margin-top: 12px;
+  }
+  .new-chit-terms .live-preview-card .row-head { grid-column: 1 / -1; }
+  .wizard-actions { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); padding: 12px 0 8px; margin-top: 12px; z-index: 5; }
 }
 
 @media (max-width: 480px) {

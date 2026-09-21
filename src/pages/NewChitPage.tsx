@@ -209,30 +209,49 @@ export function NewChitPage() {
   const membersStepLabel = needsStyleStep(type) ? 4 : 3;
   const showPayoutOrder = type === "fixed" && (fixedStyle === "fixed_order" || fixedStyle === "hand_sacrifice");
 
+  function goToTab(i: number) {
+    // Only allow jumping back, or to the current step
+    if (i <= displayStep) {
+      if (needsStyleStep(type)) setStep(i);
+      else setStep(i === 0 ? 0 : i + 1);
+    }
+  }
+
   return (
     <AppShell crumb="Chits" crumb2="New chit">
-      <div className="page">
+      <div className="page new-chit-page">
         <div className="row-head">
           <div>
             <h1>New chit</h1>
-            <p className="page-sub">Set the terms once — every cycle, dividend and payout is derived from them.</p>
+            <p className="page-sub">One step at a time — then create your bhishi.</p>
           </div>
           <button className="btn ghost" onClick={() => nav("/chits")}>Cancel</button>
         </div>
 
-        <div className="stepper">
-          {stepper.map(([t, s], i) => (
-            <div key={t} className={`step ${i <= displayStep ? "on" : ""}`}>
-              <b>{i < displayStep ? "✓" : i + 1}</b>
-              <div><div>{t}</div><small>{s}</small></div>
-            </div>
-          ))}
-        </div>
+        <nav className="wizard-tabs" aria-label="Create steps">
+          {stepper.map(([t], i) => {
+            const active = i === displayStep;
+            const done = i < displayStep;
+            return (
+              <button
+                key={t}
+                type="button"
+                className={`wizard-tab${active ? " active" : ""}${done ? " done" : ""}`}
+                onClick={() => goToTab(i)}
+                disabled={i > displayStep}
+                aria-current={active ? "step" : undefined}
+              >
+                <span className="wizard-tab-label">{t}</span>
+              </button>
+            );
+          })}
+        </nav>
         {error && <p className="due">{error}</p>}
 
         {step === 0 && (
           <div className="card">
-            <div className="row-head"><h2>Type</h2><span className="muted">Step 1</span></div>
+            <div className="row-head"><h2>Type</h2><span className="muted">Step 1 of {stepper.length}</span></div>
+            <p className="muted block">How winners are decided each cycle.</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
               {TYPES.map((t) => (
                 <button key={t.id} className={`type-pick ${type === t.id ? "active" : ""}`} onClick={() => setType(t.id)}>
@@ -241,18 +260,17 @@ export function NewChitPage() {
                 </button>
               ))}
             </div>
-            <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
+            <div className="wizard-actions">
               <span />
-              <button className="btn" onClick={goFromType}>
-                {needsStyleStep(type) ? `Continue to ${type === "auction" ? "auction" : "fixed"} style →` : "Continue to terms →"}
-              </button>
+              <button className="btn" onClick={goFromType}>Next</button>
             </div>
           </div>
         )}
 
         {step === 1 && type === "auction" && (
           <div className="card">
-            <div className="row-head"><h2>Auction style</h2><span className="muted">Step 2</span></div>
+            <div className="row-head"><h2>Auction style</h2><span className="muted">Step 2 of {stepper.length}</span></div>
+            <p className="muted block">When the auction runs relative to collections.</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
               {AUCTION_STYLES.map((s) => (
                 <button
@@ -266,16 +284,17 @@ export function NewChitPage() {
                 </button>
               ))}
             </div>
-            <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
+            <div className="wizard-actions">
               <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
-              <button className="btn" onClick={() => setStep(2)}>Continue to terms →</button>
+              <button className="btn" onClick={() => setStep(2)}>Next</button>
             </div>
           </div>
         )}
 
         {step === 1 && type === "fixed" && (
           <div className="card">
-            <div className="row-head"><h2>Fixed style</h2><span className="muted">Step 2</span></div>
+            <div className="row-head"><h2>Fixed style</h2><span className="muted">Step 2 of {stepper.length}</span></div>
+            <p className="muted block">How the pot is awarded each month.</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr" }}>
               {FIXED_STYLES.map((s) => (
                 <button
@@ -289,18 +308,18 @@ export function NewChitPage() {
                 </button>
               ))}
             </div>
-            <div className="row-head" style={{ marginBottom: 0, marginTop: 20 }}>
+            <div className="wizard-actions">
               <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
-              <button className="btn" onClick={() => setStep(2)}>Continue to terms →</button>
+              <button className="btn" onClick={() => setStep(2)}>Next</button>
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div className="grid-2">
+          <div className="grid-2 new-chit-terms">
             <div>
               <div className="card">
-                <div className="row-head"><h2>Terms</h2><span className="muted">Step {termsStepLabel}</span></div>
+                <div className="row-head"><h2>Terms</h2><span className="muted">Step {termsStepLabel} of {stepper.length}</span></div>
                 <div className="grid-2">
                   <div>
                     <label className="label">Total amount</label>
@@ -404,19 +423,19 @@ export function NewChitPage() {
                   <input className="toggle" type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
                   I understand how this chit works and the details above are correct.
                 </label>
-                <div className="toolbar">
+                <div className="wizard-actions">
                   <button className="btn ghost" onClick={() => setStep(needsStyleStep(type) ? 1 : 0)}>Back</button>
                   <button
                     className="btn"
                     disabled={!confirm || !potN || !n || (type === "loan" && !interestN)}
                     onClick={() => setStep(3)}
                   >
-                    Continue to members
+                    Next
                   </button>
                 </div>
               </div>
             </div>
-            <div className="card" style={{ alignSelf: "start" }}>
+            <div className="card live-preview-card" style={{ alignSelf: "start" }}>
               <div className="row-head"><h2>Live preview</h2></div>
               {preview.style && <div className="kv"><span>Style</span><strong>{preview.style}</strong></div>}
               <div className="kv"><span>Members</span><strong>{preview.members}</strong></div>
@@ -429,7 +448,7 @@ export function NewChitPage() {
 
         {step === 3 && (
           <div className="card">
-            <div className="row-head"><h2>Members</h2><span className="muted">Step {membersStepLabel}</span></div>
+            <div className="row-head"><h2>Members</h2><span className="muted">Step {membersStepLabel} of {stepper.length}</span></div>
             <p className="muted block">
               {showPayoutOrder
                 ? fixedStyle === "hand_sacrifice"
@@ -506,14 +525,14 @@ export function NewChitPage() {
               {n > 0 && picked.length < n ? " Add a hand for each remaining slot before creating." : ""}
               {n > 0 && picked.length === n ? " All slots filled — ready to create." : ""}
             </p>
-            <div className="toolbar">
+            <div className="wizard-actions">
               <button className="btn ghost" onClick={() => setStep(2)}>Back</button>
               <button
                 className="btn"
                 disabled={saving || !n || picked.length !== n}
                 onClick={() => void create()}
               >
-                {saving ? "Creating…" : "Create chit"}
+                {saving ? "Creating…" : "Create bhishi"}
               </button>
             </div>
           </div>

@@ -38,26 +38,18 @@ npm run cap:open
 
 In Android Studio: run on an emulator or USB device (debug).
 
-App id: `com.bhishibook.app`
+App id: `com.bhishi.bhishiapp` (same as the live Play listing; v2 of the previous TWA app)
 
-## Create a release keystore (once)
+## Signing (live Play key)
 
-Do **not** commit the keystore or passwords.
+Use the **original** keystore from the published app — not a newly generated one.
 
-```bash
-keytool -genkey -v -keystore bhishi-upload.keystore -alias bhishi -keyalg RSA -keysize 2048 -validity 10000
-```
+- File: `android-play.keystore` (copied from `BHISHI APP/android/android.keystore`)
+- Alias: `android`
+- Config: `android/key.properties` (gitignored)
+- Credentials note: `android-play.keystore.credentials.txt` (gitignored)
 
-Copy `android/key.properties.example` → `android/key.properties`:
-
-```
-storePassword=YOUR_STORE_PASSWORD
-keyPassword=YOUR_KEY_PASSWORD
-keyAlias=bhishi
-storeFile=../bhishi-upload.keystore
-```
-
-Place `bhishi-upload.keystore` next to the `android/` folder (or adjust `storeFile`).
+`versionCode` must always increase for each Play upload (currently **4** / `2.0`).
 
 ## Build a Play Store AAB
 

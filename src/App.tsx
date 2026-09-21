@@ -16,6 +16,7 @@ import {
   SupportPage,
   UpgradePage,
 } from "./pages/MorePages";
+import { BillingFailedPage, BillingSuccessPage } from "./pages/BillingPages";
 
 function Guard({ children }: { children: ReactNode }) {
   const { user, ready } = useStore();
@@ -39,6 +40,8 @@ export default function App() {
       <Route path="/customers/:id" element={<Guard><CustomerDetailPage /></Guard>} />
       <Route path="/support" element={<Guard><SupportPage /></Guard>} />
       <Route path="/upgrade" element={<Guard><UpgradePage /></Guard>} />
+      <Route path="/billing/success" element={<Guard><BillingSuccessPage /></Guard>} />
+      <Route path="/billing/failed" element={<Guard><BillingFailedPage /></Guard>} />
       <Route path="/profile" element={<Guard><ProfilePage /></Guard>} />
       <Route path="/search" element={<Guard><SearchPage /></Guard>} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -27,6 +27,7 @@ android/*.jks
 android/key.properties
 *.keystore
 *.jks
+*.keystore.credentials.txt
 key.properties
 
 # Editor directories and files
