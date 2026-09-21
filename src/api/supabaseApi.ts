@@ -1,13 +1,24 @@
 import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
 import { getSupabase } from "../lib/supabase";
-import { normalizeEmail } from "../lib/email";
-import { phone10 } from "../lib/phone";
+import { e164in, phone10 } from "../lib/phone";
 import { throwIf } from "./errors";
 import { chitPayload, mapAuction, mapChit, mapCustomer, mapTicket, mapUser } from "./map";
 import { META_FREQUENCIES, META_TYPES } from "./contract";
 import { assertCanSettlePayout } from "../lib/chitMath";
 
 const CHIT_SELECT = "*, members:chit_members(*), payments(*), auctions(*)";
+
+function right10(value: string | null | undefined) {
+  return String(value || "").replace(/\D/g, "").slice(-10);
+}
+
+async function syncProfilePhone(sb: ReturnType<typeof getSupabase>, digits: string) {
+  try {
+    await sb.rpc("set_profile_phone", { p_phone: digits });
+  } catch {
+    // Already linked via handle_new_user or owned by this account.
+  }
+}
 
 async function requireUser() {
   const sb = getSupabase();
@@ -35,7 +46,7 @@ async function loadPayments(chitId: string) {
 
 export const supabaseApi = {
   authHint() {
-    return "Sign in with your email and password.";
+    return "Enter the 6-digit SMS code sent to this number.";
   },
 
   onAuthChange(cb: () => void) {
@@ -44,28 +55,55 @@ export const supabaseApi = {
     return () => data.subscription.unsubscribe();
   },
 
-  async signUp(email: string, password: string) {
-    const addr = normalizeEmail(email);
-    if (password.length < 6) throw new Error("Password must be at least 6 characters");
+  async sendOtp(phone: string) {
+    const digits = phone10(phone);
     const sb = getSupabase();
-    const { data, error } = await sb.auth.signUp({
-      email: addr,
-      password,
-      options: { emailRedirectTo: `${window.location.origin}/login` },
-    });
-    throwIf(error);
-    const confirmed = Boolean(data.user?.email_confirmed_at);
-    if (data.session && !confirmed) await sb.auth.signOut();
-    return { ok: true as const, needsVerification: !confirmed };
+    // Prefer native Supabase Phone Auth (Twilio / MessageBird / etc.).
+    const { error } = await sb.auth.signInWithOtp({ phone: e164in(digits) });
+    if (!error) return { ok: true as const, provider: "PHONE" };
+
+    // Optional fallback: custom edge function (MSG91 / legacy).
+    const invoked = await sb.functions.invoke("auth-otp-send", { body: { phone: digits } });
+    if (!invoked.error && invoked.data && !invoked.data.error) {
+      return {
+        ok: true as const,
+        provider: String(invoked.data.provider || "EDGE"),
+        devOtp: invoked.data.devOtp as string | undefined,
+      };
+    }
+    throw new Error(error.message || invoked.data?.error || invoked.error?.message || "Could not send OTP");
   },
 
-  async signIn(email: string, password: string) {
-    const addr = normalizeEmail(email);
+  async verifyOtp(phone: string, otp: string) {
+    const digits = phone10(phone);
+    const code = otp.replace(/\D/g, "");
+    if (code.length !== 6) throw new Error("otp must be 6 digits");
     const sb = getSupabase();
-    const { error } = await sb.auth.signInWithPassword({ email: addr, password });
-    throwIf(error);
-    await sb.rpc("reactivate_if_allowed");
-    return { ok: true as const };
+
+    const { error } = await sb.auth.verifyOtp({
+      phone: e164in(digits),
+      token: code,
+      type: "sms",
+    });
+    if (!error) {
+      await syncProfilePhone(sb, digits);
+      await sb.rpc("reactivate_if_allowed");
+      return { ok: true };
+    }
+
+    const invoked = await sb.functions.invoke("auth-otp-verify", { body: { phone: digits, otp: code } });
+    if (!invoked.error && invoked.data?.session) {
+      const { error: sessionError } = await sb.auth.setSession({
+        access_token: invoked.data.session.access_token,
+        refresh_token: invoked.data.session.refresh_token,
+      });
+      throwIf(sessionError);
+      await syncProfilePhone(sb, digits);
+      await sb.rpc("reactivate_if_allowed");
+      return { ok: true };
+    }
+
+    throw new Error(error.message || invoked.data?.error || invoked.error?.message || "Invalid OTP");
   },
 
   async logout() {
@@ -78,9 +116,11 @@ export const supabaseApi = {
     const { sb, user } = await requireUser();
     const { data, error } = await sb.rpc("reactivate_if_allowed");
     throwIf(error);
+    const phoneFromAuth = right10(user.phone);
     return mapUser({
       ...(data as Record<string, unknown>),
       email: (data as { email?: string })?.email || user.email || "",
+      phone: (data as { phone?: string })?.phone || phoneFromAuth || "",
     });
   },
 

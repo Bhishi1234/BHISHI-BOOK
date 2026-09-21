@@ -9,18 +9,15 @@ import type {
   User,
 } from "../types";
 import { assertCanSettlePayout, canCloseLastMonth, cycleDue, inferKind } from "../lib/chitMath";
-import { normalizeEmail } from "../lib/email";
 import { uid } from "../lib/format";
 
 const KEY = "bhishi-book-api-v8";
 
 type Session = { token: string; user: User };
-type Account = { email: string; password: string };
 type Db = {
   session: Session | null;
   pendingEmail: string | null;
   pendingPhone: string | null;
-  accounts: Account[];
   customers: Customer[];
   chits: Chit[];
   tickets: Ticket[];
@@ -33,7 +30,6 @@ function blankDb(): Db {
     session: null,
     pendingEmail: null,
     pendingPhone: null,
-    accounts: [],
     tickets: [],
     customers: [],
     chits: [],
@@ -46,7 +42,6 @@ function emptyDb(): Db {
     session: null,
     pendingEmail: null,
     pendingPhone: null,
-    accounts: [],
     tickets: [],
     customers: [
       { id: "c1", name: "ANIKET", phone: "9000000001" },
@@ -246,29 +241,27 @@ export const mockServer = {
   },
 
   auth: {
-    signUp(email: string, password: string) {
-      const addr = normalizeEmail(email);
-      if (password.length < 6) throw new Error("Password must be at least 6 characters");
+    sendOtp(phone: string) {
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      if (digits.length !== 10) throw new Error("phone must be 10 digits");
       const db = read();
-      db.accounts = db.accounts ?? [];
-      if (db.accounts.some((a) => a.email === addr)) throw new Error("An account with this email already exists");
-      db.accounts.push({ email: addr, password });
+      db.pendingPhone = digits;
       write(db);
-      return { ok: true as const, needsVerification: false };
+      return { ok: true as const, provider: "MOCK", devOtp: "123456" };
     },
-    signIn(email: string, password: string) {
-      const addr = normalizeEmail(email);
+    verifyOtp(phone: string, otp: string) {
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      if (otp.replace(/\D/g, "").length !== 6) throw new Error("otp must be 6 digits");
       const db = read();
-      const account = (db.accounts ?? []).find((a) => a.email === addr);
-      if (!account || account.password !== password) throw new Error("Invalid email or password");
       db.session = {
         token: uid("tok"),
         user: {
           ...demoUser,
-          email: addr,
-          name: db.session?.user.name || addr.split("@")[0] || "Organiser",
+          phone: digits,
+          name: db.session?.user.name || "Organiser",
         },
       };
+      db.pendingPhone = null;
       write(db);
       return db.session;
     },

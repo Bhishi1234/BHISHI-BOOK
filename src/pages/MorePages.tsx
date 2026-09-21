@@ -138,21 +138,19 @@ export function UpgradePage() {
 export function ProfilePage() {
   const { user, updateProfile, logout, deactivateAccount, error } = useStore();
   const [name, setName] = useState(user?.name || "");
-  const [phone, setPhone] = useState(user?.phone || "");
   const [lang, setLang] = useState(user?.language || "en");
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setName(user?.name || "");
-    setPhone(user?.phone || "");
     setLang(user?.language || "en");
-  }, [user?.name, user?.phone, user?.language]);
+  }, [user?.name, user?.language]);
 
   async function saveProfile() {
     setSaving(true);
     try {
-      await updateProfile({ name: name.trim() || user?.name, phone: phone.trim(), language: lang });
+      await updateProfile({ name: name.trim() || user?.name, language: lang });
       setEdit(false);
     } catch {
       /* store sets error */
@@ -167,22 +165,16 @@ export function ProfilePage() {
         <h1 className="block">Profile</h1>
         <div className="stack">
         <div className="card">
+          <label className="label">Phone</label>
+          <p><strong>{user?.phone ? `+91 ${user.phone}` : "Not set"}</strong></p>
           <label className="label">Name</label>
           {edit ? <input className="field" value={name} onChange={(e) => setName(e.target.value)} /> : <p><strong>{user?.name}</strong></p>}
-          <label className="label">Email</label>
-          <p>{user?.email || "—"}</p>
-          <label className="label">Phone</label>
-          {edit ? (
-            <input
-              className="field"
-              inputMode="numeric"
-              placeholder="10-digit mobile"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            />
-          ) : (
-            <p><strong>{user?.phone || "Not set"}</strong></p>
-          )}
+          {user?.email ? (
+            <>
+              <label className="label">Email</label>
+              <p>{user.email}</p>
+            </>
+          ) : null}
           {edit
             ? (
               <div className="seg" style={{ marginTop: 12 }}>
@@ -191,7 +183,6 @@ export function ProfilePage() {
                 </button>
                 <button className="btn ghost" type="button" disabled={saving} onClick={() => {
                   setName(user?.name || "");
-                  setPhone(user?.phone || "");
                   setEdit(false);
                 }}>
                   Cancel
@@ -201,7 +192,7 @@ export function ProfilePage() {
             : <button className="btn ghost" onClick={() => setEdit(true)}>Edit profile</button>}
           {error && edit && <p className="due" style={{ marginTop: 8 }}>{error}</p>}
           <p className="muted">
-            Your email is used to sign in and can’t be changed here. Add the same phone number your organiser used when adding you to a chit — then shared groups appear under Chits.
+            You sign in with this phone number via SMS OTP. Use the same number your organiser saved when adding you to a chit — then shared groups appear under Chits.
           </p>
         </div>
         <div className="card">

@@ -1,5 +1,5 @@
 import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
-import { normalizeEmail } from "../lib/email";
+import { phone10 } from "../lib/phone";
 import { readJson } from "./errors";
 import { chitPayload, mapAuction, mapChit, mapCustomer, mapTicket, mapUser } from "./map";
 import { META_FREQUENCIES, META_TYPES } from "./contract";
@@ -41,28 +41,24 @@ async function request(path: string, init: RequestInit = {}) {
 
 export const restApi = {
   authHint() {
-    return "Sign in with your email and password.";
+    return "Enter the 6-digit SMS code sent to this number.";
   },
 
   onAuthChange(_cb: () => void) {
     return () => undefined;
   },
 
-  async signUp(email: string, password: string) {
-    return request("/api/v1/auth/sign-up", {
+  async sendOtp(phone: string) {
+    return request("/api/v1/auth/send-otp", {
       method: "POST",
-      body: JSON.stringify({
-        email: normalizeEmail(email),
-        password,
-        redirectTo: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
-      }),
+      body: JSON.stringify({ phone: phone10(phone) }),
     });
   },
 
-  async signIn(email: string, password: string) {
-    const data = await request("/api/v1/auth/sign-in", {
+  async verifyOtp(phone: string, otp: string) {
+    const data = await request("/api/v1/auth/verify-otp", {
       method: "POST",
-      body: JSON.stringify({ email: normalizeEmail(email), password }),
+      body: JSON.stringify({ phone: phone10(phone), otp }),
     });
     if (!data.session?.access_token) throw new Error("Could not start session");
     writeSession({

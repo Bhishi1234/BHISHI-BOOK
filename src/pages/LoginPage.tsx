@@ -1,45 +1,56 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 
-function isEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
 export function LoginPage() {
-  const { signIn, signUp, logout, user, error } = useStore();
+  const { sendOtp, verifyOtp, logout, user, authHint, error } = useStore();
   const nav = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const refs = useRef<Array<HTMLInputElement | null>>([]);
 
-  const canSubmit = isEmail(email) && password.length >= 6 && (mode === "signin" || password === confirm);
+  const digits = phone.replace(/\D/g, "").slice(0, 10);
 
-  async function submit() {
-    if (!canSubmit) return;
-    setBusy(true);
-    setNotice(null);
+  async function send() {
+    if (digits.length !== 10) return;
+    setSending(true);
     try {
-      if (mode === "signup") {
-        const result = await signUp(email.trim(), password);
-        if (result.needsVerification) {
-          setNotice(`We sent a verification link to ${email.trim()}. Open it, then sign in with your password.`);
-          setMode("signin");
-          setPassword("");
-          setConfirm("");
-          return;
-        }
-        nav("/");
-        return;
-      }
-      await signIn(email.trim(), password);
+      const sent = await sendOtp(digits);
+      setDevOtp(sent.devOtp || null);
+      setOtp(["", "", "", "", "", ""]);
+      setStep("otp");
+      setTimeout(() => refs.current[0]?.focus(), 50);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function submitOtp(code: string) {
+    if (code.length !== 6 || verifying) return;
+    setVerifying(true);
+    try {
+      await verifyOtp(digits, code);
       nav("/");
     } finally {
-      setBusy(false);
+      setVerifying(false);
     }
+  }
+
+  function typeOtp(i: number, v: string) {
+    const d = v.replace(/\D/g, "").slice(-1);
+    const next = [...otp];
+    next[i] = d;
+    setOtp(next);
+    if (d && i < 5) refs.current[i + 1]?.focus();
+    if (next.join("").length === 6) void submitOtp(next.join(""));
+  }
+
+  function onOtpKeyDown(i: number, key: string) {
+    if (key === "Backspace" && !otp[i] && i > 0) refs.current[i - 1]?.focus();
   }
 
   if (user) {
@@ -50,7 +61,9 @@ export function LoginPage() {
           <h1>Bhishi Book</h1>
           <p className="sub">You are signed in</p>
           <div className="login-card">
-            <p className="sub" style={{ marginBottom: 16 }}>{user.email || user.name}</p>
+            <p className="sub" style={{ marginBottom: 16 }}>
+              {user.phone ? `+91 ${user.phone}` : user.name}
+            </p>
             <button className="btn wide" onClick={() => nav("/")}>Go to dashboard</button>
             <button className="btn ghost wide" style={{ marginTop: 10 }} onClick={() => void logout()}>Sign out</button>
           </div>
@@ -66,63 +79,67 @@ export function LoginPage() {
         <h1>Bhishi Book</h1>
         <p className="sub">Manage your chit funds with confidence</p>
         <div className="login-card">
-          <div className="seg center" style={{ marginBottom: 18 }}>
-            <button className={`chip ${mode === "signin" ? "dark" : ""}`} onClick={() => { setMode("signin"); setNotice(null); }}>
-              Sign in
-            </button>
-            <button className={`chip ${mode === "signup" ? "dark" : ""}`} onClick={() => { setMode("signup"); setNotice(null); }}>
-              Create account
-            </button>
-          </div>
-          <label className="label" htmlFor="email">Email</label>
-          <input
-            id="email"
-            className="field"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <label className="label" htmlFor="password">Password</label>
-          <input
-            id="password"
-            className="field"
-            type="password"
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            placeholder="At least 6 characters"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && mode === "signin") void submit(); }}
-          />
-          {mode === "signup" && (
+          {step === "phone" ? (
             <>
-              <label className="label" htmlFor="confirm">Confirm password</label>
-              <input
-                id="confirm"
-                className="field"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Repeat password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
-              />
+              <label className="label" htmlFor="phone">Mobile number</label>
+              <div className="phone-row">
+                <span>+91</span>
+                <input
+                  id="phone"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="98765 43210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+                />
+              </div>
+              <p className="hint">We’ll text a one-time code to this number via SMS.</p>
+              {error && <p className="due">{error}</p>}
+              <button className="btn wide" disabled={sending || digits.length !== 10} onClick={() => void send()}>
+                {sending ? "Sending…" : "Send OTP"}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="sub" style={{ marginBottom: 12, textAlign: "left" }}>
+                Enter the OTP sent to +91 {digits}
+              </p>
+              <div className="otp-boxes">
+                {otp.map((n, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { refs.current[i] = el; }}
+                    value={n}
+                    inputMode="numeric"
+                    autoComplete={i === 0 ? "one-time-code" : "off"}
+                    onChange={(e) => typeOtp(i, e.target.value)}
+                    onKeyDown={(e) => onOtpKeyDown(i, e.key)}
+                    maxLength={1}
+                  />
+                ))}
+              </div>
+              {error && <p className="due">{error}</p>}
+              {devOtp && <p className="fine">Dev OTP: {devOtp}</p>}
+              <button
+                className="btn wide"
+                disabled={verifying || otp.join("").length !== 6}
+                onClick={() => void submitOtp(otp.join(""))}
+              >
+                {verifying ? "Verifying…" : "Verify & continue"}
+              </button>
+              <p className="fine">
+                {authHint}{" "}
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => { setStep("phone"); setDevOtp(null); setOtp(["", "", "", "", "", ""]); }}
+                >
+                  Change number
+                </button>
+              </p>
             </>
           )}
-          {mode === "signup" && password && confirm && password !== confirm && (
-            <p className="due">Passwords do not match.</p>
-          )}
-          {notice && <p className="fine" style={{ textAlign: "left", marginTop: 0 }}>{notice}</p>}
-          {error && <p className="due">{error}</p>}
-          <button className="btn wide" disabled={busy || !canSubmit} onClick={() => void submit()}>
-            {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-          </button>
-          <p className="fine">
-            {mode === "signup"
-              ? "We’ll email a verification link. After you open it, sign in with this password."
-              : "Use the email and password you registered with."}
-          </p>
         </div>
         <p className="fine">
           By continuing, you agree to our Terms and Privacy Policy. Bhishi Book is a
