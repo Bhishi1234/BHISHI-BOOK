@@ -28,38 +28,54 @@ export function ChitsPage() {
           <button className={`chip ${tab === "completed" ? "on" : ""}`} onClick={() => setTab("completed")}>Completed</button>
         </div>
         {!!managed.length && (
-          <div className="card flush block">
-            <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th>Chit</th><th>Cycle</th><th>Per cycle</th><th>Collection</th><th>Status</th></tr></thead>
-              <tbody>
-                {managed.map((c) => {
-                  const pct = chitProgress(c);
-                  return (
-                    <tr key={c.id} className="clickable" onClick={() => nav(chitPath(c))}>
-                      <td>
-                        <div className="person">
-                          <div className="avatar">{initials(c.name)}</div>
-                          <div>
-                            <strong>{c.name}</strong>
-                            <div className="muted">{TYPE_LABEL[c.type].toUpperCase()} · {c.members.length} members</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{displayCycle(c)} / {c.duration}</td>
-                      <td>{inr(c.instalment)}/M</td>
-                      <td><div className="progress"><i style={{ width: `${pct}%` }} /></div></td>
-                      <td><span className="pill paid">{c.status === "running" ? "Active" : c.status}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
+          <div className="dash-chits block">
+            {managed.map((c, i) => {
+              const pct = chitProgress(c);
+              const featured = i === 0;
+              return (
+                <article
+                  key={c.id}
+                  className={`dash-chit${featured ? " featured" : ""}`}
+                  onClick={() => nav(chitPath(c))}
+                >
+                  <div className="dash-chit-top">
+                    <div className="dash-chit-avatar">{initials(c.name)}</div>
+                    <div className="dash-chit-heading">
+                      <strong>{c.name}</strong>
+                      <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
+                    </div>
+                    <span className={`dash-chit-status${c.status === "running" ? " live" : ""}`}>
+                      {c.status === "running" ? "Active" : c.status}
+                    </span>
+                  </div>
+                  <div className="dash-chit-divider" />
+                  <div className="dash-chit-meta">
+                    <div>
+                      <span>Cycle</span>
+                      <strong>{displayCycle(c)} / {c.duration}</strong>
+                    </div>
+                    <div>
+                      <span>Per cycle</span>
+                      <strong>{inr(c.instalment)}</strong>
+                    </div>
+                  </div>
+                  <div className="dash-chit-progress">
+                    <div className="dash-chit-progress-head">
+                      <span>Collection</span>
+                      <strong>{pct}%</strong>
+                    </div>
+                    <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
+        {!managed.length && (
+          <p className="muted block">{tab === "active" ? "No active chits yet." : "No completed chits yet."}</p>
+        )}
 
-        <div className="row-head" style={{ marginTop: managed.length ? 24 : 0 }}>
+        <div className="row-head" style={{ marginTop: managed.length ? 8 : 0 }}>
           <h2>Shared with me</h2>
         </div>
         {!user?.phone && (
@@ -72,52 +88,88 @@ export function ChitsPage() {
             No shared chits yet. Ask your organiser to turn on Member visibility for the group.
           </p>
         )}
-        <div className="cards">
-          {shared.map((c) => {
-            const pct = chitProgress(c);
-            return (
-              <article className="card clickable" key={c.id} onClick={() => nav(chitPath(c))}>
-                <div className="card-top">
-                  <div className="avatar">{initials(c.name)}</div>
-                  <div className="grow">
-                    <div><strong>{c.name}</strong><span className="badge">Shared</span></div>
-                    <div className="muted">{TYPE_LABEL[c.type]} · {displayCycle(c)} / {c.duration} · {inr(c.instalment)}/M</div>
+        {!!shared.length && (
+          <div className="dash-chits block">
+            {shared.map((c) => {
+              const pct = chitProgress(c);
+              return (
+                <article key={c.id} className="dash-chit" onClick={() => nav(chitPath(c))}>
+                  <div className="dash-chit-top">
+                    <div className="dash-chit-avatar">{initials(c.name)}</div>
+                    <div className="dash-chit-heading">
+                      <strong>{c.name}</strong>
+                      <span>{TYPE_LABEL[c.type]} · Shared · {displayCycle(c)} / {c.duration}</span>
+                    </div>
+                    <span className="dash-chit-status">Shared</span>
                   </div>
-                </div>
-                <div className="progress blue"><i style={{ width: `${pct}%` }} /></div>
-                <div className="progress-row"><span /><span>{pct}%</span></div>
-              </article>
-            );
-          })}
-        </div>
-
-        {!!tracking.length && (
-          <div className="row-head" style={{ marginTop: 24 }}>
-            <h2>Tracking</h2>
+                  <div className="dash-chit-divider" />
+                  <div className="dash-chit-meta">
+                    <div>
+                      <span>Per cycle</span>
+                      <strong>{inr(c.instalment)}</strong>
+                    </div>
+                    <div>
+                      <span>Collection</span>
+                      <strong>{pct}%</strong>
+                    </div>
+                  </div>
+                  <div className="dash-chit-progress">
+                    <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
-        <div className="cards">
-          {tracking.map((c) => {
-            const pct = chitProgress(c);
-            return (
-              <article className="card clickable" key={c.id} onClick={() => nav(chitPath(c))}>
-                <div className="card-top">
-                  <div className="avatar">{initials(c.name)}</div>
-                  <div className="grow">
-                    <div><strong>{c.name}</strong><span className="badge">Tracking</span></div>
-                    <div className="muted">{inr(c.instalment)}/Month · {c.duration} Months</div>
-                  </div>
-                  <button className="link" onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}>
-                    <CircleX size={14} /> Cancel
-                  </button>
-                </div>
-                {pct === 0 ? <div className="due">Payment due now</div> : <div className="muted" style={{ margin: "12px 0" }}>{c.payments.length} / {c.duration} paid</div>}
-                <div className="progress blue"><i style={{ width: `${pct}%` }} /></div>
-                <div className="progress-row"><span /><span>{pct}%</span></div>
-              </article>
-            );
-          })}
-        </div>
+
+        {!!tracking.length && (
+          <>
+            <div className="row-head" style={{ marginTop: 8 }}>
+              <h2>Tracking</h2>
+            </div>
+            <div className="dash-chits block">
+              {tracking.map((c) => {
+                const pct = chitProgress(c);
+                return (
+                  <article key={c.id} className="dash-chit" onClick={() => nav(chitPath(c))}>
+                    <div className="dash-chit-top">
+                      <div className="dash-chit-avatar">{initials(c.name)}</div>
+                      <div className="dash-chit-heading">
+                        <strong>{c.name}</strong>
+                        <span>Tracking · {inr(c.instalment)}/mo · {c.duration} months</span>
+                      </div>
+                      <button
+                        className="link"
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}
+                      >
+                        <CircleX size={14} /> Cancel
+                      </button>
+                    </div>
+                    <div className="dash-chit-divider" />
+                    {pct === 0 ? (
+                      <div className="due" style={{ margin: "0 0 10px" }}>Payment due now</div>
+                    ) : (
+                      <div className="dash-chit-meta">
+                        <div>
+                          <span>Paid</span>
+                          <strong>{c.payments.length} / {c.duration}</strong>
+                        </div>
+                        <div>
+                          <span>Progress</span>
+                          <strong>{pct}%</strong>
+                        </div>
+                      </div>
+                    )}
+                    <div className="dash-chit-progress">
+                      <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </AppShell>
   );
