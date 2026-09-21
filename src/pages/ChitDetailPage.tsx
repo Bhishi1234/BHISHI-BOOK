@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import {
+  Calendar,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  Percent,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { PayModal } from "../components/PayModal";
 import { AppShell } from "../layout/AppShell";
 import {
@@ -65,6 +74,7 @@ export function ChitDetailPage() {
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
   const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "settlement" | "settings">("overview");
+  const [monthSub, setMonthSub] = useState<"collect" | "award" | "close">("collect");
   const [payFor, setPayFor] = useState<{ customerId: string; slot: number } | null>(null);
   const [bid, setBid] = useState("");
   const [winnerId, setWinnerId] = useState("");
@@ -72,7 +82,6 @@ export function ChitDetailPage() {
   const [newMemberId, setNewMemberId] = useState("");
   const [visible, setVisible] = useState(true);
   const [remind, setRemind] = useState(true);
-  const [payPick, setPayPick] = useState(false);
   const [unpaidNoted, setUnpaidNoted] = useState(false);
   const [colRange, setColRange] = useState<"today" | "week" | "all">("all");
   const [busyAll, setBusyAll] = useState(false);
@@ -81,6 +90,7 @@ export function ChitDetailPage() {
   const [editName, setEditName] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!chit) return;
@@ -89,6 +99,28 @@ export function ChitDetailPage() {
     setEditName(chit.name);
     setEditTitle(chit.title || "");
   }, [chit?.id, chit?.memberVisible, chit?.remindDays, chit?.name, chit?.title]);
+
+  useEffect(() => {
+    if (tab !== "monthly" || !chit) return;
+    const cyc = displayCycle(chit);
+    const lw = chit.auctions.find((a) => a.cycle === cyc && a.method !== "settlement");
+    const af = isAuctionFirst(chit);
+    const dueLeft = chit.members.filter((m) => {
+      const due = cycleDue(chit, m.customerId, cyc, m.slot);
+      return due - paidInCycle(chit, m.customerId, cyc, m.slot) > 0;
+    }).length;
+    if (af) {
+      if (!lw) setMonthSub("award");
+      else if (dueLeft > 0) setMonthSub("collect");
+      else setMonthSub("close");
+    } else if (lw || (chit.type === "loan" && canSettleCycle(chit))) {
+      setMonthSub(lw ? "close" : "award");
+    } else if (canSettleCycle(chit)) {
+      setMonthSub("award");
+    } else {
+      setMonthSub("collect");
+    }
+  }, [tab, chit?.id, chit?.currentCycle]);
 
   useEffect(() => {
     if (!chit) return;
@@ -158,61 +190,151 @@ export function ChitDetailPage() {
     ? auctionFirstShare(data, cycle)
     : null;
 
+  const styleLabel = auctionFirst
+    ? "Auction first"
+    : data.type === "auction"
+      ? "Collect first"
+      : data.type === "fixed"
+        ? "Fixed order"
+        : data.type === "lucky_draw"
+          ? "Roll each month"
+          : handSacrifice
+            ? "Sacrifice hand"
+            : TYPE_LABEL[data.type];
+  const commissionLabel = data.commissionKind === "amount" && data.commissionValue
+    ? inr(data.commissionValue)
+    : `${data.commissionPct}%`;
+  const tabItems = (
+    ["overview", "collections", "monthly", "cycles", "members", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const
+  );
+
+  function scrollTabs(dir: -1 | 1) {
+    tabsRef.current?.scrollBy({ left: dir * 140, behavior: "smooth" });
+  }
+
+  function goAfterCollect() {
+    setMonthSub(auctionFirst ? "close" : "award");
+  }
+  function goAfterAward() {
+    setMonthSub(auctionFirst ? "collect" : "close");
+  }
+  function goAfterClose() {
+    setUnpaidNoted(false);
+    setMonthSub(auctionFirst ? "award" : "collect");
+  }
+
   return (
     <AppShell crumb="Chits" crumb2={data.name}>
-      <div className="page">
-        <div className="row-head top">
-          <div>
-            <div className="title-row">
+      <div className="page chit-detail-page">
+        <section className="chit-hero">
+          <div className="chit-hero-top">
+            <div className="chit-hero-avatar">{initials(data.name)}</div>
+            <div className="chit-hero-heading">
               <h1>{data.name}</h1>
-              <span className="pill paid">{data.status === "running" ? "Active" : data.status}</span>
-              <span className="badge">{TYPE_LABEL[data.type]}</span>
-              {auctionFirst && <span className="badge">Auction first</span>}
-              {data.type === "auction" && !auctionFirst && <span className="badge">Collect first</span>}
-              {data.type === "fixed" && <span className="badge">Fixed order</span>}
-              {data.type === "lucky_draw" && <span className="badge">Roll each month</span>}
-              {handSacrifice && <span className="badge">Sacrifice hand</span>}
+              <p>
+                {TYPE_LABEL[data.type]}
+                {styleLabel && styleLabel !== TYPE_LABEL[data.type] ? ` · ${styleLabel}` : ""}
+                {data.title ? ` · ${data.title}` : ""}
+              </p>
             </div>
-            <p className="page-sub">
-              {data.members.length} members · {inr(data.instalment)}/{data.frequency} · started {new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })} · ends {ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}
-              {data.type === "loan" && data.interestRate != null ? ` · interest ${data.interestRate}%` : ""}
-              {data.type === "loan" && data.repaymentTenure ? ` · repay ${data.repaymentTenure} mo` : ""}
-              {data.commissionKind === "amount" && data.commissionValue
-                ? ` · commission ${inr(data.commissionValue)}`
-                : ` · commission ${data.commissionPct}%`}
+            <span className={`chit-hero-pill ${isRunning ? "live" : ""}`}>
+              {data.status === "running" ? "Active" : data.status}
+            </span>
+          </div>
+          <div className="chit-hero-divider" />
+          <div className="chit-hero-grid">
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Users size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Members</span>
+                <strong>{data.members.length} of {data.membersCount}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Instalment</span>
+                <strong>{inr(data.instalment)}/{FREQ_LABEL[data.frequency] || data.frequency}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Started</span>
+                <strong>{new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Ends</span>
+                <strong>{ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Percent size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Commission</span>
+                <strong>{commissionLabel}</strong>
+              </div>
+            </div>
+            <div className="chit-hero-cell">
+              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
+              <div>
+                <span>Month</span>
+                <strong>{cycle} / {data.duration}</strong>
+              </div>
+            </div>
+          </div>
+          {(data.type === "loan" && (data.interestRate != null || data.repaymentTenure)) && (
+            <p className="chit-hero-note">
+              {data.interestRate != null ? `Interest ${data.interestRate}%` : ""}
+              {data.interestRate != null && data.repaymentTenure ? " · " : ""}
+              {data.repaymentTenure ? `Repay ${data.repaymentTenure} mo` : ""}
             </p>
-          </div>
-          <div className="toolbar" style={{ margin: 0 }}>
-            <button className="btn ghost" onClick={() => downloadChitReportPdf(data, names)}>Export PDF</button>
-            <button className="btn ghost" onClick={() => downloadMonthDuesPdf(data, names)}>Month sheet</button>
-            <button className="btn ghost" onClick={() => downloadChitCsv(data, names)}>CSV</button>
-            <button className="btn ghost" onClick={() => { setEditName(data.name); setEditTitle(data.title || ""); setEditOpen(true); }}>Edit chit</button>
-            <button className="btn" disabled={!isRunning} onClick={() => setPayPick(true)}>+ Record collection</button>
-          </div>
-        </div>
+          )}
+        </section>
+
         {error && <p className="due">{error}</p>}
         {!isRunning && (
           <p className="muted block">This chit is {data.status}. Collections and monthly payouts are closed.</p>
         )}
-        <div className="stats six">
-          <div className="stat"><span>Month</span><strong>{cycle} / {data.duration}</strong></div>
-          <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
-          <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
-          <div className="stat">
-            <span>{auctionFirst ? "Till (peer settlement)" : "Cash on hand"}</span>
-            <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
-                {auctionFirst && <em>Always ₹0 — unpaid is Outstanding</em>}
+
+        <div className="chit-tabbar">
+          <button type="button" className="chit-tab-arrow" aria-label="Scroll tabs left" onClick={() => scrollTabs(-1)}>
+            <ChevronLeft size={18} />
+          </button>
+          <div className="chit-tabbar-scroll" ref={tabsRef}>
+            {tabItems.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`wizard-tab${tab === t ? " active" : ""}`}
+                onClick={() => setTab(t)}
+              >
+                <span className="wizard-tab-label">{t[0].toUpperCase() + t.slice(1)}</span>
+              </button>
+            ))}
           </div>
-          <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month</em></div>
-          <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
+          <button type="button" className="chit-tab-arrow" aria-label="Scroll tabs right" onClick={() => scrollTabs(1)}>
+            <ChevronRight size={18} />
+          </button>
         </div>
-        <div className="tabs">
-          {(["overview", "collections", "monthly", "cycles", "members", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const).map((t) => (
-            <button key={t} className={`tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
-              {t[0].toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
+
+        {tab === "overview" && (
+          <div className="stats six">
+            <div className="stat"><span>Month</span><strong>{cycle} / {data.duration}</strong></div>
+            <div className="stat"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong><em>of {inr(expectedThisCycle(data))} expected</em></div>
+            <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong><em>{pending} members pending</em></div>
+            <div className="stat">
+              <span>{auctionFirst ? "Till (peer settlement)" : "Cash on hand"}</span>
+              <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
+              {auctionFirst && <em>Always ₹0 — unpaid is Outstanding</em>}
+            </div>
+            <div className="stat"><span>Commission earned</span><strong>{inr(commissionEarned(data))}</strong><em>{inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month</em></div>
+            <div className="stat"><span>Members</span><strong>{data.members.length}</strong><em>of {data.membersCount} slots</em></div>
+          </div>
+        )}
 
         {tab === "overview" && (
           <>
@@ -436,9 +558,16 @@ export function ChitDetailPage() {
           });
           const total = receipts.reduce((s, p) => s + p.amount, 0);
           const people = new Set(receipts.map((p) => p.memberId)).size;
+          const byCycle = new Map<number, typeof receipts>();
+          for (const p of receipts) {
+            const list = byCycle.get(p.cycle) || [];
+            list.push(p);
+            byCycle.set(p.cycle, list);
+          }
+          const cycles = [...byCycle.keys()].sort((a, b) => b - a);
           return (
-            <div className="card flush">
-              <div className="card-pad">
+            <div className="stack">
+              <div className="card">
                 <div className="seg" style={{ marginBottom: 16 }}>
                   <button className={`chip ${colRange === "today" ? "on" : ""}`} onClick={() => setColRange("today")}>Today</button>
                   <button className={`chip ${colRange === "week" ? "on" : ""}`} onClick={() => setColRange("week")}>This week</button>
@@ -459,31 +588,52 @@ export function ChitDetailPage() {
                   {busyAll ? "Recording…" : "Record all payments"}
                 </button>
               </div>
-              {receipts.map((p) => {
-                const hands = data.members.filter((m) => m.customerId === p.memberId).length;
-                const label = p.slot != null
-                  ? handLabel(names[p.memberId] || "Member", p.slot, hands)
-                  : names[p.memberId];
+              {cycles.map((cyc) => {
+                const rows = byCycle.get(cyc) || [];
+                const monthTotal = rows.reduce((s, p) => s + p.amount, 0);
+                const when = new Date(data.startDate);
+                when.setMonth(when.getMonth() + cyc - 1);
                 return (
-                  <div key={p.id} className="list-row">
-                    <div className="avatar">{initials(names[p.memberId] || "?")}</div>
-                    <div className="grow">
-                      <strong>{label}</strong>
-                      <div className="muted">
-                        {MODE_LABEL[p.mode || "cash"]} · month {p.cycle} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  <div key={cyc} className="card flush">
+                    <div className="card-pad" style={{ paddingBottom: 10 }}>
+                      <div className="row-head" style={{ margin: 0 }}>
+                        <div>
+                          <strong>Month {cyc}</strong>
+                          <div className="muted">
+                            {when.toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · {rows.length} receipt{rows.length === 1 ? "" : "s"}
+                          </div>
+                        </div>
+                        <strong className="num">{inr(monthTotal)}</strong>
                       </div>
                     </div>
-                    <strong className="num">{inr(p.amount)}</strong>
-                    <button
-                      className="link"
-                      type="button"
-                      onClick={() => downloadReceiptPdf(data, p, names)}
-                    >
-                      PDF
-                    </button>
-                    {isRunning && (
-                      <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
-                    )}
+                    {rows.map((p) => {
+                      const hands = data.members.filter((m) => m.customerId === p.memberId).length;
+                      const label = p.slot != null
+                        ? handLabel(names[p.memberId] || "Member", p.slot, hands)
+                        : names[p.memberId];
+                      return (
+                        <div key={p.id} className="list-row">
+                          <div className="avatar">{initials(names[p.memberId] || "?")}</div>
+                          <div className="grow">
+                            <strong>{label}</strong>
+                            <div className="muted">
+                              {MODE_LABEL[p.mode || "cash"]} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                            </div>
+                          </div>
+                          <strong className="num">{inr(p.amount)}</strong>
+                          <button
+                            className="link"
+                            type="button"
+                            onClick={() => downloadReceiptPdf(data, p, names)}
+                          >
+                            PDF
+                          </button>
+                          {isRunning && (
+                            <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -493,32 +643,55 @@ export function ChitDetailPage() {
         })()}
 
         {tab === "monthly" && (
-          <div className="stack" style={auctionFirst ? { display: "flex", flexDirection: "column" } : undefined}>
-            <div className="month-steps" style={auctionFirst ? { order: 0 } : undefined}>
-              {auctionFirst ? (
-                <>
-                  <span className={`month-step ${!lastWin ? "on" : "done"}`}>1. Auction</span>
-                  <span className={`month-step ${lastWin && remainDue > 0 ? "on" : lastWin && remainDue === 0 ? "done" : ""}`}>2. Collect</span>
-                  <span className={`month-step ${lastWin && remainDue === 0 ? "on" : ""}`}>3. Close month</span>
-                </>
-              ) : (
-                <>
-                  <span className={`month-step ${!lastWin && collectedThisCycle(data) === 0 ? "on" : "done"}`}>1. Collect</span>
-                  <span className={`month-step ${!lastWin && canSettleCycle(data) ? "on" : lastWin ? "done" : ""}`}>
-                    2.{" "}
-                    {data.type === "loan"
-                      ? (loanAllowed ? "Give loan" : "No loan (last month)")
-                      : luckyDrawChit
-                        ? "Lucky draw"
-                        : fixedLike
-                          ? "Award pot"
-                          : "Auction"}
-                  </span>
-                  <span className={`month-step ${lastWin || (data.type === "loan" && canSettleCycle(data)) ? "on" : ""}`}>3. Close month</span>
-                </>
-              )}
-            </div>
-            <div className="stats four" style={auctionFirst ? { order: 1 } : undefined}>
+          <div className="stack">
+            {(() => {
+              const awardLabel = auctionFirst
+                ? "Auction"
+                : data.type === "loan"
+                  ? (loanAllowed ? "Give loan" : "No loan")
+                  : luckyDrawChit
+                    ? "Lucky draw"
+                    : fixedLike
+                      ? "Award pot"
+                      : "Auction";
+              const subs = auctionFirst
+                ? [
+                    { id: "award" as const, label: `1. ${awardLabel}` },
+                    { id: "collect" as const, label: "2. Collect" },
+                    { id: "close" as const, label: "3. Close month" },
+                  ]
+                : [
+                    { id: "collect" as const, label: "1. Collect" },
+                    { id: "award" as const, label: `2. ${awardLabel}` },
+                    { id: "close" as const, label: "3. Close month" },
+                  ];
+              const awardDone = Boolean(lastWin) || (data.type === "loan" && !loanAllowed);
+              const collectDone = auctionFirst
+                ? Boolean(lastWin) && remainDue === 0
+                : collectedThisCycle(data) > 0 || unpaidNoted;
+              return (
+                <div className="month-steps" role="tablist" aria-label="Monthly steps">
+                  {subs.map((s) => {
+                    const done = s.id === "collect" ? collectDone : s.id === "award" ? awardDone : false;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={monthSub === s.id}
+                        className={`month-step${monthSub === s.id ? " on" : ""}${done && monthSub !== s.id ? " done" : ""}`}
+                        onClick={() => setMonthSub(s.id)}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            {monthSub === "collect" && (
+            <>
+            <div className="stats four">
               <div className="stat"><span>Expected this cycle</span><strong>{inr(expectedThisCycle(data))}</strong></div>
               <div className="stat"><span>Collected</span><strong>{inr(collectedThisCycle(data))}</strong></div>
               <div className="stat"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
@@ -528,7 +701,7 @@ export function ChitDetailPage() {
                 {auctionFirst && <em>Unpaid shares show as Outstanding</em>}
               </div>
             </div>
-            <div className="card flush" style={auctionFirst ? { order: 3 } : undefined}>
+            <div className="card flush">
               <div className="card-pad month-head">
                 <div>
                   <strong>Month {cycle}</strong>
@@ -542,18 +715,24 @@ export function ChitDetailPage() {
                     disabled={!isRunning || !remainDue || busyAll || (auctionFirst && !lastWin)}
                     onClick={() => {
                       setBusyAll(true);
-                      void recordAllPayments(data.id).finally(() => setBusyAll(false));
+                      void recordAllPayments(data.id).finally(() => {
+                        setBusyAll(false);
+                        goAfterCollect();
+                      });
                     }}
                   >
                     {busyAll ? "Recording…" : "Record all payments"}
                   </button>
-                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (auctionFirst && !lastWin)} onClick={() => setUnpaidNoted(true)}>
+                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (auctionFirst && !lastWin)} onClick={() => {
+                    setUnpaidNoted(true);
+                    goAfterCollect();
+                  }}>
                     Mark all unpaid
                   </button>
                 </div>
               </div>
               {auctionFirst && !lastWin && (
-                <p className="month-hint">Record the auction above first. Then each member owes winning bid ÷ members — the winner’s share counts as paid-in (self-contribution), so cash on hand stays ₹0.</p>
+                <p className="month-hint">Record the auction first (Award tab). Then each member owes winning bid ÷ members — the winner’s share counts as paid-in (self-contribution), so cash on hand stays ₹0.</p>
               )}
               {auctionFirst && lastWin && shareHint != null && (
                 <p className="month-hint">
@@ -632,7 +811,10 @@ export function ChitDetailPage() {
                 <p className="muted" style={{ padding: "0 16px 16px" }}>Dues table appears after the auction is recorded.</p>
               )}
             </div>
-            <div className="card" style={auctionFirst ? { order: 2 } : undefined}>
+            </>
+            )}
+            {monthSub === "award" && (
+            <div className="card">
               <div className="month-head" style={{ padding: 0 }}>
                 <div>
                   <h2 style={{ margin: 0 }}>
@@ -668,30 +850,11 @@ export function ChitDetailPage() {
                           : "Only after collections. Payout plus commission cannot exceed cash on hand."}
                   </p>
                 </div>
-                <button
-                  className="btn green"
-                  disabled={
-                    !isRunning
-                      ? true
-                      : !lastMonthGate.ok
-                        ? true
-                      : data.mode === "organise" && data.type === "auction" && !lastWin
-                        ? true
-                        : data.mode === "organise" && fixedLike && !lastWin
-                          ? true
-                          : false
-                  }
-                  onClick={() => void closeCycle(data.id)}
-                >
-                  Close month
-                </button>
               </div>
               {!isRunning ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
                   This chit is {data.status}. Monthly collections and payouts are closed.
                 </p>
-              ) : !lastMonthGate.ok ? (
-                <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
               ) : lastWin && data.type !== "loan" ? (
                 <div style={{ marginTop: 12 }}>
                   <div className="kv">
@@ -709,8 +872,9 @@ export function ChitDetailPage() {
                   {lastWin.dividend > 0 && (
                     <div className="kv"><span>Dividend next month / member</span><strong>{inr(lastWin.dividend)}</strong></div>
                   )}
+                  <p className="muted" style={{ marginTop: 12 }}>Already recorded for this month. Use Close month when you are ready.</p>
                 </div>
-              ) : !canSettleCycle(data) ? (
+              ) : !auctionFirst && !canSettleCycle(data) ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
                   Collect at least one payment this month before {data.type === "loan" ? "giving a loan" : fixedLike ? "awarding the pot" : "recording the auction"}.
                 </p>
@@ -744,7 +908,8 @@ export function ChitDetailPage() {
                               onClick={() => {
                                 const who = winnerId || lastMember?.customerId || "";
                                 const slot = winnerSlot ?? lastMember?.slot;
-                                void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot);
+                                void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot)
+                                  .then(() => goAfterAward());
                               }}
                             >
                               Award full pot
@@ -782,7 +947,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !bid}
-                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot)}
+                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot).then(() => goAfterAward())}
                             >
                               Record auction
                             </button>
@@ -808,7 +973,7 @@ export function ChitDetailPage() {
                               </div>
                             );
                           })()}
-                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void luckyDraw(data.id)}>Lucky draw</button>
+                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void luckyDraw(data.id).then(() => goAfterAward())}>Lucky draw</button>
                         </>
                       )}
                     </>
@@ -870,6 +1035,7 @@ export function ChitDetailPage() {
                                   setBid(String(data.pot));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
+                                  goAfterAward();
                                 });
                               }}
                             >
@@ -923,7 +1089,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!canSettleCycle(data) || unprized.length === 0}
-                              onClick={() => void luckyDraw(data.id)}
+                              onClick={() => void luckyDraw(data.id).then(() => goAfterAward())}
                             >
                               Roll lucky draw ({unprized.length} left)
                             </button>
@@ -952,7 +1118,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot)}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then(() => goAfterAward())}
                             >
                               Award pot
                             </button>
@@ -961,7 +1127,7 @@ export function ChitDetailPage() {
                             className="btn ghost"
                             style={{ marginTop: 10 }}
                             disabled={!canSettleCycle(data) || unprized.length === 0}
-                            onClick={() => void luckyDraw(data.id)}
+                            onClick={() => void luckyDraw(data.id).then(() => goAfterAward())}
                           >
                             Lucky draw instead ({unprized.length} left)
                           </button>
@@ -1001,7 +1167,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot)}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then(() => goAfterAward())}
                             >
                               Award pot
                             </button>
@@ -1024,6 +1190,75 @@ export function ChitDetailPage() {
                 </div>
               )}
             </div>
+            )}
+            {monthSub === "close" && (
+            <div className="card">
+              <div className="month-head" style={{ padding: 0 }}>
+                <div>
+                  <h2 style={{ margin: 0 }}>Close month {cycle}</h2>
+                  <p className="muted">
+                    {auctionFirst
+                      ? "After auction and collections look right, close this month to move to the next cycle."
+                      : data.type === "loan"
+                        ? "After collections (and optional loan), close this month to move on."
+                        : "After collections and payout look right, close this month to move to the next cycle."}
+                  </p>
+                </div>
+                <button
+                  className="btn green"
+                  disabled={
+                    !isRunning
+                      ? true
+                      : !lastMonthGate.ok
+                        ? true
+                      : data.mode === "organise" && data.type === "auction" && !lastWin
+                        ? true
+                        : data.mode === "organise" && fixedLike && !lastWin
+                          ? true
+                          : false
+                  }
+                  onClick={() => void closeCycle(data.id).then(() => goAfterClose())}
+                >
+                  Close month
+                </button>
+              </div>
+              {!isRunning ? (
+                <p className="muted" style={{ margin: "12px 0 0" }}>
+                  This chit is {data.status}. Monthly collections and payouts are closed.
+                </p>
+              ) : !lastMonthGate.ok ? (
+                <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
+              ) : (
+                <div style={{ marginTop: 12 }}>
+                  <div className="kv"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong></div>
+                  <div className="kv"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
+                  <div className="kv">
+                    <span>{auctionFirst ? "Till" : "Cash on hand"}</span>
+                    <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
+                  </div>
+                  {lastWin && data.type !== "loan" && (
+                    <>
+                      <div className="kv"><span>Awarded to</span><strong>{names[lastWin.winnerId]}</strong></div>
+                      <div className="kv"><span>Payout</span><strong>{inr(lastWin.payout)}</strong></div>
+                      <div className="kv"><span>Commission</span><strong>{inr(lastWin.commission)}</strong></div>
+                    </>
+                  )}
+                  {data.type === "loan" && !!monthLoans.length && (
+                    <div className="kv">
+                      <span>Loans this month</span>
+                      <strong>{inr(monthLoans.reduce((s, l) => s + l.payout, 0))}</strong>
+                    </div>
+                  )}
+                  {data.mode === "organise" && data.type === "auction" && !lastWin && (
+                    <p className="muted" style={{ marginTop: 12 }}>Record the auction before closing this month.</p>
+                  )}
+                  {data.mode === "organise" && fixedLike && !lastWin && (
+                    <p className="muted" style={{ marginTop: 12 }}>Award the pot before closing this month.</p>
+                  )}
+                </div>
+              )}
+            </div>
+            )}
           </div>
         )}
 
@@ -1312,50 +1547,6 @@ export function ChitDetailPage() {
         </div>
       )}
 
-      {payPick && !payFor && (
-        <div className="modal-back" onClick={() => setPayPick(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Record collection</h2>
-            <p className="muted">Record one member, or mark every remaining due as paid in cash.</p>
-            <button
-              className="btn wide"
-              style={{ margin: "12px 0 16px" }}
-              disabled={!remainDue || busyAll}
-              onClick={() => {
-                setBusyAll(true);
-                void recordAllPayments(data.id).finally(() => {
-                  setBusyAll(false);
-                  setPayPick(false);
-                });
-              }}
-            >
-              {busyAll ? "Recording…" : "Record all payments"}
-            </button>
-            {data.members.map((m) => {
-              const due = cycleDue(data, m.customerId, cycle, m.slot);
-              const paid = paidInCycle(data, m.customerId, cycle, m.slot);
-              const left = Math.max(0, due - paid);
-              const hands = data.members.filter((x) => x.customerId === m.customerId).length;
-              return (
-                <button
-                  key={`${m.customerId}-${m.slot}`}
-                  className="chooser-row"
-                  disabled={!left}
-                  onClick={() => { setPayPick(false); setPayFor({ customerId: m.customerId, slot: m.slot }); }}
-                >
-                  <div className="avatar">{initials(names[m.customerId] || "?")}</div>
-                  <div className="grow">
-                    <strong>{handLabel(names[m.customerId] || "Member", m.slot, hands)}</strong>
-                    <div className="muted">{left ? `${inr(left)} due` : "Paid"}</div>
-                  </div>
-                  {left ? <span className="link">Record</span> : <span className="muted">—</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {payFor && (
         <PayModal
           name={handLabel(
@@ -1367,7 +1558,11 @@ export function ChitDetailPage() {
           due={cycleDue(data, payFor.customerId, cycle, payFor.slot) - paidInCycle(data, payFor.customerId, cycle, payFor.slot)}
           onClose={() => setPayFor(null)}
           onSave={(amount: number, kind: PaymentKind, mode: PayMode) => {
-            void recordPayment(data.id, payFor.customerId, amount, kind, mode, payFor.slot).then(() => setPayFor(null));
+            const wasLastDue = remainDue <= 1;
+            void recordPayment(data.id, payFor.customerId, amount, kind, mode, payFor.slot).then(() => {
+              setPayFor(null);
+              if (tab === "monthly" && monthSub === "collect" && wasLastDue) goAfterCollect();
+            });
           }}
         />
       )}

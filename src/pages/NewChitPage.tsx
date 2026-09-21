@@ -458,12 +458,46 @@ export function NewChitPage() {
                   ? "Members who have not won yet stay in the draw each month. One person can play multiple hands."
                   : "Add people before you start. The same person can take more than one hand — each hand fills one slot and pays its own instalment."}
             </p>
+
+            <div className="add-member-box">
+              <strong className="add-member-title">Add new member</strong>
+              <div className="grid-2" style={{ marginTop: 10 }}>
+                <input className="field" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <input className="field" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+              </div>
+              <button
+                className="btn"
+                type="button"
+                style={{ width: "100%" }}
+                disabled={!newName.trim() || (!!n && picked.length >= n)}
+                onClick={async () => {
+                  if (!newName.trim()) return;
+                  const c = await addCustomer(newName.trim(), newPhone.trim());
+                  setPicked((p) => [...p, c.id]);
+                  setNewName("");
+                  setNewPhone("");
+                }}
+              >
+                Add member
+              </button>
+            </div>
+
+            <p className="muted" style={{ margin: "16px 0 8px" }}>
+              {picked.length} of {n || 0} slots filled.
+              {n > 0 && picked.length < n ? " Use + Hand below or add someone new above." : ""}
+              {n > 0 && picked.length === n ? " All slots filled — ready to create." : ""}
+            </p>
+
+            {!!customers.length && (
+              <div className="section-label" style={{ paddingLeft: 0, paddingTop: 4 }}>Existing members</div>
+            )}
             {customers.map((c) => {
               const hands = picked.filter((id) => id === c.id).length;
               return (
                 <div key={c.id} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
                   <div className="grow">
-                    <strong>{c.name}</strong> <span className="muted">{c.phone}</span>
+                    <strong>{c.name}</strong>
+                    <div className="muted">{c.phone}</div>
                     {hands > 0 ? <div className="muted">{hands} hand{hands > 1 ? "s" : ""} in this chit</div> : null}
                   </div>
                   <button
@@ -509,22 +543,6 @@ export function NewChitPage() {
                 })}
               </div>
             )}
-            <div className="grid-2">
-              <input className="field" placeholder="New member name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-              <input className="field" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
-            </div>
-            <button className="btn ghost" type="button" onClick={async () => {
-              if (!newName.trim()) return;
-              const c = await addCustomer(newName.trim(), newPhone.trim());
-              setPicked((p) => [...p, c.id]);
-              setNewName("");
-              setNewPhone("");
-            }}>Add customer</button>
-            <p className="muted" style={{ margin: "12px 0 16px" }}>
-              {picked.length} of {n || 0} slots filled.
-              {n > 0 && picked.length < n ? " Add a hand for each remaining slot before creating." : ""}
-              {n > 0 && picked.length === n ? " All slots filled — ready to create." : ""}
-            </p>
             <div className="wizard-actions">
               <button className="btn ghost" onClick={() => setStep(2)}>Back</button>
               <button
