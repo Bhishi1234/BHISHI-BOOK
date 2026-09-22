@@ -453,4 +453,39 @@ assert(
   `ledger net ${ledgerM1.net} vs unpaid ${unpaid} - paid ${ledgerM1.paid} - int ${interestPart}`,
 );
 
+// Loan last month: cannot close while cash remains (settlement not run)
+const loanLast = chit({
+  members: [
+    { customerId: "m1", slot: 1 },
+    { customerId: "m2", slot: 2 },
+  ],
+  type: "loan",
+  pot: 20000,
+  instalment: 10000,
+  duration: 2,
+  interestRate: 5,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+loanLast.currentCycle = 2;
+for (const m of loanLast.members) {
+  for (let cyc = 1; cyc <= 2; cyc++) {
+    loanLast.payments.push({
+      id: `ll-${m.customerId}-${cyc}`,
+      memberId: m.customerId,
+      slot: m.slot,
+      cycle: cyc,
+      amount: rawCycleDue(loanLast, m.customerId, cyc, m.slot),
+      kind: "full",
+      date: "2026-01-01",
+      mode: "cash",
+    });
+  }
+}
+assert(!canCloseLastMonth(loanLast).ok, "loan last month with cash should block until settlement");
+assert(
+  String(canCloseLastMonth(loanLast).reason || "").includes("Settlement"),
+  "loan last month reason mentions settlement",
+);
+
 console.log("chit math ok");

@@ -860,7 +860,7 @@ export function ChitDetailPage() {
                       ? !isRunning
                         ? "This chit is closed. Use Settlement if cash remains to be returned."
                         : !loanAllowed
-                          ? "Last month — no new loans. Collect every hand’s dues, then close. Open Settlement to return leftover cash and interest dividends."
+                          ? "Last month — no new loans. Collect every hand’s dues, run Settlement (interest + leftover), then close this month."
                           : "Collect first. Giving a loan this month is optional — close the month when the books look right."
                       : fixedLike
                         ? luckyDrawChit
@@ -1231,7 +1231,9 @@ export function ChitDetailPage() {
                     {auctionFirst
                       ? "After auction and collections look right, close this month to move to the next cycle."
                       : data.type === "loan"
-                        ? "After collections (and optional loan), close this month to move on."
+                        ? !loanAllowed
+                          ? "After collections, run Settlement on the Settlement tab, then close the last month to finish the bhishi."
+                          : "After collections (and optional loan), close this month to move on."
                         : "After collections and payout look right, close this month to move to the next cycle."}
                   </p>
                 </div>

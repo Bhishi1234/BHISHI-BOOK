@@ -920,6 +920,13 @@ export function canCloseLastMonth(chit: Chit) {
       reason: "Add members before closing the last month.",
     };
   }
+  if (chit.type === "loan" && treasuryOf(chit) > 0.001) {
+    return {
+      ok: false as const,
+      reason:
+        "Run final settlement (interest dividends + leftover) on the Settlement tab before closing the last month.",
+    };
+  }
   return { ok: true as const };
 }
 
