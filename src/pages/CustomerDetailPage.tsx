@@ -1,8 +1,9 @@
 import { AlertCircle, Layers, PiggyBank, Wallet } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { displayCycle, memberBalance, paidInCycle, rawCycleDue } from "../lib/chitMath";
-import { MODE_LABEL, TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
+import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard } from "../ui/StatCard";
 
@@ -10,14 +11,15 @@ export function CustomerDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { customers, chits } = useStore();
+  const { m, typeLabel, modeLabel } = useI18n();
   const customer = customers.find((c) => c.id === id);
 
   if (!customer) {
     return (
-      <AppShell crumb="customers" crumb2="Not found">
+      <AppShell crumb={m.nav.customers} crumb2="Not found">
         <div className="page">
           <p>Customer not found.</p>
-          <button className="btn ghost" onClick={() => nav("/customers")}>Back to customers</button>
+          <button className="btn ghost" onClick={() => nav("/customers")}>{m.common.cancel}</button>
         </div>
       </AppShell>
     );
@@ -131,7 +133,7 @@ export function CustomerDetailPage() {
               <div key={ch.id} className="kv">
                 <span>
                   <Link className="link" to={chitPath(ch)}>{ch.name}</Link>
-                  <div className="muted">{TYPE_LABEL[ch.type]} · slot {member.slot}{member.prizedCycle ? ` · prized month ${member.prizedCycle}` : ""}</div>
+                  <div className="muted">{typeLabel(ch.type)} · {m.terms.hand} {member.slot}{member.prizedCycle ? ` · ${m.terms.prized} ${member.prizedCycle}` : ""}</div>
                 </span>
                 <strong style={{ textAlign: "right" }}>
                   Paid {inr(bal.paid)}
@@ -164,7 +166,7 @@ export function CustomerDetailPage() {
                     <td>{new Date(row.when).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</td>
                     <td><Link className="link" to={`/chits/${row.chitId}`}>{row.chitName}</Link></td>
                     <td>{row.label}</td>
-                    <td>{row.mode ? MODE_LABEL[row.mode] || row.mode : "—"}</td>
+                    <td>{row.mode ? modeLabel(row.mode) || row.mode : "—"}</td>
                     <td>{row.credit ? inr(row.credit) : "—"}</td>
                     <td>{row.debit ? inr(row.debit) : "—"}</td>
                   </tr>

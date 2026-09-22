@@ -30,18 +30,18 @@ export const API_ROUTES = {
 } as const;
 
 export const META_TYPES = [
-  { id: "auction", label: "Auction chit" },
-  { id: "fixed", label: "Fixed & committee" },
+  { id: "auction", label: "Auction bhishi" },
+  { id: "fixed", label: "Fixed / committee" },
   { id: "base_premium", label: "Base + premium" },
-  { id: "loan", label: "Loan chit" },
+  { id: "loan", label: "Loan bhishi" },
 ] as const;
 
 export const META_FREQUENCIES = [
-  { id: "daily", label: "Daily" },
-  { id: "weekly", label: "Weekly" },
-  { id: "biweekly", label: "Bi Weekly" },
-  { id: "monthly", label: "Monthly" },
-  { id: "quarterly", label: "Quarterly" },
-  { id: "halfyearly", label: "Half Yearly" },
-  { id: "yearly", label: "Yearly" },
+  { id: "daily", label: "Daily hapta" },
+  { id: "weekly", label: "Weekly hapta" },
+  { id: "biweekly", label: "Every 15 days" },
+  { id: "monthly", label: "Monthly hapta" },
+  { id: "quarterly", label: "Every 3 months" },
+  { id: "halfyearly", label: "Every 6 months" },
+  { id: "yearly", label: "Yearly hapta" },
 ] as const;

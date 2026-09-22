@@ -2,14 +2,16 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { AlertCircle, ArrowUpRight, CircleX, PiggyBank, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
-import { TYPE_LABEL, chitPath, initials, inr } from "../lib/format";
+import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard, toneAt } from "../ui/StatCard";
 
 export function ChitsPage() {
   const { chits, cancelChit, user } = useStore();
+  const { m, typeLabel, statusLabel } = useI18n();
   const nav = useNavigate();
   const [tab, setTab] = useState<"active" | "completed">("active");
   const pool = chits.filter((c) => (tab === "active" ? c.status === "running" : c.status !== "running"));
@@ -18,15 +20,16 @@ export function ChitsPage() {
   const shared = pool.filter((c) => c.viewerRole === "member");
 
   return (
-    <AppShell crumb="Chits">
+    <AppShell crumb={m.nav.chits}>
       <div className="page">
         <div className="row-head">
-          <h1>Chits</h1>
-          <Link className="btn" to="/chits/new"><Plus size={16} /> New chit</Link>
+          <h1>{m.chitsPage.title}</h1>
+          <Link className="btn" to="/chits/new"><Plus size={16} /> {m.nav.newChit}</Link>
         </div>
+        <p className="page-sub">{m.chitsPage.subtitle}</p>
         <div className="seg block">
-          <button className={`chip ${tab === "active" ? "on" : ""}`} onClick={() => setTab("active")}>Active</button>
-          <button className={`chip ${tab === "completed" ? "on" : ""}`} onClick={() => setTab("completed")}>Completed</button>
+          <button className={`chip ${tab === "active" ? "on" : ""}`} onClick={() => setTab("active")}>{m.common.active}</button>
+          <button className={`chip ${tab === "completed" ? "on" : ""}`} onClick={() => setTab("completed")}>{m.status.completed}</button>
         </div>
         {!!managed.length && (
           <div className="dash-chits block">
@@ -43,11 +46,11 @@ export function ChitsPage() {
                     <div className={`dash-chit-avatar tone-${toneAt(i)}`}>{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
-                      <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
+                      <span>{typeLabel(c.type)} · {c.members.length} {m.common.members}</span>
                     </div>
                     <div className="dash-chit-actions">
                       <span className={`dash-chit-status${c.status === "running" ? " live" : ""}`}>
-                        {c.status === "running" ? "Active" : c.status}
+                        {statusLabel(c.status) || c.status}
                       </span>
                       <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
                     </div>
@@ -55,17 +58,17 @@ export function ChitsPage() {
                   <div className="dash-chit-divider" />
                   <div className="dash-chit-meta">
                     <div>
-                      <span>Cycle</span>
+                      <span>{m.terms.haptaRound}</span>
                       <strong>{displayCycle(c)} / {c.duration}</strong>
                     </div>
                     <div>
-                      <span>Per cycle</span>
+                      <span>{m.terms.perHapta}</span>
                       <strong>{inr(c.instalment)}</strong>
                     </div>
                   </div>
                   <div className="dash-chit-progress">
                     <div className="dash-chit-progress-head">
-                      <span>Collection</span>
+                      <span>{m.terms.collection}</span>
                       <strong>{pct}%</strong>
                     </div>
                     <div className="progress"><i style={{ width: `${pct}%` }} /></div>
@@ -80,7 +83,7 @@ export function ChitsPage() {
         )}
 
         <div className="row-head" style={{ marginTop: managed.length ? 8 : 0 }}>
-          <h2>Shared with me</h2>
+          <h2>{m.dash.sharedWithMe}</h2>
         </div>
         {!user?.phone && (
           <p className="muted block">
@@ -107,7 +110,7 @@ export function ChitsPage() {
                     <div className={`dash-chit-avatar tone-${toneAt(i + 2)}`}>{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
-                      <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
+                      <span>{typeLabel(c.type)} · {c.members.length} {m.common.members}</span>
                     </div>
                     <div className="dash-chit-actions">
                       <span className="dash-chit-status">Shared</span>
@@ -117,17 +120,17 @@ export function ChitsPage() {
                   <div className="dash-chit-divider" />
                   <div className="dash-chit-meta">
                     <div>
-                      <span>Cycle</span>
+                      <span>{m.terms.haptaRound}</span>
                       <strong>{displayCycle(c)} / {c.duration}</strong>
                     </div>
                     <div>
-                      <span>Per cycle</span>
+                      <span>{m.terms.perHapta}</span>
                       <strong>{inr(c.instalment)}</strong>
                     </div>
                   </div>
                   <div className="dash-chit-progress">
                     <div className="dash-chit-progress-head">
-                      <span>Collection</span>
+                      <span>{m.terms.collection}</span>
                       <strong>{pct}%</strong>
                     </div>
                     <div className="progress"><i style={{ width: `${pct}%` }} /></div>
@@ -201,6 +204,7 @@ export function ChitsPage() {
 
 export function CustomersPage() {
   const { customers, chits, addCustomer } = useStore();
+  const { m } = useI18n();
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "out" | "dues">("all");
@@ -236,11 +240,11 @@ export function CustomersPage() {
   const outstanding = rows.reduce((s, r) => s + r.outstanding, 0);
 
   return (
-    <AppShell crumb="customers">
+    <AppShell crumb={m.nav.customers}>
       <div className="page">
         <div className="row-head">
           <div>
-            <h1>Customers</h1>
+            <h1>{m.nav.customers}</h1>
             <p className="page-sub">One record per person — add someone once, then map them into as many chits as you like.</p>
           </div>
         </div>

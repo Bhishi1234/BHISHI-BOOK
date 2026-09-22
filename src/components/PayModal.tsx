@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
+import { useI18n } from "../i18n";
 import { inr } from "../lib/format";
 import type { PayMode, PaymentKind } from "../types";
-import { MODE_LABEL } from "../lib/format";
 
 const NOTES = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
@@ -18,6 +18,7 @@ export function PayModal({
   onClose: () => void;
   onSave: (amount: number, kind: PaymentKind, mode: PayMode) => void;
 }) {
+  const { m, modeLabel } = useI18n();
   const [kind, setKind] = useState<PaymentKind>("full");
   const [mode, setMode] = useState<PayMode>("cash");
   const [amount, setAmount] = useState(String(due));
@@ -33,8 +34,8 @@ export function PayModal({
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Record a payment — {name}</h2>
-        <p className="muted">Cycle {cycle}. Money stays outside the app.</p>
+        <h2>{m.detail.recordPayment} — {name}</h2>
+        <p className="muted">{m.terms.haptaRound} {cycle}</p>
         <div className="pay-row">
           <button className={`tab ${kind === "partial" ? "on" : ""}`} onClick={() => { setKind("partial"); setAmount(String(Math.max(0, Math.round(due / 2)))); }}>Partial</button>
           <button className={`tab ${kind === "full" ? "on" : ""}`} onClick={() => { setKind("full"); setAmount(String(due)); }}>
@@ -44,9 +45,9 @@ export function PayModal({
         </div>
         <label className="label">Mode</label>
         <div className="seg" style={{ marginBottom: 12 }}>
-          {(Object.keys(MODE_LABEL) as PayMode[]).map((m) => (
-            <button key={m} type="button" className={`chip ${mode === m ? "on" : ""}`} onClick={() => setMode(m)}>
-              {MODE_LABEL[m]}
+          {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((payModeId) => (
+            <button key={payModeId} type="button" className={`chip ${mode === payModeId ? "on" : ""}`} onClick={() => setMode(payModeId)}>
+              {modeLabel(payModeId)}
             </button>
           ))}
         </div>
@@ -77,7 +78,7 @@ export function PayModal({
           disabled={!value || !cashOk}
           onClick={() => onSave(value, kind, mode)}
         >
-          Save receipt
+          {m.common.save}
         </button>
       </div>
     </div>

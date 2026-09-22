@@ -38,23 +38,25 @@ export function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** English defaults for PDF/CSV exports. Prefer useI18n().typeLabel in the UI. */
 export const TYPE_LABEL: Record<string, string> = {
-  auction: "Auction",
-  fixed: "Fixed",
+  auction: "Auction bhishi",
+  fixed: "Fixed / committee",
   base_premium: "Base + premium",
-  loan: "Loan",
-  lucky_draw: "Lucky draw",
+  loan: "Loan bhishi",
+  lucky_draw: "Lucky draw (chitthi)",
   hand_sacrifice: "Sacrifice hand",
 };
 
+/** English defaults for PDF/CSV. Prefer useI18n().freqLabel in the UI. */
 export const FREQ_LABEL: Record<string, string> = {
-  daily: "Daily",
-  weekly: "Weekly",
-  biweekly: "Bi Weekly",
-  monthly: "Monthly",
-  quarterly: "Quarterly",
-  halfyearly: "Half Yearly",
-  yearly: "Yearly",
+  daily: "Daily hapta",
+  weekly: "Weekly hapta",
+  biweekly: "Every 15 days",
+  monthly: "Monthly hapta",
+  quarterly: "Every 3 months",
+  halfyearly: "Every 6 months",
+  yearly: "Yearly hapta",
 };
 
 export const MODE_LABEL: Record<string, string> = {

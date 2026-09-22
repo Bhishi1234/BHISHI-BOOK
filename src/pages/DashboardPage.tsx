@@ -1,13 +1,15 @@
 import { ArrowUpRight, CircleX, Layers, PiggyBank, Users, Wallet, AlertCircle, Route } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitProgress, collectedThisCycle, displayCycle, outstandingOf } from "../lib/chitMath";
-import { TYPE_LABEL, chitPath, greeting, initials, inr, longDate } from "../lib/format";
+import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard, toneAt } from "../ui/StatCard";
 
 export function DashboardPage() {
   const { user, chits, cancelChit } = useStore();
+  const { m, typeLabel, statusLabel, greetingNow, longDateNow } = useI18n();
   const nav = useNavigate();
   const live = chits.filter((c) => c.status !== "cancelled");
   const managed = live.filter((c) => c.mode === "organise" && c.members.length > 0 && c.viewerRole !== "member");
@@ -19,21 +21,21 @@ export function DashboardPage() {
   const activeCount = managed.filter((c) => c.status === "running").length;
 
   return (
-    <AppShell crumb="Dashboard">
+    <AppShell crumb={m.dash.title}>
       <div className="page">
-        <h1>{greeting()}, {user?.name}</h1>
-        <p className="page-sub">{longDate()} · {managed.length} active chit{managed.length === 1 ? "" : "s"}</p>
+        <h1>{greetingNow()}, {user?.name}</h1>
+        <p className="page-sub">{longDateNow()} · {managed.length} {m.dash.activeCount}</p>
         <div className="stats six">
-          <StatCard label="Active chits" value={activeCount} hint="Running now" tone="green" icon={Layers} onClick={() => nav("/chits")} />
-          <StatCard label="Bhishi managed" value={managed.length} hint="You organise" tone="blue" icon={PiggyBank} onClick={() => nav("/chits")} />
-          <StatCard label="Members" value={members} hint="Across your chits" tone="violet" icon={Users} onClick={() => nav("/customers")} />
-          <StatCard label="Collected this cycle" value={inr(collected)} hint="This month in" tone="teal" icon={Wallet} />
-          <StatCard label="Outstanding" value={inr(outstanding)} hint="Still to collect" tone="rose" icon={AlertCircle} />
-          <StatCard label="On track mode" value={tracking.length + shared.length} hint="Tracking + shared" tone="amber" icon={Route} onClick={() => nav("/chits")} />
+          <StatCard label={m.dash.activeChits} value={activeCount} hint={m.dash.activeHint} tone="green" icon={Layers} onClick={() => nav("/chits")} />
+          <StatCard label={m.dash.managed} value={managed.length} hint={m.dash.managedHint} tone="blue" icon={PiggyBank} onClick={() => nav("/chits")} />
+          <StatCard label={m.nav.customers} value={members} hint={m.dash.membersHint} tone="violet" icon={Users} onClick={() => nav("/customers")} />
+          <StatCard label={m.dash.collectedCycle} value={inr(collected)} hint={m.dash.collectedHint} tone="teal" icon={Wallet} />
+          <StatCard label={m.terms.outstanding} value={inr(outstanding)} hint={m.dash.outstandingHint} tone="rose" icon={AlertCircle} />
+          <StatCard label={m.dash.onTrack} value={tracking.length + shared.length} hint={m.dash.onTrackHint} tone="amber" icon={Route} onClick={() => nav("/chits")} />
         </div>
         <div className="row-head">
-          <h2>Your chits</h2>
-          <Link className="link" to="/chits">View all</Link>
+          <h2>{m.dash.yourChits}</h2>
+          <Link className="link" to="/chits">{m.common.viewAll}</Link>
         </div>
         {!!managed.length && (
           <div className="dash-chits block">
@@ -50,11 +52,11 @@ export function DashboardPage() {
                     <div className={`dash-chit-avatar tone-${toneAt(i)}`}>{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
-                      <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
+                      <span>{typeLabel(c.type)} · {c.members.length} {m.common.members}</span>
                     </div>
                     <div className="dash-chit-actions">
                       <span className={`dash-chit-status${c.status === "running" ? " live" : ""}`}>
-                        {c.status === "running" ? "Active" : c.status}
+                        {statusLabel(c.status) || c.status}
                       </span>
                       <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
                     </div>
@@ -62,17 +64,17 @@ export function DashboardPage() {
                   <div className="dash-chit-divider" />
                   <div className="dash-chit-meta">
                     <div>
-                      <span>Cycle</span>
+                      <span>{m.terms.haptaRound}</span>
                       <strong>{displayCycle(c)} / {c.duration}</strong>
                     </div>
                     <div>
-                      <span>Per cycle</span>
+                      <span>{m.terms.perHapta}</span>
                       <strong>{inr(c.instalment)}</strong>
                     </div>
                   </div>
                   <div className="dash-chit-progress">
                     <div className="dash-chit-progress-head">
-                      <span>Collection</span>
+                      <span>{m.terms.collection}</span>
                       <strong>{pct}%</strong>
                     </div>
                     <div className="progress"><i style={{ width: `${pct}%` }} /></div>
@@ -85,8 +87,8 @@ export function DashboardPage() {
         {!!shared.length && (
           <>
             <div className="row-head">
-              <h2>Shared with me</h2>
-              <Link className="link" to="/chits">View all</Link>
+              <h2>{m.dash.sharedWithMe}</h2>
+              <Link className="link" to="/chits">{m.common.viewAll}</Link>
             </div>
             <div className="dash-chits block">
               {shared.map((c, i) => {
@@ -102,27 +104,27 @@ export function DashboardPage() {
                       <div className={`dash-chit-avatar tone-${toneAt(i + 2)}`}>{initials(c.name)}</div>
                       <div className="dash-chit-heading">
                         <strong>{c.name}</strong>
-                        <span>{TYPE_LABEL[c.type]} · {c.members.length} members</span>
+                        <span>{typeLabel(c.type)} · {c.members.length} {m.common.members}</span>
                       </div>
                       <div className="dash-chit-actions">
-                        <span className="dash-chit-status">Shared</span>
+                        <span className="dash-chit-status">{m.chitsPage.shared}</span>
                         <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
                       </div>
                     </div>
                     <div className="dash-chit-divider" />
                     <div className="dash-chit-meta">
                       <div>
-                        <span>Cycle</span>
+                        <span>{m.terms.haptaRound}</span>
                         <strong>{displayCycle(c)} / {c.duration}</strong>
                       </div>
                       <div>
-                        <span>Per cycle</span>
+                        <span>{m.terms.perHapta}</span>
                         <strong>{inr(c.instalment)}</strong>
                       </div>
                     </div>
                     <div className="dash-chit-progress">
                       <div className="dash-chit-progress-head">
-                        <span>Collection</span>
+                        <span>{m.terms.collection}</span>
                         <strong>{pct}%</strong>
                       </div>
                       <div className="progress"><i style={{ width: `${pct}%` }} /></div>
@@ -148,7 +150,7 @@ export function DashboardPage() {
                   <div className={`dash-chit-avatar tone-${toneAt(i + 1)}`}>{initials(c.name)}</div>
                   <div className="dash-chit-heading">
                     <strong>{c.name}</strong>
-                    <span>Tracking · {inr(c.instalment)}/mo · {c.duration} months</span>
+                    <span>{m.chitsPage.tracking} · {inr(c.instalment)}/{m.terms.haptaShort} · {c.duration}</span>
                   </div>
                   <div className="dash-chit-actions">
                     <button
@@ -156,22 +158,22 @@ export function DashboardPage() {
                       type="button"
                       onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}
                     >
-                      <CircleX size={14} /> Cancel
+                      <CircleX size={14} /> {m.common.cancel}
                     </button>
                     <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
                   </div>
                 </div>
                 <div className="dash-chit-divider" />
                 {pct === 0 ? (
-                  <div className="due" style={{ margin: "0 0 10px" }}>Payment due now</div>
+                  <div className="due" style={{ margin: "0 0 10px" }}>{m.terms.outstanding}</div>
                 ) : (
                   <div className="dash-chit-meta">
                     <div>
-                      <span>Paid</span>
+                      <span>{m.terms.collected}</span>
                       <strong>{paid} / {c.duration}</strong>
                     </div>
                     <div>
-                      <span>Progress</span>
+                      <span>{m.terms.collection}</span>
                       <strong>{pct}%</strong>
                     </div>
                   </div>

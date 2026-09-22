@@ -14,32 +14,8 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import { useI18n } from "../i18n";
 import { useStore } from "../store";
-
-const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/chits", label: "Chits", icon: BookOpen },
-  { to: "/collections", label: "Collections", icon: Wallet },
-  { to: "/customers", label: "Customers", icon: Users },
-  { to: "/support", label: "Support", icon: Headset },
-  { to: "/upgrade", label: "Upgrade", icon: Crown },
-  { to: "/profile", label: "Profile", icon: UserRound },
-];
-
-const TAB_NAV = [
-  { to: "/", label: "Home", icon: LayoutDashboard },
-  { to: "/chits", label: "Chits", icon: BookOpen },
-  { to: "/collections", label: "Collect", icon: Wallet },
-  { to: "/customers", label: "People", icon: Users },
-];
-
-const MORE_NAV = [
-  { to: "/search", label: "Search", icon: Search, hint: "Find chits & members" },
-  { to: "/chits/new", label: "New chit", icon: Plus, hint: "Start a group" },
-  { to: "/support", label: "Support", icon: Headset, hint: "Get help" },
-  { to: "/upgrade", label: "Upgrade", icon: Crown, hint: "Plans & billing" },
-  { to: "/profile", label: "Profile", icon: UserRound, hint: "Your account" },
-];
 
 export function AppShell({
   children,
@@ -51,14 +27,41 @@ export function AppShell({
   crumb2?: string;
 }) {
   const { user, logout } = useStore();
+  const { m } = useI18n();
   const nav = useNavigate();
   const loc = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  const NAV = [
+    { to: "/", label: m.nav.dashboard, icon: LayoutDashboard },
+    { to: "/chits", label: m.nav.chits, icon: BookOpen },
+    { to: "/collections", label: m.nav.collections, icon: Wallet },
+    { to: "/customers", label: m.nav.customers, icon: Users },
+    { to: "/support", label: m.nav.support, icon: Headset },
+    { to: "/upgrade", label: m.nav.upgrade, icon: Crown },
+    { to: "/profile", label: m.nav.profile, icon: UserRound },
+  ];
+
+  const TAB_NAV = [
+    { to: "/", label: m.nav.home, icon: LayoutDashboard },
+    { to: "/chits", label: m.nav.chits, icon: BookOpen },
+    { to: "/collections", label: m.nav.collect, icon: Wallet },
+    { to: "/customers", label: m.nav.people, icon: Users },
+  ];
+
+  const MORE_NAV = [
+    { to: "/search", label: m.nav.search, icon: Search, hint: m.moreHints.search },
+    { to: "/chits/new", label: m.nav.newChit, icon: Plus, hint: m.moreHints.newChit },
+    { to: "/support", label: m.nav.support, icon: Headset, hint: m.moreHints.support },
+    { to: "/upgrade", label: m.nav.upgrade, icon: Crown, hint: m.moreHints.upgrade },
+    { to: "/profile", label: m.nav.profile, icon: UserRound, hint: m.moreHints.profile },
+  ];
+
   const title =
     crumb2 ||
     crumb ||
     NAV.find((n) => n.to === loc.pathname)?.label ||
-    "Bhishi Circle";
+    m.brand;
 
   useEffect(() => {
     setSheetOpen(false);
@@ -97,21 +100,21 @@ export function AppShell({
 
   const side = (
     <>
-      <NavLink to="/" className="logo">Bhishi Circle</NavLink>
+      <NavLink to="/" className="logo">{m.brand}</NavLink>
       {NAV.map((n) => (
         <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => `nav-btn${isActive ? " active" : ""}`}>
           <n.icon size={18} />
           {n.label}
         </NavLink>
       ))}
-      <NavLink to="/chits/new" className="new-chit"><Plus size={16} /> New chit</NavLink>
+      <NavLink to="/chits/new" className="new-chit"><Plus size={16} /> {m.nav.newChit}</NavLink>
       <div className="sidebar-bottom">
         <div className="avatar">{(user?.name || "BC").slice(0, 2).toUpperCase()}</div>
         <div className="grow">
           <div>{user?.name}</div>
-          <div className="muted">{user?.plan.toUpperCase()} plan</div>
+          <div className="muted">{user?.plan.toUpperCase()} {m.nav.plan}</div>
         </div>
-        <button className="icon-btn" title="Log out" onClick={() => { void logout().then(() => nav("/login")); }}>
+        <button className="icon-btn" title={m.nav.signOut} onClick={() => { void logout().then(() => nav("/login")); }}>
           <LogOut size={18} />
         </button>
       </div>
@@ -124,14 +127,14 @@ export function AppShell({
       {sheetOpen && (
         <>
           <div className="sheet-back" onClick={() => setSheetOpen(false)} aria-hidden />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="More">
+          <div className="sheet" role="dialog" aria-modal="true" aria-label={m.nav.more}>
             <div className="sheet-handle" aria-hidden />
             <div className="sheet-head">
               <div>
-                <strong>More</strong>
-                <p className="muted">Account, plans & shortcuts</p>
+                <strong>{m.nav.more}</strong>
+                <p className="muted">{m.nav.moreHint}</p>
               </div>
-              <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSheetOpen(false)}>
+              <button type="button" className="icon-btn" aria-label={m.common.close} onClick={() => setSheetOpen(false)}>
                 <X size={18} />
               </button>
             </div>
@@ -139,7 +142,7 @@ export function AppShell({
               <div className="avatar tone-blue">{(user?.name || "BC").slice(0, 2).toUpperCase()}</div>
               <div className="grow">
                 <strong>{user?.name}</strong>
-                <div className="muted">{user?.plan.toUpperCase()} plan{user?.phone ? ` · +91 ${user.phone}` : ""}</div>
+                <div className="muted">{user?.plan.toUpperCase()} {m.nav.plan}{user?.phone ? ` · +91 ${user.phone}` : ""}</div>
               </div>
             </div>
             <div className="sheet-list">
@@ -163,7 +166,7 @@ export function AppShell({
               className="sheet-logout"
               onClick={() => { void logout().then(() => nav("/login")); }}
             >
-              <LogOut size={16} /> Sign out
+              <LogOut size={16} /> {m.nav.signOut}
             </button>
           </div>
         </>
@@ -171,13 +174,13 @@ export function AppShell({
       <div className="main">
         <div className="topbar">
           <div className="crumbs">
-            {crumb && <Link to={crumb === "Chits" ? "/chits" : crumb === "Plan & billing" ? "/upgrade" : "/"}>{crumb}</Link>}
+            {crumb && <Link to={crumb === "Chits" || crumb === m.nav.chits ? "/chits" : crumb === "Plan & billing" ? "/upgrade" : "/"}>{crumb}</Link>}
             {crumb2 && <span>›</span>}
             <strong>{title}</strong>
           </div>
           <button className="search" onClick={() => nav("/search")}>
             <Search size={16} />
-            <span className="search-label">Search chits, members, receipts</span>
+            <span className="search-label">{m.searchPlaceholder}</span>
             <span className="search-kbd">⌘K</span>
           </button>
         </div>
@@ -201,7 +204,7 @@ export function AppShell({
               onClick={() => setSheetOpen(true)}
             >
               <MoreHorizontal size={20} strokeWidth={moreActive || sheetOpen ? 2.4 : 2} />
-              <span>More</span>
+              <span>{m.nav.more}</span>
             </button>
           </div>
         </nav>

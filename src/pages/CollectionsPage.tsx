@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Banknote, FileText, Landmark, Receipt, Users, Wallet } from "lucide-react";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
-import { MODE_LABEL, initials, inr } from "../lib/format";
+import { initials, inr } from "../lib/format";
 import { downloadDayBookPdf, downloadReceiptPdf } from "../lib/reportsPdf";
 import { useStore } from "../store";
 import type { PayMode } from "../types";
@@ -9,6 +10,7 @@ import { StatCard } from "../ui/StatCard";
 
 export function CollectionsPage() {
   const { chits, customers } = useStore();
+  const { m, modeLabel } = useI18n();
   const owned = useMemo(() => chits.filter((c) => c.viewerRole !== "member"), [chits]);
   const [range, setRange] = useState<"today" | "week" | "month" | "all">("all");
   const [chitId, setChitId] = useState("all");
@@ -34,15 +36,15 @@ export function CollectionsPage() {
   }, [owned, chitId, mode, range, q, names]);
 
   const collected = receipts.reduce((s, p) => s + p.amount, 0);
-  const byMode = (m: PayMode) => receipts.filter((p) => (p.mode || "cash") === m).reduce((s, p) => s + p.amount, 0);
+  const byMode = (modeId: PayMode) => receipts.filter((p) => (p.mode || "cash") === modeId).reduce((s, p) => s + p.amount, 0);
   const membersPaid = new Set(receipts.map((p) => p.memberId)).size;
 
   function exportDayBook() {
     const title =
-      range === "today" ? "Today"
-        : range === "week" ? "This week"
-          : range === "month" ? "This month"
-            : "All collections";
+      range === "today" ? m.common.today
+        : range === "week" ? m.common.thisWeek
+          : range === "month" ? m.common.thisMonth
+            : m.common.all;
     downloadDayBookPdf(
       title,
       receipts,
@@ -61,38 +63,40 @@ export function CollectionsPage() {
   }
 
   return (
-    <AppShell crumb="Collections">
+    <AppShell crumb={m.collections.register}>
       <div className="page">
         <div className="row-head">
           <div>
-            <h1>Collection register</h1>
-            <p className="page-sub">Every receipt across your chits</p>
+            <h1>{m.collections.title}</h1>
+            <p className="page-sub">{m.collections.subtitle}</p>
           </div>
-          <button className="btn" onClick={exportDayBook} disabled={!receipts.length}>Day book PDF</button>
+          <button className="btn" onClick={exportDayBook} disabled={!receipts.length}>{m.collections.dayBook}</button>
         </div>
         <div className="toolbar">
           {(["today", "week", "month", "all"] as const).map((r) => (
             <button key={r} className={`chip ${range === r ? "on" : ""}`} onClick={() => setRange(r)}>
-              {r === "all" ? "All" : r === "today" ? "Today" : r === "week" ? "This week" : "This month"}
+              {r === "all" ? m.common.all : r === "today" ? m.common.today : r === "week" ? m.common.thisWeek : m.common.thisMonth}
             </button>
           ))}
           <select className="field" style={{ margin: 0, maxWidth: 200 }} value={chitId} onChange={(e) => setChitId(e.target.value)}>
-            <option value="all">All chits</option>
+            <option value="all">{m.collections.allChits}</option>
             {owned.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select className="field" style={{ margin: 0, maxWidth: 180 }} value={mode} onChange={(e) => setMode(e.target.value as "all" | PayMode)}>
-            <option value="all">All modes</option>
-            {Object.entries(MODE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            <option value="all">{m.common.all}</option>
+            {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((k) => (
+              <option key={k} value={k}>{modeLabel(k)}</option>
+            ))}
           </select>
-          <input className="field" style={{ margin: 0, maxWidth: 220 }} placeholder="Find a member or chit" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="field" style={{ margin: 0, maxWidth: 220 }} placeholder={m.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="stats six">
-          <StatCard label="Collected" value={inr(collected)} hint="in this filter" tone="green" icon={Wallet} />
-          <StatCard label="Receipts" value={receipts.length} hint="payment rows" tone="blue" icon={Receipt} />
-          <StatCard label="Members paid" value={membersPaid} hint="unique people" tone="violet" icon={Users} />
-          <StatCard label="Cash" value={inr(byMode("cash"))} hint="cash mode" tone="amber" icon={Banknote} />
-          <StatCard label="UPI & bank" value={inr(byMode("upi") + byMode("bank"))} hint="digital" tone="teal" icon={Landmark} />
-          <StatCard label="Adjusted from payouts" value={inr(byMode("adjusted"))} hint="netted off" tone="rose" icon={FileText} />
+          <StatCard label={m.terms.collected} value={inr(collected)} hint={m.dash.collectedHint} tone="green" icon={Wallet} />
+          <StatCard label={m.collections.register} value={receipts.length} hint={m.terms.hapta} tone="blue" icon={Receipt} />
+          <StatCard label={m.collections.membersPaid} value={membersPaid} hint={m.collections.uniquePeople} tone="violet" icon={Users} />
+          <StatCard label={modeLabel("cash")} value={inr(byMode("cash"))} hint={modeLabel("cash")} tone="amber" icon={Banknote} />
+          <StatCard label="UPI" value={inr(byMode("upi") + byMode("bank"))} hint={modeLabel("bank")} tone="teal" icon={Landmark} />
+          <StatCard label={modeLabel("adjusted")} value={inr(byMode("adjusted"))} hint={modeLabel("adjusted")} tone="rose" icon={FileText} />
         </div>
         <div className="grid-2">
           <div className="card flush">
@@ -105,9 +109,9 @@ export function CollectionsPage() {
                   <div className="grow">
                     <strong>{names[p.memberId]}</strong>
                     <div className="muted">
-                      {p.chitName} · month {p.cycle}
-                      {p.slot != null ? ` · slot ${p.slot}` : ""}
-                      {" · "}{MODE_LABEL[p.mode || "cash"]}
+                      {p.chitName} · {m.terms.haptaRound} {p.cycle}
+                      {p.slot != null ? ` · ${m.terms.hand} ${p.slot}` : ""}
+                      {" · "}{modeLabel(p.mode || "cash")}
                     </div>
                   </div>
                   <strong className="num">{inr(p.amount)}</strong>
@@ -123,13 +127,13 @@ export function CollectionsPage() {
                 </div>
               );
             })}
-            {!receipts.length && <p className="empty">No receipts in this range.</p>}
+            {!receipts.length && <p className="empty">{m.chitsPage.empty}</p>}
             </div>
           </div>
           <div className="card">
-            <h2>Modes in this range</h2>
-            {(Object.keys(MODE_LABEL) as PayMode[]).map((m) => (
-              <div className="kv" key={m}><span>{MODE_LABEL[m]}</span><strong>{inr(byMode(m))}</strong></div>
+            <h2>{m.terms.collection}</h2>
+            {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((payMode) => (
+              <div className="kv" key={payMode}><span>{modeLabel(payMode)}</span><strong>{inr(byMode(payMode))}</strong></div>
             ))}
           </div>
         </div>

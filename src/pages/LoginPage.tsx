@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { useStore } from "../store";
 
 export function LoginPage() {
   const { sendOtp, verifyOtp, logout, user, authHint, error } = useStore();
+  const { m } = useI18n();
   const nav = useNavigate();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -62,16 +64,16 @@ export function LoginPage() {
       <div className="login-wrap">
         <div style={{ width: "min(420px, 100%)" }}>
           <div className="brand-mark">₹</div>
-          <h1>Bhishi Circle</h1>
-          <p className="sub">You are signed in</p>
+          <h1>{m.brand}</h1>
+          <p className="sub">{m.login.signedIn}</p>
           <div className="login-card">
             <p className="sub" style={{ marginBottom: 16 }}>
               {[user.name && user.name !== "Organiser" ? user.name : null, user.phone ? `+91 ${user.phone}` : null]
                 .filter(Boolean)
                 .join(" · ") || user.name}
             </p>
-            <button className="btn wide" onClick={() => nav("/")}>Go to dashboard</button>
-            <button className="btn ghost wide" style={{ marginTop: 10 }} onClick={() => void logout()}>Sign out</button>
+            <button className="btn wide" onClick={() => nav("/")}>{m.login.goDashboard}</button>
+            <button className="btn ghost wide" style={{ marginTop: 10 }} onClick={() => void logout()}>{m.nav.signOut}</button>
           </div>
         </div>
       </div>
@@ -82,14 +84,14 @@ export function LoginPage() {
     <div className="login-wrap">
       <div style={{ width: "min(420px, 100%)" }}>
         <div className="brand-mark">₹</div>
-        <h1>Bhishi Circle</h1>
-        <p className="sub">Manage your chit funds with confidence</p>
+        <h1>{m.brand}</h1>
+        <p className="sub">{m.login.tagline}</p>
         <div className="login-card">
           {step === "phone" ? (
             <>
               <div className="grid-2" style={{ gap: 10, marginBottom: 0 }}>
                 <div>
-                  <label className="label" htmlFor="firstName">First name</label>
+                  <label className="label" htmlFor="firstName">{m.login.firstName}</label>
                   <input
                     id="firstName"
                     className="field"
@@ -100,7 +102,7 @@ export function LoginPage() {
                   />
                 </div>
                 <div>
-                  <label className="label" htmlFor="lastName">Last name</label>
+                  <label className="label" htmlFor="lastName">{m.login.lastName}</label>
                   <input
                     id="lastName"
                     className="field"
@@ -111,7 +113,7 @@ export function LoginPage() {
                   />
                 </div>
               </div>
-              <label className="label" htmlFor="phone">Mobile number</label>
+              <label className="label" htmlFor="phone">{m.login.phone}</label>
               <div className="phone-row">
                 <span>+91</span>
                 <input
@@ -127,7 +129,7 @@ export function LoginPage() {
               <p className="hint">We’ll text a one-time code to this number via SMS.</p>
               {error && <p className="due">{error}</p>}
               <button className="btn wide" disabled={sending || !canSend} onClick={() => void send()}>
-                {sending ? "Sending…" : "Send OTP"}
+                {sending ? m.common.loading : m.login.sendOtp}
               </button>
             </>
           ) : (

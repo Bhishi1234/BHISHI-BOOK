@@ -10,7 +10,8 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../layout/AppShell";
 import { baseInstalment, paidInCycle } from "../lib/chitMath";
-import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr, todayIso } from "../lib/format";
+import { useI18n } from "../i18n";
+import { initials, inr, todayIso } from "../lib/format";
 import { useStore } from "../store";
 import type { PayMode } from "../types";
 import { StatCard } from "../ui/StatCard";
@@ -20,6 +21,7 @@ export function TrackedChitPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { chits, customers, user, recordPayment, closeCycle, cancelChit, error } = useStore();
+  const { m, typeLabel, freqLabel, modeLabel } = useI18n();
   const chit = chits.find((c) => c.id === id);
   const [logging, setLogging] = useState(false);
   const [advancing, setAdvancing] = useState(false);
@@ -89,7 +91,7 @@ export function TrackedChitPage() {
             <div className="chit-hero-heading">
               <h1>{data.name}</h1>
               <p>
-                {TYPE_LABEL[data.type] || "Bhishi"} · Tracking
+                {typeLabel(data.type) || m.nav.chits} · {m.chitsPage.tracking}
                 {data.title ? ` · ${data.title}` : ""}
               </p>
             </div>
@@ -103,7 +105,7 @@ export function TrackedChitPage() {
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
                 <span>Instalment</span>
-                <strong>{inr(instalment)}/{FREQ_LABEL[data.frequency] || "mo"}</strong>
+                <strong>{inr(instalment)}/{freqLabel(data.frequency) || m.terms.haptaShort}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
@@ -231,9 +233,9 @@ export function TrackedChitPage() {
             <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <label className="label">Payment mode</label>
             <div className="seg">
-              {(["cash", "upi", "bank", "cheque"] as PayMode[]).map((m) => (
-                <button key={m} type="button" className={`chip ${payMode === m ? "on" : ""}`} onClick={() => setPayMode(m)}>
-                  {MODE_LABEL[m]}
+              {(["cash", "upi", "bank", "cheque"] as PayMode[]).map((payModeId) => (
+                <button key={payModeId} type="button" className={`chip ${payMode === payModeId ? "on" : ""}`} onClick={() => setPayMode(payModeId)}>
+                  {modeLabel(payModeId)}
                 </button>
               ))}
             </div>

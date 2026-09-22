@@ -1,47 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import type { AuctionStyle, ChitType, FixedStyle, Frequency } from "../types";
-import { FREQ_LABEL, inr } from "../lib/format";
+import { inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
 import { useStore } from "../store";
-
-const TYPES: { id: ChitType; title: string; body: string }[] = [
-  { id: "auction", title: "Auction", body: "Members bid each cycle; winner takes the pot. Choose collect-first or auction-first next." },
-  { id: "fixed", title: "Fixed", body: "Same dues every month. Choose fixed order, lucky draw, or sacrifice hand next." },
-  { id: "loan", title: "Loan", body: "Member takes a loan; then pays deposit + interest on principal + principal share." },
-];
-
-const AUCTION_STYLES: { id: AuctionStyle; title: string; body: string }[] = [
-  {
-    id: "collect_first",
-    title: "Collect first, then auction",
-    body: "Gather this month’s contributions into the pot, then run the auction. Winner takes their bid from cash on hand; discount becomes dividend.",
-  },
-  {
-    id: "auction_first",
-    title: "Auction first, then collect",
-    body: "Run the auction first (e.g. winner wants ₹95,000 of a ₹1,00,000 pot). Everyone then pays bid ÷ members. Face value stays the full pot each month.",
-  },
-];
-
-const FIXED_STYLES: { id: FixedStyle; title: string; body: string }[] = [
-  {
-    id: "fixed_order",
-    title: "Fixed order",
-    body: "Payout follows the member slot list you set (slot 1 first, then 2, and so on). Same monthly due for everyone.",
-  },
-  {
-    id: "lucky_draw",
-    title: "Lucky draw",
-    body: "Each month, roll among members who have not yet won. Same monthly due for everyone — no premium or extra after win.",
-  },
-  {
-    id: "hand_sacrifice",
-    title: "Sacrifice hand",
-    body: "Early winners take the pot minus one full instalment; that cut is paid as cash dividends to members still playing. The last member takes the full pot. Lucky draw available if no one steps up.",
-  },
-];
 
 const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
 
@@ -51,6 +15,7 @@ function needsStyleStep(type: ChitType) {
 
 export function NewChitPage() {
   const { customers, addCustomer, addChit, error } = useStore();
+  const { m, freqLabel, freqHint } = useI18n();
   const nav = useNavigate();
   /** 0 type · 1 style (auction/fixed) · 2 terms · 3 members */
   const [step, setStep] = useState(0);
@@ -74,6 +39,32 @@ export function NewChitPage() {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const TYPES = useMemo(
+    () => ([
+      { id: "auction" as const, title: m.type.auction, body: m.typeBody.auction },
+      { id: "fixed" as const, title: m.type.fixed, body: m.typeBody.fixed },
+      { id: "loan" as const, title: m.type.loan, body: m.typeBody.loan },
+    ]),
+    [m],
+  );
+
+  const AUCTION_STYLES = useMemo(
+    () => ([
+      { id: "collect_first" as const, title: m.auctionStyle.collect_first, body: m.auctionStyle.collect_first_body },
+      { id: "auction_first" as const, title: m.auctionStyle.auction_first, body: m.auctionStyle.auction_first_body },
+    ]),
+    [m],
+  );
+
+  const FIXED_STYLES = useMemo(
+    () => ([
+      { id: "fixed_order" as const, title: m.fixedStyle.fixed_order, body: m.fixedStyle.fixed_order_body },
+      { id: "lucky_draw" as const, title: m.fixedStyle.lucky_draw, body: m.fixedStyle.lucky_draw_body },
+      { id: "hand_sacrifice" as const, title: m.fixedStyle.hand_sacrifice, body: m.fixedStyle.hand_sacrifice_body },
+    ]),
+    [m],
+  );
 
   const n = Number(count) || 0;
   const potN = Number(pot) || 0;
@@ -112,15 +103,15 @@ export function NewChitPage() {
 
   const stepper = needsStyleStep(type)
     ? [
-        ["Type", "How winners are decided"],
-        ["Style", type === "auction" ? "When the auction runs" : "How the pot is awarded"],
-        ["Terms", "Amount & duration"],
-        ["Members", "Who is in the group"],
+        [m.newChit.pickType, ""],
+        [type === "auction" ? m.newChit.auctionStyle : m.newChit.fixedStyle, ""],
+        [m.newChit.terms, ""],
+        [m.newChit.membersStep, ""],
       ]
     : [
-        ["Type", "How winners are decided"],
-        ["Terms", "Amount & duration"],
-        ["Members", "Who is in the group"],
+        [m.newChit.pickType, ""],
+        [m.newChit.terms, ""],
+        [m.newChit.membersStep, ""],
       ];
 
   const displayStep = needsStyleStep(type) ? step : step === 0 ? 0 : step - 1;
@@ -216,7 +207,7 @@ export function NewChitPage() {
   }
 
   return (
-    <AppShell crumb="Chits" crumb2="New chit">
+    <AppShell crumb={m.nav.chits} crumb2={m.newChit.title}>
       <div className="page new-chit-page">
         <div className="row-head">
           <div>
@@ -248,8 +239,8 @@ export function NewChitPage() {
 
         {step === 0 && (
           <div className="card">
-            <div className="row-head"><h2>Type</h2><span className="muted">Step 1 of {stepper.length}</span></div>
-            <p className="muted block">How winners are decided each cycle.</p>
+            <div className="row-head"><h2>{m.newChit.pickType}</h2><span className="muted">1 / {stepper.length}</span></div>
+            <p className="muted block">{m.newChit.pickType}</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
               {TYPES.map((t) => (
                 <button key={t.id} className={`type-pick ${type === t.id ? "active" : ""}`} onClick={() => setType(t.id)}>
@@ -267,8 +258,8 @@ export function NewChitPage() {
 
         {step === 1 && type === "auction" && (
           <div className="card">
-            <div className="row-head"><h2>Auction style</h2><span className="muted">Step 2 of {stepper.length}</span></div>
-            <p className="muted block">When the auction runs relative to collections.</p>
+            <div className="row-head"><h2>{m.newChit.auctionStyle}</h2><span className="muted">2 / {stepper.length}</span></div>
+            <p className="muted block">{m.auctionStyle.collect_first}</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
               {AUCTION_STYLES.map((s) => (
                 <button
@@ -291,8 +282,8 @@ export function NewChitPage() {
 
         {step === 1 && type === "fixed" && (
           <div className="card">
-            <div className="row-head"><h2>Fixed style</h2><span className="muted">Step 2 of {stepper.length}</span></div>
-            <p className="muted block">How the pot is awarded each month.</p>
+            <div className="row-head"><h2>{m.newChit.fixedStyle}</h2><span className="muted">2 / {stepper.length}</span></div>
+            <p className="muted block">{m.fixedStyle.fixed_order}</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr" }}>
               {FIXED_STYLES.map((s) => (
                 <button
@@ -317,10 +308,10 @@ export function NewChitPage() {
           <div className="grid-2 new-chit-terms">
             <div>
               <div className="card">
-                <div className="row-head"><h2>Terms</h2><span className="muted">Step {termsStepLabel} of {stepper.length}</span></div>
+                <div className="row-head"><h2>{m.newChit.terms}</h2><span className="muted">{termsStepLabel} / {stepper.length}</span></div>
                 <div className="grid-2">
                   <div>
-                    <label className="label">Total amount</label>
+                    <label className="label">{m.terms.bhishiAmount}</label>
                     <input className="field" placeholder="e.g. 100000" value={pot} onChange={(e) => setPot(e.target.value)} />
                     <div className="quick">
                       {[100000, 200000, 500000].map((v) => (
@@ -329,31 +320,33 @@ export function NewChitPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="label">Number of members</label>
+                    <label className="label">{m.newChit.memberCount}</label>
                     <input className="field" placeholder="e.g. 10" value={count} onChange={(e) => { setCount(e.target.value); if (!duration) setDuration(e.target.value); }} />
                   </div>
                   <div>
-                    <label className="label">Duration (in Months)</label>
+                    <label className="label">{m.newChit.duration}</label>
                     <input className="field" placeholder="e.g. 10" value={duration} onChange={(e) => setDuration(e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Start date</label>
+                    <label className="label">{m.newChit.startDate}</label>
                     <input className="field" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
                   </div>
                 </div>
-                <label className="label">Title (optional)</label>
-                <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
-                <label className="label">Frequency</label>
+                <label className="label">{m.newChit.groupName}</label>
+                <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={m.newChit.groupNameHint} />
+                <label className="label">{m.newChit.frequency}</label>
+                <p className="muted" style={{ marginBottom: 8 }}>{m.newChit.frequencyHint}</p>
                 <div className="seg block">
                   {FREQS.map((f) => (
-                    <button key={f} className={`chip ${freq === f ? "on" : ""}`} onClick={() => setFreq(f)}>{FREQ_LABEL[f]}</button>
+                    <button key={f} type="button" title={freqHint(f)} className={`chip ${freq === f ? "on" : ""}`} onClick={() => setFreq(f)}>{freqLabel(f)}</button>
                   ))}
                 </div>
+                {freqHint(freq) ? <p className="muted" style={{ marginTop: 8 }}>{freqHint(freq)}</p> : null}
               </div>
 
               <div className="card" style={{ marginTop: 16 }}>
-                <h2>Money</h2>
-                <label className="label">Commission</label>
+                <h2>{m.terms.collected}</h2>
+                <label className="label">{m.terms.commission}</label>
                 <div className="seg" style={{ marginBottom: 12 }}>
                   <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>₹ Amount</button>
                   <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>% Percentage</button>
@@ -397,15 +390,15 @@ export function NewChitPage() {
             </div>
             <div className="new-chit-terms-side">
               <div className="card live-preview-card">
-                <div className="row-head"><h2>Chit Summary</h2></div>
-                {preview.style && <div className="kv"><span>Style</span><strong>{preview.style}</strong></div>}
-                <div className="kv"><span>Members</span><strong>{preview.members}</strong></div>
-                <div className="kv"><span>Duration</span><strong>{preview.duration}</strong></div>
-                <div className="kv"><span>Per month</span><strong>{preview.per}</strong></div>
-                <div className="kv"><span>Commission / month</span><strong>{preview.commission}</strong></div>
+                <div className="row-head"><h2>{m.newChit.summary}</h2></div>
+                {preview.style && <div className="kv"><span>{m.newChit.fixedStyle}</span><strong>{preview.style}</strong></div>}
+                <div className="kv"><span>{m.nav.customers}</span><strong>{preview.members}</strong></div>
+                <div className="kv"><span>{m.newChit.duration}</span><strong>{preview.duration}</strong></div>
+                <div className="kv"><span>{m.terms.perHapta}</span><strong>{preview.per}</strong></div>
+                <div className="kv"><span>{m.terms.commission}</span><strong>{preview.commission}</strong></div>
               </div>
               <div className="card">
-                <h2>Settings</h2>
+                <h2>{m.newChit.settings}</h2>
                 <label className="check">
                   <input className="toggle" type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
                   <span><strong>Allow members to view this chit</strong></span>
@@ -431,7 +424,7 @@ export function NewChitPage() {
 
         {step === 3 && (
           <div className="card">
-            <div className="row-head"><h2>Members</h2><span className="muted">Step {membersStepLabel} of {stepper.length}</span></div>
+            <div className="row-head"><h2>{m.newChit.membersStep}</h2><span className="muted">{membersStepLabel} / {stepper.length}</span></div>
             <p className="muted block">
               {showPayoutOrder
                 ? fixedStyle === "hand_sacrifice"
@@ -533,7 +526,7 @@ export function NewChitPage() {
                 disabled={saving || !n || picked.length !== n}
                 onClick={() => void create()}
               >
-                {saving ? "Creating…" : "Create bhishi"}
+                {saving ? m.newChit.creating : m.newChit.create}
               </button>
             </div>
           </div>

@@ -17,7 +17,8 @@ import {
   paymentStatus,
   rawCycleDue,
 } from "../lib/chitMath";
-import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
+import { useI18n } from "../i18n";
+import { initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard } from "../ui/StatCard";
 
@@ -26,6 +27,7 @@ export function MemberChitPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { chits, customers, user } = useStore();
+  const { m, typeLabel, freqLabel, modeLabel } = useI18n();
   const data = chits.find((c) => c.id === id);
 
   const selfId = useMemo(() => {
@@ -71,7 +73,7 @@ export function MemberChitPage() {
             <div className="chit-hero-heading">
               <h1>{data.name}</h1>
               <p>
-                {TYPE_LABEL[data.type]} · Shared
+                {typeLabel(data.type)} · {m.chitsPage.shared}
                 {data.title ? ` · ${data.title}` : ""}
               </p>
             </div>
@@ -92,7 +94,7 @@ export function MemberChitPage() {
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
                 <span>Instalment</span>
-                <strong>{inr(data.instalment)}/{FREQ_LABEL[data.frequency] || data.frequency}</strong>
+                <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
@@ -223,7 +225,7 @@ export function MemberChitPage() {
                         <td>{p.date ? new Date(p.date).toLocaleDateString("en-IN") : "—"}</td>
                         <td>{p.cycle}</td>
                         <td>{inr(p.amount)}</td>
-                        <td>{MODE_LABEL[p.mode || "cash"]}</td>
+                        <td>{modeLabel(p.mode || "cash")}</td>
                       </tr>
                     ))}
                 </tbody>

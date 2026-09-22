@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
-import { TYPE_LABEL, chitPath, inr } from "../lib/format";
+import { chitPath, inr } from "../lib/format";
 import { useStore } from "../store";
 
 export function SupportPage() {
@@ -137,6 +138,7 @@ export function UpgradePage() {
 
 export function ProfilePage() {
   const { user, updateProfile, logout, deactivateAccount, error } = useStore();
+  const { m } = useI18n();
   const [name, setName] = useState(user?.name || "");
   const [lang, setLang] = useState(user?.language || "en");
   const [edit, setEdit] = useState(false);
@@ -160,18 +162,18 @@ export function ProfilePage() {
   }
 
   return (
-    <AppShell crumb="Profile">
+    <AppShell crumb={m.profile.title}>
       <div className="page">
-        <h1 className="block">Profile</h1>
+        <h1 className="block">{m.profile.title}</h1>
         <div className="stack">
         <div className="card">
-          <label className="label">Phone</label>
-          <p><strong>{user?.phone ? `+91 ${user.phone}` : "Not set"}</strong></p>
-          <label className="label">Name</label>
+          <label className="label">{m.profile.phone}</label>
+          <p><strong>{user?.phone ? `+91 ${user.phone}` : m.common.notSet}</strong></p>
+          <label className="label">{m.profile.name}</label>
           {edit ? <input className="field" value={name} onChange={(e) => setName(e.target.value)} /> : <p><strong>{user?.name}</strong></p>}
           {user?.email ? (
             <>
-              <label className="label">Email</label>
+              <label className="label">{m.profile.email}</label>
               <p>{user.email}</p>
             </>
           ) : null}
@@ -179,50 +181,49 @@ export function ProfilePage() {
             ? (
               <div className="seg" style={{ marginTop: 12 }}>
                 <button className="btn" disabled={saving} onClick={() => void saveProfile()}>
-                  {saving ? "Saving…" : "Save"}
+                  {saving ? m.profile.saving : m.common.save}
                 </button>
                 <button className="btn ghost" type="button" disabled={saving} onClick={() => {
                   setName(user?.name || "");
                   setEdit(false);
                 }}>
-                  Cancel
+                  {m.common.cancel}
                 </button>
               </div>
             )
-            : <button className="btn ghost" onClick={() => setEdit(true)}>Edit profile</button>}
+            : <button className="btn ghost" onClick={() => setEdit(true)}>{m.profile.editProfile}</button>}
           {error && edit && <p className="due" style={{ marginTop: 8 }}>{error}</p>}
           <p className="muted">
-            You sign in with this phone number via SMS OTP. Use the same number your organiser saved when adding you to a chit — then shared groups appear under Chits.
+            {m.profile.phoneHint}
           </p>
         </div>
         <div className="card">
-          <h2>Language</h2>
-          <p className="muted">Used for SMS and push reminders. The mobile app also switches its own screens to this language.</p>
+          <h2>{m.profile.language}</h2>
+          <p className="muted">{m.profile.languageHint}</p>
           <div className="seg">
             {[
               ["en", "English"],
-              ["te", "తెలుగు · Telugu"],
               ["hi", "हिन्दी · Hindi"],
-              ["ta", "தமிழ் · Tamil"],
+              ["mr", "मराठी · Marathi"],
             ].map(([id, label]) => (
               <button key={id} className={`chip ${lang === id ? "on" : ""}`} onClick={() => { setLang(id); void updateProfile({ language: id }); }}>{label}</button>
             ))}
           </div>
         </div>
         <div className="card center">
-          <h2>Invite friends</h2>
-          <p className="muted">Share Bhishi Circle with friends and family</p>
-          <button className="btn ghost" onClick={() => void navigator.clipboard.writeText(window.location.origin)}>Share</button>
+          <h2>{m.profile.invite}</h2>
+          <p className="muted">{m.profile.inviteHint}</p>
+          <button className="btn ghost" onClick={() => void navigator.clipboard.writeText(window.location.origin)}>{m.common.share}</button>
         </div>
         <div className="card">
-          <h2>Danger zone</h2>
-          <p className="muted">Deactivate your account. Recoverable for 30 days.</p>
+          <h2>{m.profile.danger}</h2>
+          <p className="muted">{m.profile.dangerHint}</p>
           <button className="btn danger" onClick={() => {
-            if (window.confirm("Deactivate this account? You can recover it for 30 days by signing in again.")) {
+            if (window.confirm(m.profile.deleteConfirm)) {
               void deactivateAccount();
             }
-          }}>Delete account</button>
-          <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => void logout()}>Sign out</button>
+          }}>{m.profile.deleteAccount}</button>
+          <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => void logout()}>{m.nav.signOut}</button>
         </div>
         </div>
       </div>
@@ -232,6 +233,7 @@ export function ProfilePage() {
 
 export function SearchPage() {
   const { chits, customers } = useStore();
+  const { m, typeLabel } = useI18n();
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const names = Object.fromEntries(customers.map((c) => [c.id, c.name]));
@@ -240,7 +242,7 @@ export function SearchPage() {
     !query
     || c.name.toLowerCase().includes(query)
     || (c.title || "").toLowerCase().includes(query)
-    || (TYPE_LABEL[c.type] || c.type).toLowerCase().includes(query),
+    || typeLabel(c.type).toLowerCase().includes(query),
   );
 
   const memberHits = customers.filter((c) =>
@@ -260,21 +262,21 @@ export function SearchPage() {
   ).slice(0, 20);
 
   return (
-    <AppShell crumb="Search">
+    <AppShell crumb={m.nav.search}>
       <div className="page">
         <div className="modal-back" style={{ position: "relative", background: "transparent", padding: 0, display: "block" }}>
           <div className="search-pop" style={{ margin: "0 auto" }}>
-            <h2>Search</h2>
-            <p className="muted">Search chits, members, and receipts.</p>
-            <input className="field" autoFocus placeholder="Search chits, members, receipts…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <h2>{m.nav.search}</h2>
+            <p className="muted">{m.searchPlaceholder}</p>
+            <input className="field" autoFocus placeholder={m.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
 
-            <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Chits</p>
+            <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>{m.nav.chits}</p>
             {chitHits.length ? chitHits.map((c) => (
               <div key={c.id} className="search-hit">
                 <Link to={chitPath(c)}>{c.name}</Link>
-                <span className="muted">{TYPE_LABEL[c.type] || c.type} · {c.viewerRole === "member" ? "shared" : c.mode}</span>
+                <span className="muted">{typeLabel(c.type)} · {c.viewerRole === "member" ? m.chitsPage.shared : c.mode}</span>
               </div>
-            )) : <p className="muted">No chits match.</p>}
+            )) : <p className="muted">{m.chitsPage.empty}</p>}
 
             <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Members</p>
             {memberHits.length ? memberHits.slice(0, 12).map((c) => (

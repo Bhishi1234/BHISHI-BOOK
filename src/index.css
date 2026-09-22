@@ -23,7 +23,7 @@
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 14px rgb(15 23 42 / 0.04);
   --radius: 16px;
   --space: 14px;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", "Noto Sans Devanagari", system-ui, sans-serif;
   color: var(--ink);
   background: var(--bg);
   font-size: 13.5px;

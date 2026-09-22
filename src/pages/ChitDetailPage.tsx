@@ -64,7 +64,8 @@ import {
   downloadMonthDuesPdf,
   downloadReceiptPdf,
 } from "../lib/reportsPdf";
-import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL, initials, inr } from "../lib/format";
+import { initials, inr } from "../lib/format";
+import { useI18n } from "../i18n";
 import { useStore } from "../store";
 import type { PayMode, PaymentKind } from "../types";
 
@@ -74,6 +75,7 @@ export function ChitDetailPage() {
     chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, luckyDraw, closeCycle,
     cancelChit, addMember, undoPayment, updateChitSettings, error,
   } = useStore();
+  const { m, typeLabel, freqLabel, modeLabel } = useI18n();
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
   const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "settlement" | "settings">("overview");
@@ -192,16 +194,16 @@ export function ChitDetailPage() {
     : null;
 
   const styleLabel = auctionFirst
-    ? "Auction first"
+    ? m.auctionStyle.auction_first
     : data.type === "auction"
-      ? "Collect first"
+      ? m.auctionStyle.collect_first
       : data.type === "fixed"
-        ? "Fixed order"
+        ? m.fixedStyle.fixed_order
         : data.type === "lucky_draw"
-          ? "Roll each month"
+          ? m.fixedStyle.lucky_draw
           : handSacrifice
-            ? "Sacrifice hand"
-            : TYPE_LABEL[data.type];
+            ? m.fixedStyle.hand_sacrifice
+            : typeLabel(data.type);
   const commissionLabel = data.commissionKind === "amount" && data.commissionValue
     ? inr(data.commissionValue)
     : `${data.commissionPct}%`;
@@ -225,7 +227,7 @@ export function ChitDetailPage() {
   }
 
   return (
-    <AppShell crumb="Chits" crumb2={data.name}>
+    <AppShell crumb={m.nav.chits} crumb2={data.name}>
       <div className="page chit-detail-page">
         <section className="chit-hero">
           <div className="chit-hero-top">
@@ -233,8 +235,8 @@ export function ChitDetailPage() {
             <div className="chit-hero-heading">
               <h1>{data.name}</h1>
               <p>
-                {TYPE_LABEL[data.type]}
-                {styleLabel && styleLabel !== TYPE_LABEL[data.type] ? ` · ${styleLabel}` : ""}
+                {typeLabel(data.type)}
+                {styleLabel && styleLabel !== typeLabel(data.type) ? ` · ${styleLabel}` : ""}
                 {data.title ? ` · ${data.title}` : ""}
               </p>
             </div>
@@ -255,7 +257,7 @@ export function ChitDetailPage() {
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
                 <span>Instalment</span>
-                <strong>{inr(data.instalment)}/{FREQ_LABEL[data.frequency] || data.frequency}</strong>
+                <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
@@ -552,8 +554,8 @@ export function ChitDetailPage() {
                 </>
               )}
               <div className="grid-2" style={{ marginTop: 8 }}>
-                <div className="kv"><span>Type</span><strong>{TYPE_LABEL[data.type].toUpperCase()}</strong></div>
-                <div className="kv"><span>Frequency</span><strong>{FREQ_LABEL[data.frequency]}</strong></div>
+                <div className="kv"><span>{m.detail.type}</span><strong>{typeLabel(data.type).toUpperCase()}</strong></div>
+                <div className="kv"><span>{m.detail.frequency}</span><strong>{freqLabel(data.frequency)}</strong></div>
                 <div className="kv"><span>Contribution</span><strong>{inr(data.instalment)}</strong></div>
                 <div className="kv"><span>Duration</span><strong>{data.duration} months</strong></div>
                 {data.type === "loan" && (
@@ -644,7 +646,7 @@ export function ChitDetailPage() {
                           <div className="grow">
                             <strong>{label}</strong>
                             <div className="muted">
-                              {MODE_LABEL[p.mode || "cash"]} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                              {modeLabel(p.mode || "cash")} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                             </div>
                           </div>
                           <strong className="num">{inr(p.amount)}</strong>
@@ -820,7 +822,7 @@ export function ChitDetailPage() {
                           <td>{inr(due)}</td>
                           <td>{inr(paid)}</td>
                           <td>{paid >= due ? "—" : inr(due - paid)}</td>
-                          <td>{last ? MODE_LABEL[last.mode || "cash"] : "—"}</td>
+                          <td>{last ? modeLabel(last.mode || "cash") : "—"}</td>
                           <td>{last ? new Date(last.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</td>
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
