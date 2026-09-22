@@ -852,6 +852,29 @@ button.stat {
 }
 .invite-chip:hover { background: #d8f3e8; }
 
+.member-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.invite-wa-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: #e8f8f1;
+  color: #0f8a5f;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.invite-wa-icon:hover { background: #d8f3e8; }
+
 .loan-share-banner {
   border: 1px solid rgb(47 111 237 / 0.18);
   background: linear-gradient(180deg, #edf3ff 0%, #fff 48%);

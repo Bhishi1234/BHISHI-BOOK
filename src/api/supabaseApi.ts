@@ -367,4 +367,21 @@ export const supabaseApi = {
     throwIf(error);
     return mapTicket(data as Record<string, unknown>);
   },
+
+  async phonesOnApp(phones: string[]) {
+    const { sb } = await requireUser();
+    const cleaned = [...new Set(
+      phones
+        .map((p) => String(p || "").replace(/\D/g, "").slice(-10))
+        .filter((p) => p.length === 10),
+    )];
+    if (!cleaned.length) return [];
+    const { data, error } = await sb.rpc("phones_on_app", { p_phones: cleaned });
+    if (error) {
+      // Migration may not be applied yet — fail soft.
+      console.warn("phones_on_app", error.message);
+      return [];
+    }
+    return ((data as string[]) || []).filter(Boolean);
+  },
 };

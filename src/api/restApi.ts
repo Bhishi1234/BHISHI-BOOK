@@ -207,4 +207,9 @@ export const restApi = {
       body: JSON.stringify({ subject, message }),
     }));
   },
+
+  async phonesOnApp(_phones: string[]) {
+    void _phones;
+    return [] as string[];
+  },
 };

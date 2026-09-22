@@ -37,6 +37,8 @@ type Backend = {
   luckyDraw: (chitId: string) => Promise<AuctionRecord>;
   tickets: () => Promise<unknown>;
   addTicket: (subject: string, message: string) => Promise<unknown>;
+  /** Phones (10-digit) that already have a Bhishi Circle profile. */
+  phonesOnApp: (phones: string[]) => Promise<string[]>;
   ensureActive?: () => Promise<void>;
 };
 
@@ -69,6 +71,11 @@ const mockApi: Backend = {
   luckyDraw: (chitId) => delay(mockServer.auctions.draw(chitId)),
   tickets: () => delay(mockServer.support.list()),
   addTicket: (subject, message) => delay(mockServer.support.create(subject, message)),
+  phonesOnApp: async (phones) => {
+    // Demo: treat no customer phones as registered (always show invite).
+    void phones;
+    return [];
+  },
   ensureActive: async () => undefined,
 };
 

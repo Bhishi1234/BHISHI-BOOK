@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PayModal } from "../components/PayModal";
 import { MemberReachButtons } from "../components/MemberReachButtons";
+import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
 import { AppShell } from "../layout/AppShell";
 import { StatCard } from "../ui/StatCard";
 import { useI18n } from "../i18n";
@@ -81,6 +82,7 @@ import {
   shareText,
   tryPhone10,
 } from "../lib/share";
+import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import type { AuctionRecord, PayMode, PaymentKind } from "../types";
@@ -166,6 +168,11 @@ export function ChitDetailPage() {
     winnerId && winnerSlot != null ? `${winnerId}::${winnerSlot}` : winnerId;
 
   const names = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
+  const memberPhones = useMemo(
+    () => (chit ? chit.members.map((m) => customers.find((c) => c.id === m.customerId)?.phone) : []),
+    [chit, customers],
+  );
+  const { isOnApp } = usePhonesOnApp(memberPhones);
 
   if (!chit) {
     return <AppShell crumb={copy.nav.chits}><div className="page"><p>{copy.chit.notFound}</p></div></AppShell>;
@@ -1532,22 +1539,7 @@ export function ChitDetailPage() {
               <button
                 className="btn"
                 disabled={!newMemberId || data.members.length >= data.membersCount}
-                onClick={() => void addMember(data.id, newMemberId).then(() => {
-                  const c = customers.find((x) => x.id === newMemberId);
-                  if (c?.phone) {
-                    openWhatsApp(
-                      c.phone,
-                      inviteMemberWhatsAppMessage({
-                        memberName: c.name,
-                        phone: c.phone,
-                        chitName: data.name,
-                        organiserName: user?.name,
-                        instalment: data.instalment,
-                      }),
-                    );
-                  }
-                  setNewMemberId("");
-                })}
+                onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}
               >
                 {data.members.some((m) => m.customerId === newMemberId) ? copy.chit.addHand : copy.chit.addMember}
               </button>
@@ -1569,16 +1561,6 @@ export function ChitDetailPage() {
                           if (!data.members.some((m) => m.customerId === cust!.id) || data.members.length < data.membersCount) {
                             await addMember(data.id, cust.id);
                           }
-                          openWhatsApp(
-                            phone,
-                            inviteMemberWhatsAppMessage({
-                              memberName: cust.name,
-                              phone,
-                              chitName: data.name,
-                              organiserName: user?.name,
-                              instalment: data.instalment,
-                            }),
-                          );
                         }
                       } catch (e) {
                         window.alert(e instanceof Error ? e.message : "Could not open contacts");
@@ -1592,6 +1574,7 @@ export function ChitDetailPage() {
             </div>
             <p className="muted" style={{ marginBottom: 12 }}>
               One person can play multiple hands (slots). Each hand pays its own instalment and can win once. {data.members.length} of {data.membersCount} slots filled.
+              {" "}WhatsApp invite appears next to members who are not yet on Bhishi Circle.
             </p>
             <div className="card flush">
               {data.members.map((m) => {
@@ -1606,11 +1589,29 @@ export function ChitDetailPage() {
                 const left = Math.max(0, memberBalance(data, m.customerId, m.slot).outstanding);
                 const hands = data.members.filter((x) => x.customerId === m.customerId).length;
                 const cust = customers.find((c) => c.id === m.customerId);
+                const needsInvite = Boolean(cust?.phone) && !isOnApp(cust?.phone);
                 return (
                   <div key={`${m.customerId}-${m.slot}`} className="list-row">
                     <div className="avatar">{initials(names[m.customerId] || "?")}</div>
                     <div className="grow">
-                      <button className="link" style={{ fontWeight: 600 }} onClick={() => nav(`/customers/${m.customerId}`)}>{names[m.customerId]}</button>
+                      <div className="member-name-row">
+                        <button className="link" style={{ fontWeight: 600 }} onClick={() => nav(`/customers/${m.customerId}`)}>
+                          {names[m.customerId]}
+                        </button>
+                        {needsInvite ? (
+                          <InviteWhatsAppButton
+                            phone={cust!.phone}
+                            title="Invite on WhatsApp"
+                            message={inviteMemberWhatsAppMessage({
+                              memberName: cust!.name,
+                              phone: cust!.phone,
+                              chitName: data.name,
+                              organiserName: user?.name,
+                              instalment: data.instalment,
+                            })}
+                          />
+                        ) : null}
+                      </div>
                       <div className="muted">
                         Slot {m.slot}{hands > 1 ? ` · hand of ${hands}` : ""}
                         {` · paid ${inr(handPaid)}`}
@@ -1624,24 +1625,15 @@ export function ChitDetailPage() {
                       <MemberReachButtons
                         compact
                         phone={cust.phone}
-                        whatsappText={
-                          left > 0
-                            ? dueReminderWhatsAppMessage({
-                              memberName: cust.name,
-                              chitName: data.name,
-                              cycle,
-                              duration: data.duration,
-                              amountDue: left,
-                              organiserName: user?.name,
-                            })
-                            : inviteMemberWhatsAppMessage({
-                              memberName: cust.name,
-                              phone: cust.phone,
-                              chitName: data.name,
-                              organiserName: user?.name,
-                              instalment: data.instalment,
-                            })
-                        }
+                        showWhatsApp={left > 0}
+                        whatsappText={dueReminderWhatsAppMessage({
+                          memberName: cust.name,
+                          chitName: data.name,
+                          cycle,
+                          duration: data.duration,
+                          amountDue: left,
+                          organiserName: user?.name,
+                        })}
                       />
                     ) : null}
                   </div>

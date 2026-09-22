@@ -7,7 +7,9 @@ import { AppShell } from "../layout/AppShell";
 import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
 import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
 import { chitPath, initials, inr } from "../lib/format";
-import { inviteMemberWhatsAppMessage, openWhatsApp, tryPhone10 } from "../lib/share";
+import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
+import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
+import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { useStore } from "../store";
 import { StatCard, toneAt } from "../ui/StatCard";
 
@@ -212,6 +214,7 @@ export function CustomersPage() {
   const [filter, setFilter] = useState<"all" | "in" | "out" | "dues">("all");
   const [picking, setPicking] = useState(false);
   const canPick = contactsPickerAvailable();
+  const { isOnApp } = usePhonesOnApp(customers.map((c) => c.phone));
 
   function onAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -219,11 +222,7 @@ export function CustomersPage() {
     const name = String(fd.get("name") || "").trim();
     const phone = String(fd.get("phone") || "").trim();
     if (!name) return;
-    void addCustomer(name, phone).then((c) => {
-      if (c.phone) {
-        // optional: leave form reset below
-      }
-    });
+    void addCustomer(name, phone);
     e.currentTarget.reset();
   }
 
@@ -231,23 +230,11 @@ export function CustomersPage() {
     setPicking(true);
     try {
       const rows = await pickContactsFromBook({ multiple: true });
-      let last: { name: string; phone: string } | null = null;
       for (const row of rows) {
         const phone = tryPhone10(row.phone);
         if (!phone) continue;
         if (customers.some((c) => c.phone === phone)) continue;
-        const c = await addCustomer(row.name.trim() || "Member", phone);
-        last = { name: c.name, phone: c.phone };
-      }
-      if (last) {
-        openWhatsApp(
-          last.phone,
-          inviteMemberWhatsAppMessage({
-            memberName: last.name,
-            phone: last.phone,
-            organiserName: user?.name,
-          }),
-        );
+        await addCustomer(row.name.trim() || "Member", phone);
       }
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Could not open contacts");
@@ -317,7 +304,27 @@ export function CustomersPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="clickable" onClick={() => nav(`/customers/${r.id}`)}>
-                  <td><div className="person"><div className="avatar">{initials(r.name)}</div><div><strong>{r.name}</strong><div className="muted">{r.phone || "No phone"}</div></div></div></td>
+                  <td>
+                    <div className="person">
+                      <div className="avatar">{initials(r.name)}</div>
+                      <div>
+                        <div className="member-name-row">
+                          <strong>{r.name}</strong>
+                          {r.phone && !isOnApp(r.phone) ? (
+                            <InviteWhatsAppButton
+                              phone={r.phone}
+                              message={inviteMemberWhatsAppMessage({
+                                memberName: r.name,
+                                phone: r.phone,
+                                organiserName: user?.name,
+                              })}
+                            />
+                          ) : null}
+                        </div>
+                        <div className="muted">{r.phone || "No phone"}</div>
+                      </div>
+                    </div>
+                  </td>
                   <td>{r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : "Not in any chit"}</td>
                   <td>{r.contributed ? inr(r.contributed) : "—"}</td>
                   <td>{r.outstanding ? inr(r.outstanding) : "—"}</td>

@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { BookUser } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
+import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
 import type { AuctionStyle, ChitType, FixedStyle, Frequency } from "../types";
 import { inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
 import { pickContactsFromBook, contactsPickerAvailable } from "../lib/contacts";
-import { inviteMemberWhatsAppMessage, openWhatsApp, tryPhone10 } from "../lib/share";
+import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
+import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { useStore } from "../store";
 
 const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
@@ -44,7 +46,8 @@ export function NewChitPage() {
   const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [pickingContacts, setPickingContacts] = useState(false);
-  const [lastInvite, setLastInvite] = useState<{ name: string; phone: string } | null>(null);
+
+  const { isOnApp } = usePhonesOnApp(customers.map((c) => c.phone));
 
   const TYPES = useMemo(
     () => ([
@@ -85,21 +88,17 @@ export function NewChitPage() {
     setPickingContacts(true);
     try {
       const rows = await pickContactsFromBook({ multiple: true });
-      let last: { name: string; phone: string } | null = null;
       for (const row of rows) {
         const phone = tryPhone10(row.phone);
         if (!phone) continue;
         const existing = customers.find((c) => c.phone === phone);
         if (existing) {
           setPicked((p) => ((!!n && p.length >= n) ? p : [...p, existing.id]));
-          last = { name: existing.name, phone };
           continue;
         }
         const created = await addCustomer(row.name.trim() || "Member", phone);
         setPicked((p) => ((!!n && p.length >= n) ? p : [...p, created.id]));
-        last = { name: created.name, phone: created.phone };
       }
-      if (last) setLastInvite(last);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not open contacts";
       window.alert(msg);
@@ -108,18 +107,14 @@ export function NewChitPage() {
     }
   }
 
-  function inviteLastOnWhatsApp() {
-    if (!lastInvite) return;
-    openWhatsApp(
-      lastInvite.phone,
-      inviteMemberWhatsAppMessage({
-        memberName: lastInvite.name,
-        phone: lastInvite.phone,
-        chitName: title.trim() || undefined,
-        organiserName: user?.name,
-        instalment: instalment || undefined,
-      }),
-    );
+  function inviteMsg(name: string, phone: string) {
+    return inviteMemberWhatsAppMessage({
+      memberName: name,
+      phone,
+      chitName: title.trim() || undefined,
+      organiserName: user?.name,
+      instalment: instalment || undefined,
+    });
   }
 
   const resolvedType: ChitType =
@@ -498,7 +493,6 @@ export function NewChitPage() {
                     if (!newName.trim()) return;
                     const c = await addCustomer(newName.trim(), newPhone.trim());
                     setPicked((p) => [...p, c.id]);
-                    if (c.phone) setLastInvite({ name: c.name, phone: c.phone });
                     setNewName("");
                     setNewPhone("");
                   }}
@@ -516,17 +510,13 @@ export function NewChitPage() {
                   </button>
                 )}
               </div>
-              {lastInvite && (
-                <button type="button" className="invite-chip" onClick={inviteLastOnWhatsApp}>
-                  Invite {lastInvite.name} on WhatsApp
-                </button>
-              )}
             </div>
 
             <p className="muted" style={{ margin: "16px 0 8px" }}>
               {picked.length} of {n || 0} slots filled.
               {n > 0 && picked.length < n ? " Use + Hand below or add someone new above." : ""}
               {n > 0 && picked.length === n ? " All slots filled — ready to create." : ""}
+              {" "}Invite on WhatsApp appears next to people not yet on the app.
             </p>
 
             {!!customers.length && (
@@ -534,10 +524,19 @@ export function NewChitPage() {
             )}
             {customers.map((c) => {
               const hands = picked.filter((id) => id === c.id).length;
+              const needsInvite = Boolean(c.phone) && !isOnApp(c.phone);
               return (
                 <div key={c.id} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
                   <div className="grow">
-                    <strong>{c.name}</strong>
+                    <div className="member-name-row">
+                      <strong>{c.name}</strong>
+                      {needsInvite ? (
+                        <InviteWhatsAppButton
+                          phone={c.phone}
+                          message={inviteMsg(c.name, c.phone)}
+                        />
+                      ) : null}
+                    </div>
                     <div className="muted">{c.phone}</div>
                     {hands > 0 ? <div className="muted">{hands} hand{hands > 1 ? "s" : ""} in this chit</div> : null}
                   </div>
@@ -570,12 +569,18 @@ export function NewChitPage() {
                   const c = customers.find((x) => x.id === id);
                   const handNo = picked.slice(0, i + 1).filter((x) => x === id).length;
                   const totalHands = picked.filter((x) => x === id).length;
+                  const needsInvite = Boolean(c?.phone) && !isOnApp(c?.phone);
                   return (
                     <div key={`${id}-${i}`} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
                       <span className="muted">Slot {i + 1}</span>
                       <div className="grow">
-                        <strong>{c?.name}</strong>
-                        {totalHands > 1 ? <span className="muted"> · hand {handNo}</span> : null}
+                        <div className="member-name-row">
+                          <strong>{c?.name}</strong>
+                          {totalHands > 1 ? <span className="muted"> · hand {handNo}</span> : null}
+                          {needsInvite && c?.phone ? (
+                            <InviteWhatsAppButton phone={c.phone} message={inviteMsg(c.name, c.phone)} />
+                          ) : null}
+                        </div>
                       </div>
                       <button type="button" className="btn ghost btn-sm" disabled={i === 0} onClick={() => movePick(i, -1)}>↑</button>
                       <button type="button" className="btn ghost btn-sm" disabled={i === picked.length - 1} onClick={() => movePick(i, 1)}>↓</button>
