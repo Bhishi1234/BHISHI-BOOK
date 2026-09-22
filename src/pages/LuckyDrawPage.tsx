@@ -213,9 +213,7 @@ export function LuckyDrawPage() {
         </header>
 
         <div className="ld-stage">
-          <div className="ld-pointer" aria-hidden>
-            <span />
-          </div>
+          <div className="ld-pointer" aria-hidden />
           <div
             className={`ld-wheel ${animating ? "is-spinning" : ""}`}
             style={{
@@ -236,17 +234,18 @@ export function LuckyDrawPage() {
                   key={memberKey(m)}
                   className="ld-seg-label"
                   style={{
-                    transform: `rotate(${mid}deg) translateY(-38%)`,
-                    fontSize: n > 14 ? 9 : n > 10 ? 10 : n > 6 ? 11 : 12,
+                    transform: `rotate(${mid}deg)`,
+                    fontSize: n > 14 ? 10 : n > 10 ? 11 : n > 6 ? 12 : 13,
                   }}
                 >
-                  {short}
+                  <span className="ld-seg-label-text">{short}</span>
                 </span>
               );
             })}
-            <div className="ld-hub">
-              <span>BC</span>
-            </div>
+          </div>
+          {/* Hub sits outside the rotating wheel so "BC" stays upright */}
+          <div className="ld-hub" aria-hidden>
+            <span>BC</span>
           </div>
         </div>
 

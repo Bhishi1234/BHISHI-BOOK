@@ -1269,26 +1269,29 @@ body.native-app {
 }
 .ld-pointer {
   position: absolute;
-  top: -6px;
+  top: -2px;
   left: 50%;
-  z-index: 3;
+  z-index: 4;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 12px solid transparent;
-  border-right: 12px solid transparent;
-  border-top: 22px solid #e11d48;
+  /* Tip points down into the wheel */
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 20px solid #e11d48;
   filter: drop-shadow(0 2px 4px rgb(225 29 72 / 0.35));
 }
-.ld-pointer span {
+.ld-pointer::after {
+  content: "";
   position: absolute;
   top: -28px;
-  left: -6px;
-  width: 12px;
-  height: 12px;
+  left: -7px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #fff;
   border: 2.5px solid #e11d48;
+  box-sizing: border-box;
 }
 .ld-wheel {
   position: relative;
@@ -1300,6 +1303,7 @@ body.native-app {
     inset 0 0 0 1px rgb(15 23 42 / 0.06),
     0 0 0 3px rgb(47 111 237 / 0.12);
   will-change: transform;
+  overflow: hidden;
 }
 .ld-wheel.is-spinning {
   box-shadow:
@@ -1307,20 +1311,27 @@ body.native-app {
     0 0 0 3px rgb(47 111 237 / 0.22),
     0 12px 40px rgb(47 111 237 / 0.25);
 }
+/* Full-disk overlay so rotate() keeps names in the correct wedge */
 .ld-seg-label {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 72px;
-  margin-left: -36px;
-  margin-top: -8px;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 16%;
+  pointer-events: none;
+  transform-origin: center center;
+  z-index: 1;
+}
+.ld-seg-label-text {
+  max-width: 42%;
   text-align: center;
   color: #fff;
   font-weight: 700;
-  line-height: 1.1;
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
-  pointer-events: none;
-  transform-origin: center center;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  word-break: break-word;
 }
 .ld-hub {
   position: absolute;
@@ -1335,7 +1346,8 @@ body.native-app {
   display: grid;
   place-items: center;
   box-shadow: 0 4px 14px rgb(47 111 237 / 0.25);
-  z-index: 2;
+  z-index: 3;
+  pointer-events: none;
 }
 .ld-hub span {
   font-size: 14px;

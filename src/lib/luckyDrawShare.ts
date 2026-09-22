@@ -137,16 +137,16 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  // Pointer
+  // Pointer — tip points down into the wheel
   ctx.fillStyle = "#e11d48";
   ctx.beginPath();
-  ctx.moveTo(cx, cy - R - 28);
-  ctx.lineTo(cx - 22, cy - R + 18);
-  ctx.lineTo(cx + 22, cy - R + 18);
+  ctx.moveTo(cx, cy - R + 10);
+  ctx.lineTo(cx - 20, cy - R - 26);
+  ctx.lineTo(cx + 20, cy - R - 26);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(cx, cy - R - 28, 8, 0, Math.PI * 2);
+  ctx.arc(cx, cy - R - 26, 9, 0, Math.PI * 2);
   ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.strokeStyle = "#e11d48";
