@@ -84,7 +84,6 @@ export function ChitDetailPage() {
   const [winnerSlot, setWinnerSlot] = useState<number | undefined>(undefined);
   const [newMemberId, setNewMemberId] = useState("");
   const [visible, setVisible] = useState(true);
-  const [remind, setRemind] = useState(true);
   const [unpaidNoted, setUnpaidNoted] = useState(false);
   const [colRange, setColRange] = useState<"today" | "week" | "all">("all");
   const [busyAll, setBusyAll] = useState(false);
@@ -98,10 +97,9 @@ export function ChitDetailPage() {
   useEffect(() => {
     if (!chit) return;
     setVisible(Boolean(chit.memberVisible));
-    setRemind(Boolean(chit.remindDays?.length));
     setEditName(chit.name);
     setEditTitle(chit.title || "");
-  }, [chit?.id, chit?.memberVisible, chit?.remindDays, chit?.name, chit?.title]);
+  }, [chit?.id, chit?.memberVisible, chit?.name, chit?.title]);
 
   useEffect(() => {
     if (tab !== "monthly" || !chit) return;
@@ -1513,35 +1511,12 @@ export function ChitDetailPage() {
         {tab === "settings" && (
           <div className="stack">
             <div className="card">
-              <h2>Visibility & reminders</h2>
+              <h2>Visibility</h2>
               <label className="check"><input type="checkbox" checked={visible} onChange={(e) => {
                 const next = e.target.checked;
                 setVisible(next);
                 void updateChitSettings(data.id, { memberVisible: next });
               }} /> Member visibility — let members see this chit’s details in the app.</label>
-              <label className="check"><input type="checkbox" checked={remind} onChange={(e) => {
-                const next = e.target.checked;
-                setRemind(next);
-                void updateChitSettings(data.id, { remindDays: next ? (data.remindDays?.length ? data.remindDays : [3]) : [] });
-              }} /> Payment reminders — automatically remind members before a contribution is due.</label>
-              {remind && (
-                <div className="seg" style={{ marginTop: 8 }}>
-                  {[1, 2, 3, 5, 7].map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`chip ${(data.remindDays || []).includes(d) ? "on" : ""}`}
-                      onClick={() => {
-                        const cur = data.remindDays || [];
-                        const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort((a, b) => a - b);
-                        void updateChitSettings(data.id, { remindDays: next.length ? next : [3] });
-                      }}
-                    >
-                      {d} day{d > 1 ? "s" : ""} before
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
             <div className="card">
               <h2>Reports</h2>
@@ -1563,7 +1538,7 @@ export function ChitDetailPage() {
               <div className="row-head" style={{ margin: 0 }}>
                 <div>
                   <strong>Cancel this chit</strong>
-                  <p className="muted">Moves the chit to Cancelled and stops its reminders. Records stay readable, but this can’t be undone.</p>
+                  <p className="muted">Moves the chit to Cancelled. Records stay readable, but this can’t be undone.</p>
                 </div>
                 <button className="btn danger" onClick={() => { void cancelChit(data.id); nav("/chits"); }}>Cancel chit</button>
               </div>

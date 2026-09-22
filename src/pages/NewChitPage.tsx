@@ -68,8 +68,6 @@ export function NewChitPage() {
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
   const [interest, setInterest] = useState("5");
   const [tenure, setTenure] = useState("");
-  const [remind, setRemind] = useState(true);
-  const [remindDays, setRemindDays] = useState<number[]>([3]);
   const [visible, setVisible] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -184,7 +182,7 @@ export function NewChitPage() {
         fixedStyle: type === "fixed" ? fixedStyle : undefined,
         interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
-        remindDays: remind ? remindDays : [],
+        remindDays: [],
         memberVisible: visible,
       });
       nav(`/chits/${id}`);
@@ -396,25 +394,18 @@ export function NewChitPage() {
                 )}
               </div>
 
-              <div className="card" style={{ marginTop: 16 }}>
+            </div>
+            <div className="new-chit-terms-side">
+              <div className="card live-preview-card">
+                <div className="row-head"><h2>Chit Summary</h2></div>
+                {preview.style && <div className="kv"><span>Style</span><strong>{preview.style}</strong></div>}
+                <div className="kv"><span>Members</span><strong>{preview.members}</strong></div>
+                <div className="kv"><span>Duration</span><strong>{preview.duration}</strong></div>
+                <div className="kv"><span>Per month</span><strong>{preview.per}</strong></div>
+                <div className="kv"><span>Commission / month</span><strong>{preview.commission}</strong></div>
+              </div>
+              <div className="card">
                 <h2>Settings</h2>
-                <label className="check">
-                  <input className="toggle" type="checkbox" checked={remind} onChange={(e) => setRemind(e.target.checked)} />
-                  <span><strong>Payment reminders</strong><br /><span className="muted">Send automatic reminders before the due date.</span></span>
-                </label>
-                {remind && (
-                  <div className="seg">
-                    {[1, 2, 3, 5, 7].map((d) => (
-                      <button
-                        key={d}
-                        className={`chip ${remindDays.includes(d) ? "on" : ""}`}
-                        onClick={() => setRemindDays((xs) => xs.includes(d) ? xs.filter((x) => x !== d) : [...xs, d])}
-                      >
-                        {d} day{d > 1 ? "s" : ""} before
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <label className="check">
                   <input className="toggle" type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
                   <span><strong>Allow members to view this chit</strong></span>
@@ -434,14 +425,6 @@ export function NewChitPage() {
                   </button>
                 </div>
               </div>
-            </div>
-            <div className="card live-preview-card" style={{ alignSelf: "start" }}>
-              <div className="row-head"><h2>Live preview</h2></div>
-              {preview.style && <div className="kv"><span>Style</span><strong>{preview.style}</strong></div>}
-              <div className="kv"><span>Members</span><strong>{preview.members}</strong></div>
-              <div className="kv"><span>Duration</span><strong>{preview.duration}</strong></div>
-              <div className="kv"><span>Per month</span><strong>{preview.per}</strong></div>
-              <div className="kv"><span>Commission / month</span><strong>{preview.commission}</strong></div>
             </div>
           </div>
         )}

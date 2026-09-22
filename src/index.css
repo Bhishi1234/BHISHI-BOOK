@@ -772,6 +772,12 @@ button.stat {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+.new-chit-terms-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-self: start;
+}
 
 .add-member-box {
   background: #f8fafc;
