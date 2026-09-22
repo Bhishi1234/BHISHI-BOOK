@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Percent,
   PiggyBank,
+  Share2,
   Users,
   Wallet,
 } from "lucide-react";
@@ -41,6 +42,7 @@ import {
   isLastAuctionCycle,
   loanDetailRows,
   loanEffectiveTenure,
+  loanFaceAmount,
   loanMonthlyInterest,
   loanPrincipalOf,
   loanSettlementPlan,
@@ -64,14 +66,24 @@ import {
 import { downloadChitCsv } from "../lib/exportCsv";
 import {
   downloadChitReportPdf,
+  downloadLoanReportPdf,
   downloadMonthDuesPdf,
   downloadReceiptPdf,
 } from "../lib/reportsPdf";
 import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
-import { dueReminderWhatsAppMessage, inviteMemberWhatsAppMessage, openWhatsApp, tryPhone10 } from "../lib/share";
+import {
+  canMessagePhone,
+  dueReminderWhatsAppMessage,
+  inviteMemberWhatsAppMessage,
+  loanBorrowerWhatsAppMessage,
+  loanGroupWhatsAppMessage,
+  openWhatsApp,
+  shareText,
+  tryPhone10,
+} from "../lib/share";
 import { initials, inr } from "../lib/format";
 import { useStore } from "../store";
-import type { PayMode, PaymentKind } from "../types";
+import type { AuctionRecord, PayMode, PaymentKind } from "../types";
 
 export function ChitDetailPage() {
   const { id } = useParams();
@@ -98,6 +110,7 @@ export function ChitDetailPage() {
   const [editName, setEditName] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [loanShare, setLoanShare] = useState<AuctionRecord | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -228,6 +241,82 @@ export function ChitDetailPage() {
   function goAfterClose() {
     setUnpaidNoted(false);
     setMonthSub(auctionFirst ? "award" : "collect");
+  }
+
+  function loanSharePayload(rec: AuctionRecord) {
+    const face = loanFaceAmount(rec);
+    const tenure = loanEffectiveTenure(data, rec.cycle);
+    const slot = rec.winnerSlot ?? 1;
+    const hands = data.members.filter((m) => m.customerId === rec.winnerId).length;
+    const memberName = handLabel(names[rec.winnerId] || "Member", slot, hands);
+    const phone = customers.find((c) => c.id === rec.winnerId)?.phone;
+    return {
+      memberName,
+      phone,
+      face,
+      tenure,
+      interestCut: Math.max(0, Number(rec.discount) || 0),
+      netPaid: rec.payout,
+      interestRate: data.interestRate ?? 0,
+      repayFrom: rec.cycle + 1,
+      repayTo: rec.cycle + tenure,
+      deposit: data.instalment,
+      interestPerMonth: loanMonthlyInterest(data, face),
+      principalPerMonth: Math.ceil(face / tenure),
+    };
+  }
+
+  function shareLoanPdf(rec: AuctionRecord) {
+    downloadLoanReportPdf(data, rec, names, user?.name);
+  }
+
+  function shareLoanToBorrower(rec: AuctionRecord) {
+    const p = loanSharePayload(rec);
+    if (!canMessagePhone(p.phone)) {
+      window.alert("Borrower needs a valid 10-digit mobile number to share on WhatsApp.");
+      return;
+    }
+    openWhatsApp(
+      p.phone!,
+      loanBorrowerWhatsAppMessage({
+        memberName: p.memberName,
+        chitName: data.name,
+        cycle: rec.cycle,
+        duration: data.duration,
+        face: p.face,
+        interestCut: p.interestCut,
+        netPaid: p.netPaid,
+        interestRate: p.interestRate,
+        tenure: p.tenure,
+        repayFrom: p.repayFrom,
+        repayTo: p.repayTo,
+        deposit: p.deposit,
+        interestPerMonth: p.interestPerMonth,
+        principalPerMonth: p.principalPerMonth,
+        organiserName: user?.name,
+      }),
+    );
+  }
+
+  async function shareLoanToGroup(rec: AuctionRecord) {
+    const p = loanSharePayload(rec);
+    await shareText(
+      `Loan — ${data.name}`,
+      loanGroupWhatsAppMessage({
+        memberName: p.memberName,
+        chitName: data.name,
+        cycle: rec.cycle,
+        duration: data.duration,
+        face: p.face,
+        interestCut: p.interestCut,
+        netPaid: p.netPaid,
+        interestRate: p.interestRate,
+        tenure: p.tenure,
+        repayFrom: p.repayFrom,
+        repayTo: p.repayTo,
+        organiserName: user?.name,
+      }),
+    );
   }
 
   return (
@@ -500,34 +589,57 @@ export function ChitDetailPage() {
                         <th>{copy.chit.netPaidOut}</th>
                         <th>{copy.chit.repay}</th>
                         <th>{copy.chit.sharePerMo}</th>
+                        <th>{copy.common.share}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {loanDetailRows(data).map((row, i) => (
-                        <tr key={row.id || `${row.memberId}-${row.slot}-${row.cycle}-${i}`}>
-                          <td>
-                            <strong>
-                              {handLabel(
-                                names[row.memberId] || "Member",
-                                row.slot ?? 1,
-                                data.members.filter((m) => m.customerId === row.memberId).length,
-                              )}
-                            </strong>
-                          </td>
-                          <td>{row.cycle}</td>
-                          <td>{inr(row.face)}</td>
-                          <td>{inr(row.upfrontInterest)}</td>
-                          <td>{inr(row.netPaidOut)}{row.commission ? <div className="muted">comm {inr(row.commission)}</div> : null}</td>
-                          <td>
-                            {row.tenure} mo
-                            <div className="muted">M{row.repayFrom}–M{row.repayTo}</div>
-                          </td>
-                          <td>
-                            {inr(row.principalSharePerMonth)}
-                            <div className="muted">+ {inr(row.interestPerMonth)} int/mo</div>
-                          </td>
-                        </tr>
-                      ))}
+                      {loanDetailRows(data).map((row, i) => {
+                        const auction =
+                          data.auctions.find(
+                            (a) =>
+                              a.method === "fixed"
+                              && a.cycle === row.cycle
+                              && a.winnerId === row.memberId
+                              && (row.slot == null || a.winnerSlot == null || a.winnerSlot === row.slot),
+                          ) || null;
+                        return (
+                          <tr key={row.id || `${row.memberId}-${row.slot}-${row.cycle}-${i}`}>
+                            <td>
+                              <strong>
+                                {handLabel(
+                                  names[row.memberId] || "Member",
+                                  row.slot ?? 1,
+                                  data.members.filter((m) => m.customerId === row.memberId).length,
+                                )}
+                              </strong>
+                            </td>
+                            <td>{row.cycle}</td>
+                            <td>{inr(row.face)}</td>
+                            <td>{inr(row.upfrontInterest)}</td>
+                            <td>{inr(row.netPaidOut)}{row.commission ? <div className="muted">comm {inr(row.commission)}</div> : null}</td>
+                            <td>
+                              {row.tenure} mo
+                              <div className="muted">M{row.repayFrom}–M{row.repayTo}</div>
+                            </td>
+                            <td>
+                              {inr(row.principalSharePerMonth)}
+                              <div className="muted">+ {inr(row.interestPerMonth)} int/mo</div>
+                            </td>
+                            <td>
+                              {auction ? (
+                                <div className="loan-share-row compact">
+                                  <button type="button" className="btn ghost btn-sm" title="Loan PDF" onClick={() => shareLoanPdf(auction)}>
+                                    PDF
+                                  </button>
+                                  <button type="button" className="btn ghost btn-sm" title="WhatsApp borrower" onClick={() => shareLoanToBorrower(auction)}>
+                                    WA
+                                  </button>
+                                </div>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1050,16 +1162,51 @@ export function ChitDetailPage() {
                         <div className="card" style={{ marginBottom: 12, background: "#f8fafc" }}>
                           <strong>Loans this month</strong>
                           {monthLoans.map((l, i) => (
-                            <div className="kv" key={l.id || `${l.winnerId}-${l.winnerSlot}-${i}`}>
-                              <span>
-                                {names[l.winnerId]}
-                                {l.winnerSlot != null ? ` · Slot ${l.winnerSlot}` : ""}
-                              </span>
-                              <strong>{inr(l.payout)}{l.commission ? ` · commission ${inr(l.commission)}` : ""}</strong>
+                            <div key={l.id || `${l.winnerId}-${l.winnerSlot}-${i}`} style={{ marginTop: 10 }}>
+                              <div className="kv">
+                                <span>
+                                  {names[l.winnerId]}
+                                  {l.winnerSlot != null ? ` · Slot ${l.winnerSlot}` : ""}
+                                </span>
+                                <strong>{inr(l.payout)}{l.commission ? ` · commission ${inr(l.commission)}` : ""}</strong>
+                              </div>
+                              <div className="loan-share-row">
+                                <button type="button" className="btn ghost btn-sm" onClick={() => shareLoanPdf(l)}>
+                                  Loan PDF
+                                </button>
+                                <button type="button" className="btn ghost btn-sm" onClick={() => shareLoanToBorrower(l)}>
+                                  WhatsApp borrower
+                                </button>
+                                <button type="button" className="btn ghost btn-sm" onClick={() => void shareLoanToGroup(l)}>
+                                  Share to group
+                                </button>
+                              </div>
                             </div>
                           ))}
                           <div className="kv"><span>Total loaned this month</span><strong>{inr(monthLoans.reduce((s, l) => s + l.payout, 0))}</strong></div>
                           <div className="kv"><span>Cash still on hand</span><strong>{inr(cashOnHand)}</strong></div>
+                        </div>
+                      )}
+                      {loanShare && (
+                        <div className="card loan-share-banner" style={{ marginBottom: 12 }}>
+                          <strong>Loan recorded — share the report</strong>
+                          <p className="muted" style={{ margin: "6px 0 10px" }}>
+                            Send the PDF and WhatsApp summary to the borrower and the group.
+                          </p>
+                          <div className="loan-share-row">
+                            <button type="button" className="btn" onClick={() => shareLoanPdf(loanShare)}>
+                              <Share2 size={15} /> Loan report PDF
+                            </button>
+                            <button type="button" className="btn ghost" onClick={() => shareLoanToBorrower(loanShare)}>
+                              WhatsApp borrower
+                            </button>
+                            <button type="button" className="btn ghost" onClick={() => void shareLoanToGroup(loanShare)}>
+                              Share to group
+                            </button>
+                            <button type="button" className="btn ghost" onClick={() => setLoanShare(null)}>
+                              Dismiss
+                            </button>
+                          </div>
                         </div>
                       )}
                       {!loanAllowed ? (
@@ -1097,10 +1244,11 @@ export function ChitDetailPage() {
                               disabled={!winnerId || winnerSlot == null || !Number(bid) || Number(bid) > cashOnHand}
                               onClick={() => {
                                 const amount = Number(bid);
-                                void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot).then(() => {
+                                void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot).then((rec) => {
                                   setBid(String(data.pot));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
+                                  if (rec) setLoanShare(rec);
                                   goAfterAward();
                                 });
                               }}

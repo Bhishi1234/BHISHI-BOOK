@@ -87,6 +87,79 @@ export function dueReminderWhatsAppMessage(opts: {
   return lines.join("\n");
 }
 
+/** Personal note to the borrower after a loan is given. */
+export function loanBorrowerWhatsAppMessage(opts: {
+  memberName: string;
+  chitName: string;
+  cycle: number;
+  duration: number;
+  face: number;
+  interestCut: number;
+  netPaid: number;
+  interestRate: number;
+  tenure: number;
+  repayFrom: number;
+  repayTo: number;
+  deposit: number;
+  interestPerMonth: number;
+  principalPerMonth: number;
+  organiserName?: string;
+}) {
+  const lines = [
+    `Namaste ${opts.memberName.trim() || "friend"} 🙏`,
+    "",
+    `Your loan from *${opts.chitName}* (Bhishi Circle) is recorded.`,
+    "",
+    `*Loan details*`,
+    `• Face amount: *${inr(opts.face)}*`,
+    `• Interest cut now (${opts.interestRate}%): *${inr(opts.interestCut)}* (stays in the pot)`,
+    `• You receive: *${inr(opts.netPaid)}*`,
+    `• Given in: Month *${opts.cycle}* of *${opts.duration}*`,
+    "",
+    `*Repayment* (Month ${opts.repayFrom}–${opts.repayTo}, ${opts.tenure} months)`,
+    `• Hapta each month: *${inr(opts.deposit)}*`,
+    `• Principal share: *${inr(opts.principalPerMonth)}* / month`,
+    `• Interest: *${inr(opts.interestPerMonth)}* / month (skipped in first repay month if already cut)`,
+    "",
+    "Please keep this for your records. A full PDF schedule is also available from the organiser.",
+    "",
+    "Thank you!",
+  ];
+  if (opts.organiserName) lines.push(`— ${opts.organiserName}`);
+  return lines.join("\n");
+}
+
+/** Group announcement when a member takes a loan. */
+export function loanGroupWhatsAppMessage(opts: {
+  memberName: string;
+  chitName: string;
+  cycle: number;
+  duration: number;
+  face: number;
+  interestCut: number;
+  netPaid: number;
+  interestRate: number;
+  tenure: number;
+  repayFrom: number;
+  repayTo: number;
+  organiserName?: string;
+}) {
+  const lines = [
+    `*Loan update — ${opts.chitName}*`,
+    "",
+    `*${opts.memberName}* has taken a loan in month *${opts.cycle}* of *${opts.duration}*.`,
+    "",
+    `• Face loan: *${inr(opts.face)}*`,
+    `• Interest cut (${opts.interestRate}%): *${inr(opts.interestCut)}*`,
+    `• Paid out to borrower: *${inr(opts.netPaid)}*`,
+    `• Repayment: Month *${opts.repayFrom}*–*${opts.repayTo}* (${opts.tenure} mo)`,
+    "",
+    "Full schedule is in the loan report PDF.",
+  ];
+  if (opts.organiserName) lines.push(`— ${opts.organiserName}`);
+  return lines.join("\n");
+}
+
 export function canMessagePhone(phone: string | null | undefined) {
   return digits10Loose(phone || "").length === 10;
 }

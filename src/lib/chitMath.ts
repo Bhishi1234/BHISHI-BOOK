@@ -886,6 +886,46 @@ export function loanDetailRows(chit: Chit) {
     });
 }
 
+export type LoanScheduleRow = {
+  monthIndex: number;
+  cycle: number;
+  deposit: number;
+  interest: number;
+  principal: number;
+  total: number;
+  note?: string;
+};
+
+/** Month-by-month repayment schedule for one loan award. */
+export function loanRepaymentSchedule(chit: Chit, auction: AuctionRecord): LoanScheduleRow[] {
+  const face = loanFaceAmount(auction);
+  const start = auction.cycle;
+  const tenure = loanEffectiveTenure(chit, start);
+  const deposit = baseInstalment(chit);
+  const interestMo = loanMonthlyInterest(chit, face);
+  const hadUpfront = (Number(auction.discount) || 0) > 0;
+  const baseShare = Math.ceil(face / tenure);
+  const rows: LoanScheduleRow[] = [];
+  for (let i = 1; i <= tenure; i++) {
+    const cycle = start + i;
+    let principal = baseShare;
+    if (i === tenure) {
+      principal = Math.max(0, face - baseShare * (tenure - 1));
+    }
+    const interest = hadUpfront && i === 1 ? 0 : interestMo;
+    rows.push({
+      monthIndex: i,
+      cycle,
+      deposit,
+      interest,
+      principal,
+      total: deposit + interest + principal,
+      note: hadUpfront && i === 1 ? "Interest already cut at disbursal" : undefined,
+    });
+  }
+  return rows;
+}
+
 export function outstandingOf(chit: Chit) {
   return chit.members.reduce(
     (s, m) => s + memberBalance(chit, m.customerId, m.slot).outstanding,

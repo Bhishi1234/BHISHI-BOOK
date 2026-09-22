@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Chit, Payment } from "../types";
+import type { AuctionRecord, Chit, Payment } from "../types";
 import {
   balanceAfterCycle,
   baseInstalment,
@@ -14,6 +14,10 @@ import {
   handLabel,
   interestCollected,
   loanDetailRows,
+  loanFaceAmount,
+  loanEffectiveTenure,
+  loanMonthlyInterest,
+  loanRepaymentSchedule,
   memberBalance,
   memberLedgerRows,
   moneyIn,
@@ -645,4 +649,147 @@ export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) 
   });
   footer(doc);
   downloadBlob(doc, `${safeName(chit.name)}-month-${cycle}-dues.pdf`);
+}
+
+/**
+ * Single-loan report: face amount, interest cut, net paid out, and full repayment schedule.
+ * Shareable with the borrower and the bhishi group.
+ */
+export function downloadLoanReportPdf(
+  chit: Chit,
+  auction: AuctionRecord,
+  names: Record<string, string>,
+  organiserName?: string,
+) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
+  const face = loanFaceAmount(auction);
+  const tenure = loanEffectiveTenure(chit, auction.cycle);
+  const interestMo = loanMonthlyInterest(chit, face);
+  const slot = auction.winnerSlot ?? 1;
+  const hands = chit.members.filter((m) => m.customerId === auction.winnerId).length;
+  const borrower = handLabel(names[auction.winnerId] || auction.winnerId, slot, hands);
+  const schedule = loanRepaymentSchedule(chit, auction);
+  const totalInterest =
+    Math.max(0, Number(auction.discount) || 0)
+    + schedule.reduce((s, r) => s + r.interest, 0);
+  const totalRepay = schedule.reduce((s, r) => s + r.principal + r.interest, 0);
+  const totalDueWithDeposit = schedule.reduce((s, r) => s + r.total, 0);
+
+  brandHeader(doc, chit.name, "Loan report");
+
+  let y = CONTENT_START_Y;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...INK);
+  doc.text("Loan disbursal report", MARGIN, y);
+  y += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    `Month ${auction.cycle} of ${chit.duration} · Interest ${chit.interestRate ?? 0}% · Tenure ${tenure} months`,
+    MARGIN,
+    y,
+  );
+  y += 10;
+  doc.setTextColor(...INK);
+
+  y = kpiRow(doc, y, [
+    { label: "Face loan", value: money(face) },
+    { label: "Interest cut now", value: money(auction.discount || 0) },
+    { label: "Borrower receives", value: money(auction.payout) },
+    { label: "Commission", value: money(auction.commission || 0) },
+  ]);
+
+  const detailRows: [string, string][] = [
+    ["Borrower", borrower],
+    ["Bhishi / chit", chit.name],
+    ["Loan month", `Month ${auction.cycle} of ${chit.duration}`],
+    ["Repayment window", `Month ${auction.cycle + 1} – ${auction.cycle + tenure} (${tenure} mo)`],
+    ["Hapta (deposit)", money(baseInstalment(chit))],
+    ["Interest / month", `${money(interestMo)} (${chit.interestRate ?? 0}% of face)`],
+    ["Principal / month", money(Math.ceil(face / tenure))],
+    ["Total interest (life)", money(totalInterest)],
+    ["Principal + interest to repay", money(totalRepay)],
+    ["All dues with hapta (schedule)", money(totalDueWithDeposit)],
+  ];
+  if (organiserName) detailRows.push(["Recorded by", organiserName]);
+
+  for (const [k, v] of detailRows) {
+    if (y > 260) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 9.5, 1.5, 1.5, "F");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.setFont("helvetica", "normal");
+    doc.text(k, MARGIN + 3, y + 1.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...INK);
+    doc.setFontSize(9.5);
+    doc.text(v, MARGIN + 62, y + 1.5);
+    doc.setFont("helvetica", "normal");
+    y += 11;
+  }
+
+  y += 4;
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(MARGIN, y, CONTENT_W, 22, 3, 3, "F");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(220, 232, 255);
+  doc.text("Amount handed to borrower", MARGIN + 6, y + 8);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.text(money(auction.payout), PAGE_W - MARGIN - 6, y + 15, { align: "right" });
+  y += 30;
+
+  y = sectionTitle(doc, y, "Repayment schedule");
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    "Each month the borrower pays hapta + interest (if due) + principal share. Month 1 interest is skipped when already cut at disbursal.",
+    MARGIN,
+    y,
+    { maxWidth: CONTENT_W },
+  );
+  y += 8;
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: MARGIN, right: MARGIN },
+    head: [["#", "Month", "Hapta", "Interest", "Principal", "Total due", "Note"]],
+    body: schedule.map((r): Cell[] => [
+      r.monthIndex,
+      `M${r.cycle}`,
+      money(r.deposit),
+      money(r.interest),
+      money(r.principal),
+      money(r.total),
+      r.note || "—",
+    ]),
+    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
+    columnStyles: {
+      6: { cellWidth: 42 },
+    },
+  });
+  y = (doc.lastAutoTable?.finalY || y) + 10;
+
+  y = ensureY(doc, y, 24);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    "This loan report is generated by Bhishi Circle for the bhishi group and the borrower. It is not a tax invoice or legal bond.",
+    MARGIN,
+    y,
+    { maxWidth: CONTENT_W },
+  );
+
+  footer(doc);
+  downloadBlob(doc, `${safeName(chit.name)}-loan-${safeName(borrower)}-m${auction.cycle}.pdf`);
 }

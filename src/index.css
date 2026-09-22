@@ -852,6 +852,23 @@ button.stat {
 }
 .invite-chip:hover { background: #d8f3e8; }
 
+.loan-share-banner {
+  border: 1px solid rgb(47 111 237 / 0.18);
+  background: linear-gradient(180deg, #edf3ff 0%, #fff 48%);
+}
+.loan-share-banner strong {
+  display: block;
+  color: var(--ink);
+}
+.loan-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  align-items: center;
+}
+.loan-share-row.compact { gap: 4px; margin-top: 0; }
+.loan-share-row .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 .type-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .type-pick {
