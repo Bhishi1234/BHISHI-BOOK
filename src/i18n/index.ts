@@ -26,6 +26,12 @@ export function messagesFor(lang: Lang): Messages {
   return CATALOG[lang] || en;
 }
 
+export function fill(template: string, vars: Record<string, string | number>) {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) =>
+    vars[key] != null ? String(vars[key]) : `{${key}}`,
+  );
+}
+
 export function useI18n() {
   const { user } = useStore();
   const lang = normalizeLang(user?.language);
@@ -42,6 +48,8 @@ export function useI18n() {
     const freqHint = (id: string) => (m.freqHint as Record<string, string>)[id] || "";
     const modeLabel = (id: string) => (m.mode as Record<string, string>)[id] || id;
     const statusLabel = (id: string) => (m.status as Record<string, string>)[id] || id;
+    const tabLabel = (id: string) => (m.chit.tabs as Record<string, string>)[id] || id;
+    const tx = (template: string, vars: Record<string, string | number>) => fill(template, vars);
 
     const greetingNow = () => {
       const h = new Date().getHours();
@@ -61,11 +69,13 @@ export function useI18n() {
     return {
       lang,
       m,
+      tx,
       typeLabel,
       freqLabel,
       freqHint,
       modeLabel,
       statusLabel,
+      tabLabel,
       greetingNow,
       longDateNow,
       locale: LOCALE[lang],

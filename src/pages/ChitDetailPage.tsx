@@ -75,7 +75,7 @@ export function ChitDetailPage() {
     chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, luckyDraw, closeCycle,
     cancelChit, addMember, undoPayment, updateChitSettings, error,
   } = useStore();
-  const { m, typeLabel, freqLabel, modeLabel } = useI18n();
+  const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
   const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "settlement" | "settings">("overview");
@@ -151,7 +151,7 @@ export function ChitDetailPage() {
   const names = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
 
   if (!chit) {
-    return <AppShell crumb="Chits"><div className="page"><p>Chit not found.</p></div></AppShell>;
+    return <AppShell crumb={copy.nav.chits}><div className="page"><p>{copy.chit.notFound}</p></div></AppShell>;
   }
 
   if (chit.viewerRole === "member") {
@@ -194,15 +194,15 @@ export function ChitDetailPage() {
     : null;
 
   const styleLabel = auctionFirst
-    ? m.auctionStyle.auction_first
+    ? copy.auctionStyle.auction_first
     : data.type === "auction"
-      ? m.auctionStyle.collect_first
+      ? copy.auctionStyle.collect_first
       : data.type === "fixed"
-        ? m.fixedStyle.fixed_order
+        ? copy.fixedStyle.fixed_order
         : data.type === "lucky_draw"
-          ? m.fixedStyle.lucky_draw
+          ? copy.fixedStyle.lucky_draw
           : handSacrifice
-            ? m.fixedStyle.hand_sacrifice
+            ? copy.fixedStyle.hand_sacrifice
             : typeLabel(data.type);
   const commissionLabel = data.commissionKind === "amount" && data.commissionValue
     ? inr(data.commissionValue)
@@ -227,7 +227,7 @@ export function ChitDetailPage() {
   }
 
   return (
-    <AppShell crumb={m.nav.chits} crumb2={data.name}>
+    <AppShell crumb={copy.nav.chits} crumb2={data.name}>
       <div className="page chit-detail-page">
         <section className="chit-hero">
           <div className="chit-hero-top">
@@ -241,7 +241,7 @@ export function ChitDetailPage() {
               </p>
             </div>
             <span className={`chit-hero-pill ${isRunning ? "live" : ""}`}>
-              {data.status === "running" ? "Active" : data.status}
+              {statusLabel(data.status) || data.status}
             </span>
           </div>
           <div className="chit-hero-divider" />
@@ -249,42 +249,42 @@ export function ChitDetailPage() {
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Users size={16} strokeWidth={2} /></div>
               <div>
-                <span>Members</span>
-                <strong>{data.members.length} of {data.membersCount}</strong>
+                <span>{copy.nav.customers}</span>
+                <strong>{tx(copy.chit.membersOf, { count: data.members.length, total: data.membersCount })}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
-                <span>Instalment</span>
+                <span>{copy.chit.instalment}</span>
                 <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Started</span>
-                <strong>{new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+                <span>{copy.chit.started}</span>
+                <strong>{new Date(data.startDate).toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
               <div>
-                <span>Ends</span>
-                <strong>{ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+                <span>{copy.chit.ends}</span>
+                <strong>{ended.toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Percent size={16} strokeWidth={2} /></div>
               <div>
-                <span>Commission</span>
+                <span>{copy.terms.commission}</span>
                 <strong>{commissionLabel}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Month</span>
+                <span>{copy.chit.month}</span>
                 <strong>{cycle} / {data.duration}</strong>
               </div>
             </div>
@@ -300,7 +300,7 @@ export function ChitDetailPage() {
 
         {error && <p className="due">{error}</p>}
         {!isRunning && (
-          <p className="muted block">This chit is {data.status}. Collections and monthly payouts are closed.</p>
+          <p className="muted block">{tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })}</p>
         )}
 
         <div className="chit-tabbar">
@@ -315,7 +315,7 @@ export function ChitDetailPage() {
                 className={`wizard-tab${tab === t ? " active" : ""}`}
                 onClick={() => setTab(t)}
               >
-                <span className="wizard-tab-label">{t[0].toUpperCase() + t.slice(1)}</span>
+                <span className="wizard-tab-label">{tabLabel(t)}</span>
               </button>
             ))}
           </div>
@@ -326,39 +326,39 @@ export function ChitDetailPage() {
 
         {tab === "overview" && (
           <div className="stats six">
-            <StatCard label="Month" value={`${cycle} / ${data.duration}`} hint="current cycle" tone="blue" icon={Calendar} />
+            <StatCard label={copy.chit.month} value={`${cycle} / ${data.duration}`} hint={copy.chit.currentHapta} tone="blue" icon={Calendar} />
             <StatCard
-              label="Collected this month"
+              label={copy.chit.collectedThisHapta}
               value={inr(collectedThisCycle(data))}
-              hint={`of ${inr(expectedThisCycle(data))} expected`}
+              hint={tx(copy.chit.ofExpected, { amount: inr(expectedThisCycle(data)) })}
               tone="green"
               icon={PiggyBank}
             />
             <StatCard
-              label="Outstanding"
+              label={copy.terms.outstanding}
               value={inr(outstandingOf(data))}
-              hint={`${pending} members pending`}
+              hint={tx(copy.chit.membersPending, { count: pending })}
               tone="rose"
               icon={AlertCircle}
             />
             <StatCard
-              label={auctionFirst ? "Till (peer settlement)" : "Cash on hand"}
+              label={auctionFirst ? copy.chit.tillPeer : copy.chit.cashOnHand}
               value={<span className={treasuryOf(data) < 0 ? "neg" : undefined}>{inr(treasuryOf(data))}</span>}
-              hint={auctionFirst ? "Always ₹0 — unpaid is Outstanding" : "treasury today"}
+              hint={auctionFirst ? copy.chit.tillAlwaysZero : copy.chit.treasuryToday}
               tone="teal"
               icon={Wallet}
             />
             <StatCard
-              label="Commission earned"
+              label={copy.chit.commissionEarned}
               value={inr(commissionEarned(data))}
-              hint={`${inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0)} this month`}
+              hint={tx(copy.chit.thisHaptaAmount, { amount: inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0) })}
               tone="violet"
               icon={Percent}
             />
             <StatCard
-              label="Members"
+              label={copy.nav.customers}
               value={data.members.length}
-              hint={`of ${data.membersCount} slots`}
+              hint={tx(copy.chit.ofSlots, { count: data.membersCount })}
               tone="amber"
               icon={Users}
             />
@@ -367,14 +367,14 @@ export function ChitDetailPage() {
 
         {tab === "overview" && (
           <>
-            <p className="muted block">The books · every figure below comes from one ledger derivation</p>
+            <p className="muted block">{copy.chit.booksIntro}</p>
             <div className="card block">
-              <div className="muted">{auctionFirst ? "Till · peer settlement (always ₹0)" : "Cash on hand · as on today"}</div>
+              <div className="muted">{auctionFirst ? copy.chit.tillToday : copy.chit.cashOnHandToday}</div>
               <div className="hero-figure">{inr(treasuryOf(data))}</div>
             </div>
             <div className="grid-2 block">
               <div className="card">
-                <h2>Month {cycle} of {data.duration}</h2>
+                <h2>{tx(copy.chit.monthOf, { cycle, duration: data.duration })}</h2>
                 <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round((cycle / data.duration) * 100)}%` }} /></div>
                 <p className="muted block">
                   {data.type === "loan"
@@ -383,8 +383,8 @@ export function ChitDetailPage() {
                 </p>
                 {data.type !== "auction" && (
                   <div className="grid-2">
-                    <div><div className="muted">Total paid out</div><strong className="num">{inr(moneyOut(data) - commissionEarned(data))}</strong></div>
-                    <div><div className="muted">Payouts recorded</div><strong className="num">{inr(data.auctions.filter((a) => a.method !== "settlement").length)}</strong></div>
+                    <div><div className="muted">{copy.chit.totalPaidOut}</div><strong className="num">{inr(moneyOut(data) - commissionEarned(data))}</strong></div>
+                    <div><div className="muted">{copy.chit.payoutsRecorded}</div><strong className="num">{inr(data.auctions.filter((a) => a.method !== "settlement").length)}</strong></div>
                   </div>
                 )}
                 {data.type === "auction" && (
@@ -394,19 +394,19 @@ export function ChitDetailPage() {
                 )}
               </div>
               <div className="card">
-                <h2>You’ve earned</h2>
-                <div className="kv"><span>Commission</span><strong>{inr(commissionEarned(data))}</strong></div>
+                <h2>{copy.chit.youveEarned}</h2>
+                <div className="kv"><span>{copy.terms.commission}</span><strong>{inr(commissionEarned(data))}</strong></div>
                 {data.type === "auction" && (
                   <>
-                    <div className="kv"><span>Dividends to members (each)</span><strong>{inr(memberDividendTotal(data))}</strong></div>
-                    <div className="kv"><span>Dividends distributed (all)</span><strong>{inr(dividendsDistributed(data))}</strong></div>
+                    <div className="kv"><span>{copy.chit.dividendsEach}</span><strong>{inr(memberDividendTotal(data))}</strong></div>
+                    <div className="kv"><span>{copy.chit.dividendsAll}</span><strong>{inr(dividendsDistributed(data))}</strong></div>
                   </>
                 )}
                 {data.type === "loan" && (
                   <>
-                    <div className="kv"><span>Interest collected</span><strong>{inr(interestCollected(data))}</strong></div>
+                    <div className="kv"><span>{copy.chit.interestCollected}</span><strong>{inr(interestCollected(data))}</strong></div>
                     <p className="muted" style={{ marginTop: 8 }}>
-                      One month’s interest is cut from the loan when it is given and stays in the pot. Further interest is collected with each repayment month, then paid as dividends to the other members at final settlement.
+                      {copy.chit.interestExplain}
                     </p>
                   </>
                 )}
@@ -415,31 +415,31 @@ export function ChitDetailPage() {
             {(data.type === "auction" || handSacrifice || data.type === "loan") && (
               <div className="card flush block">
                 <div className="card-pad">
-                  <h2>Member ledger</h2>
+                  <h2>{copy.chit.memberLedger}</h2>
                   <p className="muted">
                     {data.type === "loan"
-                      ? "What each hand paid as monthly deposits (loan principal repayments are excluded from Paid in), loans received, interest, and settlement dividends."
+                      ? copy.chit.ledgerLoanHint
                       : handSacrifice
-                      ? "What each person paid in, what they took from the pot, and cash dividends from early sacrifice months."
-                      : "What each person paid in, what they took from the pot, and dividends credited to their dues."}
+                      ? copy.chit.ledgerSacrificeHint
+                      : copy.chit.ledgerDefaultHint}
                   </p>
                 </div>
                 <div className="table-wrap">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th>Paid in</th>
+                        <th>{copy.common.member}</th>
+                        <th>{copy.chit.paidIn}</th>
                         {data.type === "loan" ? (
                           <>
-                            <th>Loan received</th>
-                            <th>Interest paid</th>
-                            <th>Interest dividend</th>
+                            <th>{copy.chit.loanReceived}</th>
+                            <th>{copy.chit.interestPaid}</th>
+                            <th>{copy.chit.interestDividend}</th>
                           </>
                         ) : (
                           <>
-                            <th>Got from pot</th>
-                            <th>{handSacrifice ? "Cash dividends" : "Dividends"}</th>
+                            <th>{copy.chit.gotFromPot}</th>
+                            <th>{handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}</th>
                           </>
                         )}
                         <th>Net</th>
@@ -456,7 +456,7 @@ export function ChitDetailPage() {
                                 data.members.filter((m) => m.customerId === row.customerId).length,
                               )}
                             </strong>
-                            {row.prizedCycle ? <div className="muted">Prized month {row.prizedCycle}</div> : null}
+                            {row.prizedCycle ? <div className="muted">{tx(copy.chit.prizedMonth, { n: row.prizedCycle })}</div> : null}
                           </td>
                           <td>{inr(row.paid)}</td>
                           {data.type === "loan" ? (
@@ -482,20 +482,20 @@ export function ChitDetailPage() {
             {data.type === "loan" && !!loanDetailRows(data).length && (
               <div className="card flush block">
                 <div className="card-pad">
-                  <h2>Loan details</h2>
-                  <p className="muted">Every loan given — amount, interest cut, repayment window (capped to remaining months of this bhishi).</p>
+                  <h2>{copy.chit.loanDetails}</h2>
+                  <p className="muted">{copy.chit.loanDetailsHint}</p>
                 </div>
                 <div className="table-wrap">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th>Month</th>
-                        <th>Face loan</th>
-                        <th>Interest cut</th>
-                        <th>Net paid out</th>
-                        <th>Repay</th>
-                        <th>Share / mo</th>
+                        <th>{copy.common.member}</th>
+                        <th>{copy.chit.month}</th>
+                        <th>{copy.chit.faceLoan}</th>
+                        <th>{copy.chit.interestCut}</th>
+                        <th>{copy.chit.netPaidOut}</th>
+                        <th>{copy.chit.repay}</th>
+                        <th>{copy.chit.sharePerMo}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -530,22 +530,22 @@ export function ChitDetailPage() {
               </div>
             )}
             <div className="card">
-              <h2>Money in / out</h2>
+              <h2>{copy.chit.moneyInOut}</h2>
               {auctionFirst ? (
                 <>
-                  <div className="kv"><span>Paid in (incl. winner share)</span><strong>{inr(moneyIn(data))}</strong></div>
-                  <div className="kv"><span>Winning bids settled</span><strong>{inr(moneyOut(data))}</strong></div>
-                  <div className="kv"><span>Till (peer settlement)</span><strong>{inr(treasuryOf(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.paidInInclWinner}</span><strong>{inr(moneyIn(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.winningBids}</span><strong>{inr(moneyOut(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.tillPeerShort}</span><strong>{inr(treasuryOf(data))}</strong></div>
                   <p className="muted" style={{ marginTop: 12 }}>
-                    Peer settlement of each winning bid. The till is always ₹0 — pay in any month; unpaid shares show as Outstanding.
+                    {copy.chit.peerTillHint}
                   </p>
                 </>
               ) : (
                 <>
-                  <div className="kv"><span>Money in</span><strong>{inr(moneyIn(data))}</strong></div>
-                  <div className="kv"><span>Money out</span><strong>{inr(moneyOut(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.moneyIn}</span><strong>{inr(moneyIn(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.moneyOut}</span><strong>{inr(moneyOut(data))}</strong></div>
                   <div className="kv">
-                    <span>On hand</span>
+                    <span>{copy.chit.onHand}</span>
                     <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
                   </div>
                   <p className="muted" style={{ marginTop: 12 }}>
@@ -554,20 +554,20 @@ export function ChitDetailPage() {
                 </>
               )}
               <div className="grid-2" style={{ marginTop: 8 }}>
-                <div className="kv"><span>{m.detail.type}</span><strong>{typeLabel(data.type).toUpperCase()}</strong></div>
-                <div className="kv"><span>{m.detail.frequency}</span><strong>{freqLabel(data.frequency)}</strong></div>
-                <div className="kv"><span>Contribution</span><strong>{inr(data.instalment)}</strong></div>
-                <div className="kv"><span>Duration</span><strong>{data.duration} months</strong></div>
+                <div className="kv"><span>{copy.detail.type}</span><strong>{typeLabel(data.type).toUpperCase()}</strong></div>
+                <div className="kv"><span>{copy.detail.frequency}</span><strong>{freqLabel(data.frequency)}</strong></div>
+                <div className="kv"><span>{copy.chit.contribution}</span><strong>{inr(data.instalment)}</strong></div>
+                <div className="kv"><span>Duration</span><strong>{tx(copy.chit.durationMonths, { n: data.duration })}</strong></div>
                 {data.type === "loan" && (
                   <>
-                    <div className="kv"><span>Interest</span><strong>{data.interestRate ?? 0}%</strong></div>
-                    <div className="kv"><span>Repayment tenure</span><strong>{data.repaymentTenure ? `${data.repaymentTenure} months` : "Rest of chit"}</strong></div>
+                    <div className="kv"><span>{copy.chit.interest}</span><strong>{data.interestRate ?? 0}%</strong></div>
+                    <div className="kv"><span>{copy.chit.repaymentTenure}</span><strong>{data.repaymentTenure ? tx(copy.chit.durationMonths, { n: data.repaymentTenure }) : copy.chit.restOfChit}</strong></div>
                   </>
                 )}
                 {fixedLike && data.premiumAmount != null && data.premiumAmount > 0 && (
                   <div className="kv"><span>Premium after prized (legacy)</span><strong>{inr(data.premiumAmount)}</strong></div>
                 )}
-                <div className="kv"><span>Commission / month</span><strong>{
+                <div className="kv"><span>{copy.chit.commissionPerHapta}</span><strong>{
                   data.commissionKind === "amount" && data.commissionValue
                     ? inr(data.commissionValue)
                     : `${data.commissionPct}%`
@@ -598,13 +598,13 @@ export function ChitDetailPage() {
             <div className="stack">
               <div className="card">
                 <div className="seg" style={{ marginBottom: 16 }}>
-                  <button className={`chip ${colRange === "today" ? "on" : ""}`} onClick={() => setColRange("today")}>Today</button>
-                  <button className={`chip ${colRange === "week" ? "on" : ""}`} onClick={() => setColRange("week")}>This week</button>
-                  <button className={`chip ${colRange === "all" ? "on" : ""}`} onClick={() => setColRange("all")}>All</button>
+                  <button className={`chip ${colRange === "today" ? "on" : ""}`} onClick={() => setColRange("today")}>{copy.common.today}</button>
+                  <button className={`chip ${colRange === "week" ? "on" : ""}`} onClick={() => setColRange("week")}>{copy.common.thisWeek}</button>
+                  <button className={`chip ${colRange === "all" ? "on" : ""}`} onClick={() => setColRange("all")}>{copy.common.all}</button>
                 </div>
-                <div className="muted">Collected</div>
+                <div className="muted">{copy.terms.collected}</div>
                 <div className="hero-figure">{inr(total)}</div>
-                <p className="muted">{receipts.length} receipts from {people} members</p>
+                <p className="muted">{tx(copy.chit.receiptsFrom, { receipts: receipts.length, people })}</p>
                 <button
                   className="btn"
                   style={{ marginTop: 12 }}
@@ -614,7 +614,7 @@ export function ChitDetailPage() {
                     void recordAllPayments(data.id).finally(() => setBusyAll(false));
                   }}
                 >
-                  {busyAll ? "Recording…" : "Record all payments"}
+                  {busyAll ? copy.chit.recording : copy.chit.recordAll}
                 </button>
               </div>
               {cycles.map((cyc) => {
@@ -627,9 +627,9 @@ export function ChitDetailPage() {
                     <div className="card-pad" style={{ paddingBottom: 10 }}>
                       <div className="row-head" style={{ margin: 0 }}>
                         <div>
-                          <strong>Month {cyc}</strong>
+                          <strong>{copy.chit.month} {cyc}</strong>
                           <div className="muted">
-                            {when.toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · {rows.length} receipt{rows.length === 1 ? "" : "s"}
+                            {when.toLocaleDateString(locale, { month: "short", year: "numeric" })} · {rows.length} receipt{rows.length === 1 ? "" : "s"}
                           </div>
                         </div>
                         <strong className="num">{inr(monthTotal)}</strong>
@@ -646,7 +646,7 @@ export function ChitDetailPage() {
                           <div className="grow">
                             <strong>{label}</strong>
                             <div className="muted">
-                              {modeLabel(p.mode || "cash")} · {new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                              {modeLabel(p.mode || "cash")} · {new Date(p.date).toLocaleDateString(locale, { day: "numeric", month: "short" })}
                             </div>
                           </div>
                           <strong className="num">{inr(p.amount)}</strong>
@@ -658,7 +658,7 @@ export function ChitDetailPage() {
                             PDF
                           </button>
                           {isRunning && (
-                            <button className="link" onClick={() => void undoPayment(data.id, p.id)}>Undo</button>
+                            <button className="link" onClick={() => void undoPayment(data.id, p.id)}>{copy.chit.undo}</button>
                           )}
                         </div>
                       );
@@ -666,7 +666,7 @@ export function ChitDetailPage() {
                   </div>
                 );
               })}
-              {!receipts.length && <p className="empty">No collections in this range.</p>}
+              {!receipts.length && <p className="empty">{copy.chit.noCollections}</p>}
             </div>
           );
         })()}
@@ -675,31 +675,31 @@ export function ChitDetailPage() {
           <div className="stack">
             {(() => {
               const awardLabel = auctionFirst
-                ? "Auction"
+                ? copy.chit.award
                 : data.type === "loan"
-                  ? (loanAllowed ? "Give loan" : "No loan")
+                  ? (loanAllowed ? copy.chit.award : copy.chit.closeStep)
                   : luckyDrawChit
-                    ? "Lucky draw"
+                    ? copy.type.lucky_draw
                     : fixedLike
-                      ? "Award pot"
-                      : "Auction";
+                      ? copy.chit.award
+                      : copy.chit.award;
               const subs = auctionFirst
                 ? [
                     { id: "award" as const, label: `1. ${awardLabel}` },
-                    { id: "collect" as const, label: "2. Collect" },
-                    { id: "close" as const, label: "3. Close month" },
+                    { id: "collect" as const, label: `2. ${copy.chit.collect}` },
+                    { id: "close" as const, label: `3. ${copy.chit.closeStep}` },
                   ]
                 : [
-                    { id: "collect" as const, label: "1. Collect" },
+                    { id: "collect" as const, label: `1. ${copy.chit.collect}` },
                     { id: "award" as const, label: `2. ${awardLabel}` },
-                    { id: "close" as const, label: "3. Close month" },
+                    { id: "close" as const, label: `3. ${copy.chit.closeStep}` },
                   ];
               const awardDone = Boolean(lastWin) || (data.type === "loan" && !loanAllowed);
               const collectDone = auctionFirst
                 ? Boolean(lastWin) && remainDue === 0
                 : collectedThisCycle(data) > 0 || unpaidNoted;
               return (
-                <div className="month-steps" role="tablist" aria-label="Monthly steps">
+                <div className="month-steps" role="tablist" aria-label={copy.chit.monthlySteps}>
                   {subs.map((s) => {
                     const done = s.id === "collect" ? collectDone : s.id === "award" ? awardDone : false;
                     return (
@@ -721,13 +721,13 @@ export function ChitDetailPage() {
             {monthSub === "collect" && (
             <>
             <div className="stats four">
-              <StatCard label="Expected this cycle" value={inr(expectedThisCycle(data))} hint="target" tone="blue" icon={Wallet} />
-              <StatCard label="Collected" value={inr(collectedThisCycle(data))} hint="received" tone="green" icon={PiggyBank} />
-              <StatCard label="Outstanding" value={inr(outstandingOf(data))} hint="still due" tone="rose" icon={AlertCircle} />
+              <StatCard label={copy.chit.expectedThisHapta} value={inr(expectedThisCycle(data))} hint="target" tone="blue" icon={Wallet} />
+              <StatCard label={copy.terms.collected} value={inr(collectedThisCycle(data))} hint="received" tone="green" icon={PiggyBank} />
+              <StatCard label={copy.terms.outstanding} value={inr(outstandingOf(data))} hint={copy.chit.stillDue} tone="rose" icon={AlertCircle} />
               <StatCard
-                label={auctionFirst ? "Till (always ₹0)" : "Cash on hand"}
+                label={auctionFirst ? copy.chit.tillAlwaysZeroShort : copy.chit.cashOnHand}
                 value={<span className={treasuryOf(data) < 0 ? "neg" : undefined}>{inr(treasuryOf(data))}</span>}
-                hint={auctionFirst ? "Unpaid shares show as Outstanding" : "treasury"}
+                hint={auctionFirst ? copy.chit.unpaidAsOutstanding : copy.chit.treasuryToday}
                 tone="teal"
                 icon={Wallet}
               />
@@ -735,10 +735,10 @@ export function ChitDetailPage() {
             <div className="card flush">
               <div className="card-pad month-head">
                 <div>
-                  <strong>Month {cycle}</strong>
-                  <span className="muted"> {monthDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-                  <span className={`pill ${isRunning ? "paid" : "partial"}`}>{isRunning ? "Open" : "Closed"}</span>
-                  <div className="muted" style={{ marginTop: 6 }}>{collectedCount(data)} of {data.members.length} hands collected</div>
+                  <strong>{copy.chit.month} {cycle}</strong>
+                  <span className="muted"> {monthDate.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <span className={`pill ${isRunning ? "paid" : "partial"}`}>{isRunning ? copy.chit.open : copy.chit.closed}</span>
+                  <div className="muted" style={{ marginTop: 6 }}>{tx(copy.chit.handsCollected, { done: collectedCount(data), total: data.members.length })}</div>
                 </div>
                 <div className="seg">
                   <button
@@ -752,7 +752,7 @@ export function ChitDetailPage() {
                       });
                     }}
                   >
-                    {busyAll ? "Recording…" : "Record all payments"}
+                    {busyAll ? copy.chit.recording : copy.chit.recordAll}
                   </button>
                   <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (auctionFirst && !lastWin)} onClick={() => {
                     setUnpaidNoted(true);
@@ -771,7 +771,7 @@ export function ChitDetailPage() {
                 </p>
               )}
               {!auctionFirst && !canSettleCycle(data) && !lastWin && (
-                <p className="month-hint">Record collections first — individually or with Record all payments. Auction stays locked so cash on hand cannot go negative.</p>
+                <p className="month-hint">Record collections first — individually or with {copy.chit.recordAll}. Auction stays locked so cash on hand cannot go negative.</p>
               )}
               {!auctionFirst && lastWin && (
                 <p className="month-hint">
@@ -786,7 +786,7 @@ export function ChitDetailPage() {
                 <table className="table month-table">
                   <thead>
                     <tr>
-                      <th>Member</th>
+                      <th>{copy.common.member}</th>
                       <th>Due</th>
                       <th>Paid</th>
                       <th>Balance</th>
@@ -823,11 +823,11 @@ export function ChitDetailPage() {
                           <td>{inr(paid)}</td>
                           <td>{paid >= due ? "—" : inr(due - paid)}</td>
                           <td>{last ? modeLabel(last.mode || "cash") : "—"}</td>
-                          <td>{last ? new Date(last.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</td>
+                          <td>{last ? new Date(last.date).toLocaleDateString(locale, { day: "numeric", month: "short" }) : "—"}</td>
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
                             {isRunning && !(auctionFirst && !lastWin) && (status === "due" || status === "partial") ? (
-                              <button className="btn ghost btn-sm" onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}>Record</button>
+                              <button className="btn ghost btn-sm" onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}>{copy.chit.record}</button>
                             ) : (
                               <span className="muted">—</span>
                             )}
@@ -884,7 +884,7 @@ export function ChitDetailPage() {
               </div>
               {!isRunning ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
-                  This chit is {data.status}. Monthly collections and payouts are closed.
+                  {tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })}
                 </p>
               ) : lastWin && data.type !== "loan" ? (
                 <div style={{ marginTop: 12 }}>
@@ -1257,7 +1257,7 @@ export function ChitDetailPage() {
               </div>
               {!isRunning ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
-                  This chit is {data.status}. Monthly collections and payouts are closed.
+                  {tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })}
                 </p>
               ) : !lastMonthGate.ok ? (
                 <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
@@ -1266,14 +1266,14 @@ export function ChitDetailPage() {
                   <div className="kv"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong></div>
                   <div className="kv"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
                   <div className="kv">
-                    <span>{auctionFirst ? "Till" : "Cash on hand"}</span>
+                    <span>{auctionFirst ? copy.chit.tillPeerShort : copy.chit.cashOnHand}</span>
                     <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
                   </div>
                   {lastWin && data.type !== "loan" && (
                     <>
                       <div className="kv"><span>Awarded to</span><strong>{names[lastWin.winnerId]}</strong></div>
                       <div className="kv"><span>Payout</span><strong>{inr(lastWin.payout)}</strong></div>
-                      <div className="kv"><span>Commission</span><strong>{inr(lastWin.commission)}</strong></div>
+                      <div className="kv"><span>{copy.terms.commission}</span><strong>{inr(lastWin.commission)}</strong></div>
                     </>
                   )}
                   {data.type === "loan" && !!monthLoans.length && (
@@ -1297,7 +1297,7 @@ export function ChitDetailPage() {
 
         {tab === "cycles" && (
           <div className="card flush">
-            <div className="card-pad"><h2>Monthly breakdown</h2></div>
+            <div className="card-pad"><h2>{copy.chit.monthlyBreakdown}</h2></div>
             <div className="table-wrap">
             <table className="table">
               <thead>
@@ -1317,7 +1317,7 @@ export function ChitDetailPage() {
                   when.setMonth(when.getMonth() + cyc - 1);
                   return (
                     <tr key={cyc}>
-                      <td>{when.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</td>
+                      <td>{when.toLocaleDateString(locale, { month: "short", year: "numeric" })}</td>
                       <td>{inr(row.collected)}</td>
                       <td>{inr(row.payout)}</td>
                       <td>{inr(row.commission)}</td>
@@ -1351,7 +1351,7 @@ export function ChitDetailPage() {
                 disabled={!newMemberId || data.members.length >= data.membersCount}
                 onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}
               >
-                {data.members.some((m) => m.customerId === newMemberId) ? "Add hand" : "Add member"}
+                {data.members.some((m) => m.customerId === newMemberId) ? copy.chit.addHand : copy.chit.addMember}
               </button>
             </div>
             <p className="muted" style={{ marginBottom: 12 }}>
@@ -1394,22 +1394,22 @@ export function ChitDetailPage() {
           <div className="stack">
             <div className="stats four">
               <StatCard
-                label="Cash on hand"
+                label={copy.chit.cashOnHand}
                 value={<span className={cashOnHand < 0 ? "neg" : undefined}>{inr(cashOnHand)}</span>}
                 hint="available now"
                 tone="teal"
                 icon={Wallet}
               />
               <StatCard
-                label="Loans disbursed"
+                label={copy.chit.loanReceived}
                 value={inr(data.auctions.filter((a) => a.method === "fixed").reduce((s, a) => s + a.payout, 0))}
                 hint="principal out"
                 tone="blue"
                 icon={PiggyBank}
               />
-              <StatCard label="Interest collected" value={inr(interestCollected(data))} hint="earned" tone="green" icon={Percent} />
+              <StatCard label={copy.chit.interestCollected} value={inr(interestCollected(data))} hint="earned" tone="green" icon={Percent} />
               <StatCard
-                label="Already settled out"
+                label={copy.chit.dividendsAll}
                 value={inr(settlementsOf(data).reduce((s, a) => s + a.payout, 0))}
                 hint="paid out"
                 tone="amber"
@@ -1417,9 +1417,9 @@ export function ChitDetailPage() {
               />
             </div>
             <div className="card">
-              <h2>Final settlement</h2>
+              <h2>{copy.chit.settlementTitle}</h2>
               <p className="muted block">
-                Interest collected (upfront cuts + monthly interest paid) is returned as dividends to the other members — each person does not get back their own interest. Any leftover cash is then shared equally so the till goes to ₹0.
+                {copy.chit.settlementHint}
               </p>
               {(() => {
                 const plan = loanSettlementPlan(data);
@@ -1442,15 +1442,15 @@ export function ChitDetailPage() {
                   void settleBooksEqually(data.id).finally(() => setBusySettle(false));
                 }}
               >
-                {busySettle ? "Settling…" : "Settle interest dividends + leftover"}
+                {busySettle ? copy.chit.settling : copy.chit.settleEqual}
               </button>
               {cashOnHand > 0 && (
                 <div className="table-wrap" style={{ marginTop: 16 }}>
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th>Interest dividend</th>
+                        <th>{copy.common.member}</th>
+                        <th>{copy.chit.interestDividend}</th>
                         <th>Equal share</th>
                         <th>Total</th>
                       </tr>
@@ -1473,7 +1473,7 @@ export function ChitDetailPage() {
               <div className="card-pad"><h2>Loan positions</h2></div>
               <div className="table-wrap">
                 <table className="table">
-                  <thead><tr><th>Hand</th><th>Loan taken</th><th>Paid in</th><th>{isRunning ? "This month due" : "Outstanding"}</th></tr></thead>
+                  <thead><tr><th>Hand</th><th>Loan taken</th><th>{copy.chit.paidIn}</th><th>{isRunning ? "This month due" : "Outstanding"}</th></tr></thead>
                   <tbody>
                     {data.members.map((m) => {
                       const hands = data.members.filter((x) => x.customerId === m.customerId).length;
