@@ -5,7 +5,7 @@ import { useStore } from "../store";
 
 export function LoginPage() {
   const { sendOtp, verifyOtp, logout, user, authHint, error } = useStore();
-  const { m } = useI18n();
+  const { m, tx } = useI18n();
   const nav = useNavigate();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -126,7 +126,7 @@ export function LoginPage() {
                   onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
                 />
               </div>
-              <p className="hint">We’ll text a one-time code to this number via SMS.</p>
+              <p className="hint">{m.loginExtra.otpHint}</p>
               {error && <p className="due">{error}</p>}
               <button className="btn wide" disabled={sending || !canSend} onClick={() => void send()}>
                 {sending ? m.common.loading : m.login.sendOtp}
@@ -135,7 +135,7 @@ export function LoginPage() {
           ) : (
             <>
               <p className="sub" style={{ marginBottom: 12, textAlign: "left" }}>
-                Hi {firstName.trim()}, enter the OTP sent to +91 {digits}
+                {tx(m.loginExtra.otpGreeting, { name: firstName.trim(), phone: digits })}
               </p>
               <div className="otp-boxes">
                 {otp.map((n, i) => (
@@ -158,7 +158,7 @@ export function LoginPage() {
                 disabled={verifying || otp.join("").length !== 6}
                 onClick={() => void submitOtp(otp.join(""))}
               >
-                {verifying ? "Verifying…" : "Verify & continue"}
+                {verifying ? m.loginExtra.verifying : m.login.verify}
               </button>
               <p className="fine">
                 {authHint}{" "}
@@ -167,7 +167,7 @@ export function LoginPage() {
                   className="link"
                   onClick={() => { setStep("phone"); setDevOtp(null); setOtp(["", "", "", "", "", ""]); }}
                 >
-                  Change details
+                  {m.loginExtra.changeDetails}
                 </button>
               </p>
             </>

@@ -21,7 +21,7 @@ export function TrackedChitPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { chits, customers, user, recordPayment, closeCycle, cancelChit, error } = useStore();
-  const { m, typeLabel, freqLabel, modeLabel } = useI18n();
+  const { m, tx, typeLabel, freqLabel, modeLabel, statusLabel, locale } = useI18n();
   const chit = chits.find((c) => c.id === id);
   const [logging, setLogging] = useState(false);
   const [advancing, setAdvancing] = useState(false);
@@ -39,8 +39,8 @@ export function TrackedChitPage() {
 
   if (!chit) {
     return (
-      <AppShell crumb="Chits">
-        <div className="page"><p>Tracked chit not found.</p></div>
+      <AppShell crumb={m.tracked.crumb}>
+        <div className="page"><p>{m.tracked.notFound}</p></div>
       </AppShell>
     );
   }
@@ -60,6 +60,7 @@ export function TrackedChitPage() {
   const ended = new Date(data.startDate);
   ended.setMonth(ended.getMonth() + data.duration);
   const pct = totalDue > 0 ? Math.min(100, Math.round((paid / totalDue) * 100)) : 0;
+  const monthFmt = { month: "short" as const, year: "numeric" as const };
 
   function openLog(month: number) {
     const already = selfId ? paidInCycle(data, selfId, month) : 0;
@@ -83,7 +84,7 @@ export function TrackedChitPage() {
   }
 
   return (
-    <AppShell crumb="Chits" crumb2={data.name}>
+    <AppShell crumb={m.tracked.crumb} crumb2={data.name}>
       <div className="page">
         <section className="chit-hero">
           <div className="chit-hero-top">
@@ -96,7 +97,7 @@ export function TrackedChitPage() {
               </p>
             </div>
             <span className={`chit-hero-pill${isRunning ? " live" : ""}`}>
-              {isRunning ? "Active" : data.status}
+              {isRunning ? m.common.active : statusLabel(data.status)}
             </span>
           </div>
           <div className="chit-hero-divider" />
@@ -104,69 +105,69 @@ export function TrackedChitPage() {
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
-                <span>Instalment</span>
+                <span>{m.chit.instalment}</span>
                 <strong>{inr(instalment)}/{freqLabel(data.frequency) || m.terms.haptaShort}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Duration</span>
-                <strong>{data.duration} months</strong>
+                <span>{m.newChit.duration}</span>
+                <strong>{tx(m.tracked.monthsCount, { n: data.duration })}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Started</span>
-                <strong>{new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+                <span>{m.chit.started}</span>
+                <strong>{new Date(data.startDate).toLocaleString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
               <div>
-                <span>Ends</span>
-                <strong>{ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+                <span>{m.chit.ends}</span>
+                <strong>{ended.toLocaleString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Route size={16} strokeWidth={2} /></div>
               <div>
-                <span>Progress</span>
-                <strong>{pct}% paid</strong>
+                <span>{m.tracked.progress}</span>
+                <strong>{tx(m.tracked.pctPaid, { pct })}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Month</span>
+                <span>{m.chit.month}</span>
                 <strong>{cycle} / {data.duration}</strong>
               </div>
             </div>
           </div>
-          <p className="chit-hero-note">Personal tracking · log what you pay each month</p>
+          <p className="chit-hero-note">{m.tracked.subtitle}</p>
         </section>
 
         <div className="row-head" style={{ marginBottom: 12 }}>
           <button
             className="btn danger"
             onClick={() => {
-              if (window.confirm("Cancel this tracked chit?")) {
+              if (window.confirm(m.tracked.cancelConfirm)) {
                 void cancelChit(data.id).then(() => nav("/chits"));
               }
             }}
           >
-            Cancel tracking
+            {m.tracked.cancelTracking}
           </button>
         </div>
 
         {error && <p className="due">{error}</p>}
 
         <div className="stats four">
-          <StatCard label="Current month" value={`${cycle} / ${data.duration}`} hint="cycle progress" tone="blue" icon={Calendar} />
-          <StatCard label="Paid so far" value={inr(paid)} hint="lifetime logged" tone="green" icon={PiggyBank} />
-          <StatCard label="Left to pay" value={inr(left)} hint="remaining" tone="rose" icon={CircleDollarSign} />
-          <StatCard label={`Month ${cycle} due`} value={inr(instalment)} hint="this instalment" tone="amber" icon={Wallet} />
+          <StatCard label={m.tracked.currentMonth} value={`${cycle} / ${data.duration}`} hint={m.tracked.cycleProgress} tone="blue" icon={Calendar} />
+          <StatCard label={m.tracked.paidSoFar} value={inr(paid)} hint={m.tracked.lifetimeLogged} tone="green" icon={PiggyBank} />
+          <StatCard label={m.tracked.leftToPay} value={inr(left)} hint={m.tracked.remaining} tone="rose" icon={CircleDollarSign} />
+          <StatCard label={tx(m.tracked.monthNDue, { n: cycle })} value={inr(instalment)} hint={m.tracked.thisInstalment} tone="amber" icon={Wallet} />
         </div>
 
         <div className="card block">
@@ -175,7 +176,7 @@ export function TrackedChitPage() {
             disabled={!selfId || logging || monthLogged || data.status !== "running"}
             onClick={() => openLog(cycle)}
           >
-            {monthLogged ? "This month logged" : "Log this payment"}
+            {monthLogged ? m.tracked.monthLogged : m.tracked.logPayment}
           </button>
           {canAdvance && (
             <button
@@ -187,14 +188,14 @@ export function TrackedChitPage() {
                 void closeCycle(data.id).finally(() => setAdvancing(false));
               }}
             >
-              {advancing ? "Advancing…" : "Advance to next month"}
+              {advancing ? m.common.loading : m.tracked.advanceMonth}
             </button>
           )}
-          {!selfId && <p className="due">Add yourself as a customer first, then open this tracked chit again.</p>}
+          {!selfId && <p className="due">{m.tracked.addSelfFirst}</p>}
         </div>
 
         <div className="card flush">
-          <div className="card-pad"><h2>Your payment log</h2></div>
+          <div className="card-pad"><h2>{m.tracked.paymentLog}</h2></div>
           {Array.from({ length: data.duration }, (_, i) => i + 1).map((month) => {
             const paidM = selfId ? paidInCycle(data, selfId, month) : 0;
             const dueYet = month <= cycle;
@@ -202,13 +203,19 @@ export function TrackedChitPage() {
             return (
               <div key={month} className="list-row">
                 <div className="grow">
-                  <strong>Month {month}</strong>
+                  <strong>{tx(m.tracked.monthN, { n: month })}</strong>
                   <div className="muted">
-                    {!dueYet ? "Not due yet" : logged ? `Logged · ${inr(paidM)}` : paidM > 0 ? `Partial · ${inr(paidM)}` : "Not logged"}
+                    {!dueYet
+                      ? m.tracked.notDueYet
+                      : logged
+                        ? tx(m.tracked.loggedAmount, { amount: inr(paidM) })
+                        : paidM > 0
+                          ? tx(m.tracked.partialAmount, { amount: inr(paidM) })
+                          : m.tracked.notLogged}
                   </div>
                 </div>
                 {dueYet && !logged && data.status === "running" ? (
-                  <button className="btn ghost btn-sm" disabled={logging} onClick={() => openLog(month)}>Log</button>
+                  <button className="btn ghost btn-sm" disabled={logging} onClick={() => openLog(month)}>{m.tracked.log}</button>
                 ) : (
                   <span className="muted">{logged ? "✓" : "—"}</span>
                 )}
@@ -225,13 +232,13 @@ export function TrackedChitPage() {
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => { e.preventDefault(); void saveLog(); }}
           >
-            <h2>Log this payment</h2>
-            <p className="muted">Month {logMonth}</p>
-            <label className="label">Amount</label>
+            <h2>{m.tracked.logPayment}</h2>
+            <p className="muted">{tx(m.tracked.monthN, { n: logMonth })}</p>
+            <label className="label">{m.payModal.amount}</label>
             <input className="field" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} />
-            <label className="label">Date</label>
+            <label className="label">{m.common.date}</label>
             <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <label className="label">Payment mode</label>
+            <label className="label">{m.payModal.mode}</label>
             <div className="seg">
               {(["cash", "upi", "bank", "cheque"] as PayMode[]).map((payModeId) => (
                 <button key={payModeId} type="button" className={`chip ${payMode === payModeId ? "on" : ""}`} onClick={() => setPayMode(payModeId)}>
@@ -240,8 +247,8 @@ export function TrackedChitPage() {
               ))}
             </div>
             <div className="toolbar" style={{ marginTop: 16 }}>
-              <button type="button" className="btn ghost" onClick={() => setLogMonth(null)}>Cancel</button>
-              <button className="btn" disabled={logging || !Number(amount)}>{logging ? "Saving…" : "Save"}</button>
+              <button type="button" className="btn ghost" onClick={() => setLogMonth(null)}>{m.common.cancel}</button>
+              <button className="btn" disabled={logging || !Number(amount)}>{logging ? m.common.loading : m.common.save}</button>
             </div>
           </form>
         </div>

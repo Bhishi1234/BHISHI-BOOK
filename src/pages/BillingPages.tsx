@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { fetchBillingStatus } from "../lib/billing";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -9,14 +10,15 @@ export function BillingSuccessPage() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const { user, refresh } = useStore();
+  const { m, tx } = useI18n();
   const subId = params.get("sub_id") || params.get("cf_subscriptionId") || "";
-  const [msg, setMsg] = useState("Confirming your payment…");
+  const [msg, setMsg] = useState(m.billing.confirming);
   const [done, setDone] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setMsg("Supabase is not configured.");
+      setMsg(m.billing.notConfigured);
       setFailed(true);
       return;
     }
@@ -28,24 +30,22 @@ export function BillingSuccessPage() {
         const st = await fetchBillingStatus(subId || undefined);
         if (!alive) return;
         if (st.active) {
-          setMsg(`You’re on ${String(st.plan).toUpperCase()}. Access is active.`);
+          setMsg(m.billing.success);
           setDone(true);
           await refresh();
           setTimeout(() => nav("/upgrade", { replace: true }), 1600);
           return;
         }
         if (tries >= 20) {
-          setMsg(
-            "Payment is still processing. If you were charged, your plan will activate within a minute — refresh Upgrade.",
-          );
+          setMsg(m.billing.processing);
           setFailed(true);
           return;
         }
-        setMsg(`Waiting for Cashfree confirmation… (${tries}/20)`);
+        setMsg(tx(m.billing.waiting, { n: tries }));
         setTimeout(() => void tick(), 1500);
       } catch (e) {
         if (!alive) return;
-        setMsg(e instanceof Error ? e.message : "Could not confirm payment");
+        setMsg(e instanceof Error ? e.message : m.billing.failed);
         if (tries < 8) setTimeout(() => void tick(), 2000);
         else setFailed(true);
       }
@@ -59,9 +59,9 @@ export function BillingSuccessPage() {
   }, [subId, nav]);
 
   return (
-    <AppShell crumb="Plan & billing" crumb2="Payment">
+    <AppShell crumb={m.nav.upgrade} crumb2={m.billing.confirming}>
       <div className="page">
-        <h1>{done ? "Subscription active" : failed ? "Still confirming" : "Almost there"}</h1>
+        <h1>{done ? m.billing.success : failed ? m.billing.processing : m.billing.confirming}</h1>
         <p className="page-sub">{msg}</p>
         <div className="card">
           <p className="muted">
@@ -75,10 +75,10 @@ export function BillingSuccessPage() {
           </p>
           <div className="seg" style={{ marginTop: 16 }}>
             <Link className="btn" to="/upgrade">
-              Back to plans
+              {m.billing.backUpgrade}
             </Link>
             <Link className="btn ghost" to="/">
-              Dashboard
+              {m.nav.dashboard}
             </Link>
           </div>
         </div>
@@ -88,13 +88,14 @@ export function BillingSuccessPage() {
 }
 
 export function BillingFailedPage() {
+  const { m } = useI18n();
   return (
-    <AppShell crumb="Plan & billing" crumb2="Payment">
+    <AppShell crumb={m.nav.upgrade} crumb2={m.billing.failed}>
       <div className="page">
-        <h1>Payment not completed</h1>
-        <p className="page-sub">No charge was kept, or authorisation was cancelled. You can try again anytime.</p>
+        <h1>{m.billing.failed}</h1>
+        <p className="page-sub">{m.billing.processing}</p>
         <Link className="btn" to="/upgrade">
-          Try again
+          {m.billing.backUpgrade}
         </Link>
       </div>
     </AppShell>

@@ -7,18 +7,20 @@ import { useStore } from "../store";
 
 export function SupportPage() {
   const { tickets, addTicket } = useStore();
+  const { m } = useI18n();
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   return (
-    <AppShell crumb="Support">
+    <AppShell crumb={m.support.title}>
       <div className="page">
         <div className="row-head">
-          <h1>Support</h1>
-          <button className="btn" onClick={() => setOpen(true)}>New</button>
+          <h1>{m.support.title}</h1>
+          <button className="btn" onClick={() => setOpen(true)}>{m.support.newTicket}</button>
         </div>
-        <p className="page-sub">Select a conversation, or start a new one.</p>
+        <p className="page-sub">{m.support.selectOrStart}</p>
         <div className="stack">
+        {tickets.length === 0 && <p className="muted">{m.support.empty}</p>}
         {tickets.map((t) => (
           <div key={t.id} className="card">
             <strong>{t.subject}</strong>
@@ -35,10 +37,10 @@ export function SupportPage() {
               void addTicket(subject.trim(), message.trim());
               setSubject(""); setMessage(""); setOpen(false);
             }}>
-              <h2>New conversation</h2>
-              <input className="field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
-              <textarea className="field" rows={5} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
-              <button className="btn wide">Send</button>
+              <h2>{m.support.newConversation}</h2>
+              <input className="field" placeholder={m.support.subject} value={subject} onChange={(e) => setSubject(e.target.value)} />
+              <textarea className="field" rows={5} placeholder={m.support.message} value={message} onChange={(e) => setMessage(e.target.value)} />
+              <button className="btn wide">{m.support.send}</button>
             </form>
           </div>
         )}
@@ -49,6 +51,7 @@ export function SupportPage() {
 
 export function UpgradePage() {
   const { user, setPlan, error } = useStore();
+  const { m, tx, locale } = useI18n();
   const [tab, setTab] = useState<"payg" | "month" | "year">("month");
   const [busy, setBusy] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -69,67 +72,67 @@ export function UpgradePage() {
       sessionStorage.setItem("bhishi_billing_sub", session.merchantSubscriptionId);
       await openSubscriptionCheckout(session.subscriptionSessionId, session.cashfreeEnv);
     } catch (e) {
-      setLocalError(e instanceof Error ? e.message : "Checkout failed");
+      setLocalError(e instanceof Error ? e.message : m.upgrade.checkoutFailed);
     } finally {
       setBusy(null);
     }
   }
 
   return (
-    <AppShell crumb="Plan & billing">
+    <AppShell crumb={m.upgrade.crumb}>
       <div className="page">
-        <h1>Upgrade</h1>
+        <h1>{m.upgrade.title}</h1>
         <p className="page-sub">
-          Current plan: <strong>{user?.plan.toUpperCase()}</strong>
+          {m.upgrade.currentPlan}: <strong>{user?.plan.toUpperCase()}</strong>
           {user?.planExpiresAt
-            ? ` · renews / ends ${new Date(user.planExpiresAt).toLocaleDateString("en-IN")}`
+            ? ` · ${tx(m.upgrade.renewsEnds, { date: new Date(user.planExpiresAt).toLocaleDateString(locale) })}`
             : ""}
         </p>
         {(localError || error) && <p className="due">{localError || error}</p>}
         <div className="seg center">
-          <button className={`chip ${tab === "payg" ? "dark" : ""}`} onClick={() => setTab("payg")}>Pay as you go</button>
-          <button className={`chip ${tab === "month" ? "on" : ""}`} onClick={() => setTab("month")}>Monthly</button>
-          <button className={`chip ${tab === "year" ? "on" : ""}`} onClick={() => setTab("year")}>Yearly</button>
+          <button className={`chip ${tab === "payg" ? "dark" : ""}`} onClick={() => setTab("payg")}>{m.upgrade.payAsYouGo}</button>
+          <button className={`chip ${tab === "month" ? "on" : ""}`} onClick={() => setTab("month")}>{m.upgrade.monthly}</button>
+          <button className={`chip ${tab === "year" ? "on" : ""}`} onClick={() => setTab("year")}>{m.upgrade.yearly}</button>
         </div>
         {tab === "payg" && (
           <div className="card">
-            <h2>Pay as you go</h2>
-            <p className="muted">Start a chit and pay for the months it runs. Nothing to subscribe to, and it stops when the chit closes.</p>
-            <div className="kv"><span>Your first chit</span><strong>Free</strong></div>
-            <div className="kv"><span>Every chit after that</span><strong>₹100 a month</strong></div>
-            <p className="muted">Per-chit Cashfree charging will follow in a later release. Subscribe to Pro/Power for unlimited organised capacity now.</p>
+            <h2>{m.upgrade.payAsYouGo}</h2>
+            <p className="muted">{m.upgrade.paygBody}</p>
+            <div className="kv"><span>{m.upgrade.firstChit}</span><strong>{m.upgrade.free}</strong></div>
+            <div className="kv"><span>{m.upgrade.everyChitAfter}</span><strong>{m.upgrade.paygPrice}</strong></div>
+            <p className="muted">{m.upgrade.paygLater}</p>
           </div>
         )}
         {tab !== "payg" && (
           <div className="grid-2">
             <div className="card">
               <h2>Pro</h2>
-              <p className="price">{tab === "month" ? "₹199 / month" : "₹1,999 / year"}</p>
-              <ul><li>Up to 5 active chits</li><li>PDF ledger and passbooks</li><li>Payment reminders</li></ul>
+              <p className="price">{tab === "month" ? tx(m.upgrade.priceMonth, { n: "199" }) : tx(m.upgrade.priceYear, { n: "1,999" })}</p>
+              <ul><li>{m.upgrade.proFeat1}</li><li>{m.upgrade.proFeat2}</li><li>{m.upgrade.proFeat3}</li></ul>
               <button
                 className="btn"
                 disabled={!!busy || user?.plan === "pro"}
                 onClick={() => void startPaid("pro")}
               >
-                {user?.plan === "pro" ? "Current plan" : busy === `pro-${tab}` ? "Opening Cashfree…" : "Subscribe to Pro"}
+                {user?.plan === "pro" ? m.upgrade.currentPlan : busy === `pro-${tab}` ? m.upgrade.openingCashfree : m.upgrade.subscribePro}
               </button>
             </div>
             <div className="card">
               <h2>Power</h2>
-              <p className="price">{tab === "month" ? "₹499 / month" : "₹4,999 / year"}</p>
-              <ul><li>Unlimited chits</li><li>Custom member messages</li><li>Onboarding help</li></ul>
+              <p className="price">{tab === "month" ? tx(m.upgrade.priceMonth, { n: "499" }) : tx(m.upgrade.priceYear, { n: "4,999" })}</p>
+              <ul><li>{m.upgrade.powerFeat1}</li><li>{m.upgrade.powerFeat2}</li><li>{m.upgrade.powerFeat3}</li></ul>
               <button
                 className="btn"
                 disabled={!!busy || user?.plan === "power"}
                 onClick={() => void startPaid("power")}
               >
-                {user?.plan === "power" ? "Current plan" : busy === `power-${tab}` ? "Opening Cashfree…" : "Subscribe to Power"}
+                {user?.plan === "power" ? m.upgrade.currentPlan : busy === `power-${tab}` ? m.upgrade.openingCashfree : m.upgrade.subscribePower}
               </button>
             </div>
           </div>
         )}
         <p className="muted" style={{ marginTop: 16 }}>
-          Payments are processed by Cashfree. Your plan activates after webhook confirmation (not only the success redirect).
+          {m.upgrade.cashfreeNote}
         </p>
       </div>
     </AppShell>

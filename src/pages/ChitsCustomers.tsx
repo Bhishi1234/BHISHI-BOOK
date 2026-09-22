@@ -208,7 +208,7 @@ export function ChitsPage() {
 
 export function CustomersPage() {
   const { customers, chits, addCustomer, user } = useStore();
-  const { m } = useI18n();
+  const { m, tx } = useI18n();
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "out" | "dues">("all");
@@ -244,10 +244,10 @@ export function CustomersPage() {
   }
 
   const rows = customers.map((c) => {
-    const inChits = chits.filter((ch) => ch.members.some((m) => m.customerId === c.id) && ch.status !== "cancelled");
+    const inChits = chits.filter((ch) => ch.members.some((mem) => mem.customerId === c.id) && ch.status !== "cancelled");
     const contributed = chits.reduce((s, ch) => s + ch.payments.filter((p) => p.memberId === c.id).reduce((a, p) => a + p.amount, 0), 0);
     const outstanding = chits.reduce((s, ch) => {
-      if (!ch.members.some((m) => m.customerId === c.id)) return s;
+      if (!ch.members.some((mem) => mem.customerId === c.id)) return s;
       return s + memberBalance(ch, c.id).outstanding;
     }, 0);
     return { ...c, inChits, contributed, outstanding };
@@ -259,7 +259,7 @@ export function CustomersPage() {
     return true;
   });
 
-  const inActive = customers.filter((c) => chits.some((ch) => ch.status === "running" && ch.members.some((m) => m.customerId === c.id))).length;
+  const inActive = customers.filter((c) => chits.some((ch) => ch.status === "running" && ch.members.some((mem) => mem.customerId === c.id))).length;
   const collected = chits.reduce((s, c) => s + c.payments.reduce((a, p) => a + p.amount, 0), 0);
   const outstanding = rows.reduce((s, r) => s + r.outstanding, 0);
 
@@ -269,38 +269,38 @@ export function CustomersPage() {
         <div className="row-head">
           <div>
             <h1>{m.nav.customers}</h1>
-            <p className="page-sub">One record per person — add someone once, then map them into as many chits as you like.</p>
+            <p className="page-sub">{m.customersPage.subtitle}</p>
           </div>
         </div>
         <form className="toolbar" onSubmit={onAdd}>
-          <input className="field" name="name" placeholder="Name" style={{ margin: 0, maxWidth: 200 }} />
-          <input className="field" name="phone" placeholder="Phone" style={{ margin: 0, maxWidth: 160 }} />
-          <button className="btn">Add customer</button>
+          <input className="field" name="name" placeholder={m.profile.name} style={{ margin: 0, maxWidth: 200 }} />
+          <input className="field" name="phone" placeholder={m.profile.phone} style={{ margin: 0, maxWidth: 160 }} />
+          <button className="btn">{m.customersPage.addCustomer}</button>
           {canPick && (
             <button className="btn ghost" type="button" disabled={picking} onClick={() => void fromContacts()}>
-              <BookUser size={15} /> {picking ? "Opening…" : "From contacts"}
+              <BookUser size={15} /> {picking ? m.newChitExtra.opening : m.chit.fromContacts}
             </button>
           )}
         </form>
         <div className="stats four">
-          <StatCard label="People" value={customers.length} hint="in your directory" tone="blue" icon={UserRound} />
-          <StatCard label="In an active chit" value={inActive} hint={`${customers.length - inActive} not mapped yet`} tone="green" icon={Users} />
-          <StatCard label="Collected from all" value={inr(collected)} hint="lifetime" tone="teal" icon={PiggyBank} />
-          <StatCard label="Outstanding" value={inr(outstanding)} hint="still due" tone="rose" icon={AlertCircle} />
+          <StatCard label={m.customersPage.people} value={customers.length} hint={m.customersPage.inDirectory} tone="blue" icon={UserRound} />
+          <StatCard label={m.customersPage.inActiveChit} value={inActive} hint={tx(m.customersPage.notMappedYet, { n: customers.length - inActive })} tone="green" icon={Users} />
+          <StatCard label={m.customersPage.collectedFromAll} value={inr(collected)} hint={m.customersPage.lifetime} tone="teal" icon={PiggyBank} />
+          <StatCard label={m.terms.outstanding} value={inr(outstanding)} hint={m.customersPage.stillDue} tone="rose" icon={AlertCircle} />
         </div>
         <div className="toolbar">
-          <input className="field" placeholder="Search by name or phone" value={q} onChange={(e) => setQ(e.target.value)} style={{ margin: 0, maxWidth: 360 }} />
+          <input className="field" placeholder={m.customersPage.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} style={{ margin: 0, maxWidth: 360 }} />
           <div className="seg">
-            <button className={`chip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>All</button>
-            <button className={`chip ${filter === "in" ? "on" : ""}`} onClick={() => setFilter("in")}>In a chit</button>
-            <button className={`chip ${filter === "out" ? "on" : ""}`} onClick={() => setFilter("out")}>Not in a chit</button>
-            <button className={`chip ${filter === "dues" ? "on" : ""}`} onClick={() => setFilter("dues")}>Has dues</button>
+            <button className={`chip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>{m.common.all}</button>
+            <button className={`chip ${filter === "in" ? "on" : ""}`} onClick={() => setFilter("in")}>{m.customersPage.filterIn}</button>
+            <button className={`chip ${filter === "out" ? "on" : ""}`} onClick={() => setFilter("out")}>{m.customersPage.filterOut}</button>
+            <button className={`chip ${filter === "dues" ? "on" : ""}`} onClick={() => setFilter("dues")}>{m.customersPage.filterDues}</button>
           </div>
         </div>
         <div className="card flush">
           <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Person</th><th>Chits</th><th>Contributed</th><th>Outstanding</th></tr></thead>
+            <thead><tr><th>{m.customersPage.person}</th><th>{m.customersPage.chitsCol}</th><th>{m.customersPage.contributed}</th><th>{m.terms.outstanding}</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="clickable" onClick={() => nav(`/customers/${r.id}`)}>
@@ -321,11 +321,11 @@ export function CustomersPage() {
                             />
                           ) : null}
                         </div>
-                        <div className="muted">{r.phone || "No phone"}</div>
+                        <div className="muted">{r.phone || m.customersPage.noPhone}</div>
                       </div>
                     </div>
                   </td>
-                  <td>{r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : "Not in any chit"}</td>
+                  <td>{r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : m.customersPage.notInAny}</td>
                   <td>{r.contributed ? inr(r.contributed) : "—"}</td>
                   <td>{r.outstanding ? inr(r.outstanding) : "—"}</td>
                 </tr>

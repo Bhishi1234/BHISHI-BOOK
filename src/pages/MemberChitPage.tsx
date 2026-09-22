@@ -27,34 +27,34 @@ export function MemberChitPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { chits, customers, user } = useStore();
-  const { m, typeLabel, freqLabel, modeLabel } = useI18n();
+  const { m, tx, typeLabel, freqLabel, modeLabel, payStatusLabel, statusLabel, locale } = useI18n();
   const data = chits.find((c) => c.id === id);
 
   const selfId = useMemo(() => {
     if (!data || !user?.phone) return "";
     const byPhone = customers.find((c) => c.phone === user.phone);
-    if (byPhone && data.members.some((m) => m.customerId === byPhone.id)) {
+    if (byPhone && data.members.some((mem) => mem.customerId === byPhone.id)) {
       return byPhone.id;
     }
     const match = data.members
-      .map((m) => customers.find((c) => c.id === m.customerId))
+      .map((mem) => customers.find((c) => c.id === mem.customerId))
       .find((c) => c && c.phone === user.phone);
     return match?.id || "";
   }, [customers, data, user?.phone]);
 
   if (!data || data.viewerRole !== "member") {
     return (
-      <AppShell crumb="Chits">
+      <AppShell crumb={m.nav.chits}>
         <div className="page">
-          <p>Shared chit not found.</p>
-          <button className="btn ghost" onClick={() => nav("/chits")}>Back to chits</button>
+          <p>{m.memberPassbook.notFound}</p>
+          <button className="btn ghost" onClick={() => nav("/chits")}>{m.memberPassbook.backToChits}</button>
         </div>
       </AppShell>
     );
   }
 
   const cycle = displayCycle(data);
-  const selfName = customers.find((c) => c.id === selfId)?.name || "You";
+  const selfName = customers.find((c) => c.id === selfId)?.name || m.common.you;
   const bal = selfId ? memberBalance(data, selfId) : { due: 0, paid: 0, outstanding: 0 };
   const monthDue = selfId ? rawCycleDue(data, selfId, cycle) : 0;
   const monthPaid = selfId ? paidInCycle(data, selfId, cycle) : 0;
@@ -63,9 +63,10 @@ export function MemberChitPage() {
   const isRunning = data.status === "running";
   const ended = new Date(data.startDate);
   ended.setMonth(ended.getMonth() + data.duration);
+  const monthFmt = { month: "short" as const, year: "numeric" as const };
 
   return (
-    <AppShell crumb="Chits" crumb2={data.name}>
+    <AppShell crumb={m.nav.chits} crumb2={data.name}>
       <div className="page">
         <section className="chit-hero">
           <div className="chit-hero-top">
@@ -78,7 +79,7 @@ export function MemberChitPage() {
               </p>
             </div>
             <span className={`chit-hero-pill${isRunning ? " live" : ""}`}>
-              {isRunning ? "Active" : data.status}
+              {isRunning ? m.common.active : statusLabel(data.status)}
             </span>
           </div>
           <div className="chit-hero-divider" />
@@ -86,67 +87,67 @@ export function MemberChitPage() {
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Users size={16} strokeWidth={2} /></div>
               <div>
-                <span>Members</span>
-                <strong>{data.members.length} of {data.membersCount}</strong>
+                <span>{m.common.members}</span>
+                <strong>{tx(m.chit.membersOf, { count: data.members.length, total: data.membersCount })}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
-                <span>Instalment</span>
+                <span>{m.chit.instalment}</span>
                 <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Started</span>
-                <strong>{new Date(data.startDate).toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+                <span>{m.chit.started}</span>
+                <strong>{new Date(data.startDate).toLocaleString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
               <div>
-                <span>Ends</span>
-                <strong>{ended.toLocaleString("en-IN", { month: "short", year: "numeric" })}</strong>
+                <span>{m.chit.ends}</span>
+                <strong>{ended.toLocaleString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><UserRound size={16} strokeWidth={2} /></div>
               <div>
-                <span>You</span>
+                <span>{m.common.you}</span>
                 <strong>{selfName}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
-                <span>Month</span>
+                <span>{m.chit.month}</span>
                 <strong>{cycle} / {data.duration}</strong>
               </div>
             </div>
           </div>
-          <p className="chit-hero-note">Read-only passbook · organiser records collections</p>
+          <p className="chit-hero-note">{m.memberPassbook.subtitle}</p>
         </section>
 
         <div className="row-head" style={{ marginBottom: 12 }}>
-          <Link className="btn ghost" to="/chits">All chits</Link>
+          <Link className="btn ghost" to="/chits">{m.memberPassbook.allChits}</Link>
         </div>
 
         {!user?.phone && (
           <p className="due block">
-            Add your phone on <Link to="/profile">Profile</Link> so we can match you to this group.
+            {m.memberPassbook.matchPhoneHint}
           </p>
         )}
         {user?.phone && !selfId && (
-          <p className="due block">Could not match your phone to a member on this chit.</p>
+          <p className="due block">{m.memberPassbook.phoneMatchFail}</p>
         )}
 
         <div className="stats four">
-          <StatCard label="Current month" value={`${cycle} / ${data.duration}`} hint="cycle progress" tone="blue" icon={Calendar} />
-          <StatCard label="This month due" value={inr(monthDue)} hint="your share" tone="amber" icon={Wallet} />
-          <StatCard label="Paid this month" value={inr(monthPaid)} hint="already paid" tone="green" icon={PiggyBank} />
-          <StatCard label="Outstanding" value={inr(bal.outstanding)} hint="still due" tone="rose" icon={AlertCircle} />
+          <StatCard label={m.tracked.currentMonth} value={`${cycle} / ${data.duration}`} hint={m.memberPassbook.cycleProgress} tone="blue" icon={Calendar} />
+          <StatCard label={m.memberPassbook.thisMonthDue} value={inr(monthDue)} hint={m.memberPassbook.yourShare} tone="amber" icon={Wallet} />
+          <StatCard label={m.memberPassbook.paidThisMonth} value={inr(monthPaid)} hint={m.memberPassbook.alreadyPaid} tone="green" icon={PiggyBank} />
+          <StatCard label={m.memberPassbook.outstanding} value={inr(bal.outstanding)} hint={m.customersPage.stillDue} tone="rose" icon={AlertCircle} />
         </div>
 
         <div className="card block">
@@ -154,20 +155,26 @@ export function MemberChitPage() {
             <div className="avatar tone-blue">{initials(selfName)}</div>
             <div>
               <strong>{selfName}</strong>
-              <div className="muted">{user?.phone || "—"} · month status: {monthStatus}</div>
+              <div className="muted">{user?.phone || "—"} · {tx(m.memberPassbook.monthStatus, { status: payStatusLabel(monthStatus) })}</div>
             </div>
           </div>
           <p className="muted">
-            Collections are recorded by the organiser. Your receipts appear here once they mark you paid.
+            {m.memberPassbook.organiserRecords}
           </p>
         </div>
 
         <div className="card flush block">
-          <div className="card-pad"><h2>Your passbook</h2></div>
+          <div className="card-pad"><h2>{m.memberPassbook.yourPassbook}</h2></div>
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>Cycle</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
+                <tr>
+                  <th>{m.memberPassbook.cycle}</th>
+                  <th>{m.memberPassbook.due}</th>
+                  <th>{m.memberPassbook.paid}</th>
+                  <th>{m.memberPassbook.balance}</th>
+                  <th>{m.memberPassbook.status}</th>
+                </tr>
               </thead>
               <tbody>
                 {Array.from({ length: cycle }, (_, i) => i + 1).map((cyc) => {
@@ -177,11 +184,11 @@ export function MemberChitPage() {
                   const status = paymentStatus(data, selfId, cyc);
                   return (
                     <tr key={cyc}>
-                      <td>Month {cyc}</td>
+                      <td>{tx(m.memberPassbook.monthN, { n: cyc })}</td>
                       <td>{inr(due)}</td>
                       <td>{inr(paid)}</td>
                       <td>{paid >= due ? "—" : inr(due - paid)}</td>
-                      <td><span className={`pill ${status}`}>{status}</span></td>
+                      <td><span className={`pill ${status}`}>{payStatusLabel(status)}</span></td>
                     </tr>
                   );
                 })}
@@ -192,15 +199,21 @@ export function MemberChitPage() {
 
         {!!wins.length && (
           <div className="card flush block">
-            <div className="card-pad"><h2>Payouts so far</h2></div>
+            <div className="card-pad"><h2>{m.memberPassbook.payoutsSoFar}</h2></div>
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Cycle</th><th>Winner</th><th>Payout</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>{m.memberPassbook.cycle}</th>
+                    <th>{m.memberPassbook.winner}</th>
+                    <th>{m.memberPassbook.payout}</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {wins.map((a) => (
                     <tr key={`${a.cycle}-${a.winnerId}`}>
                       <td>{a.cycle}</td>
-                      <td>{customers.find((c) => c.id === a.winnerId)?.name || "Member"}</td>
+                      <td>{customers.find((c) => c.id === a.winnerId)?.name || m.common.member}</td>
                       <td>{inr(a.payout)}</td>
                     </tr>
                   ))}
@@ -212,17 +225,24 @@ export function MemberChitPage() {
 
         {!!selfId && data.payments.filter((p) => p.memberId === selfId).length > 0 && (
           <div className="card flush block">
-            <div className="card-pad"><h2>Your receipts</h2></div>
+            <div className="card-pad"><h2>{m.memberPassbook.yourReceipts}</h2></div>
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Date</th><th>Cycle</th><th>Amount</th><th>Mode</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>{m.common.date}</th>
+                    <th>{m.memberPassbook.cycle}</th>
+                    <th>{m.memberPassbook.amount}</th>
+                    <th>{m.memberPassbook.mode}</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {[...data.payments]
                     .filter((p) => p.memberId === selfId)
                     .reverse()
                     .map((p) => (
                       <tr key={p.id}>
-                        <td>{p.date ? new Date(p.date).toLocaleDateString("en-IN") : "—"}</td>
+                        <td>{p.date ? new Date(p.date).toLocaleDateString(locale) : "—"}</td>
                         <td>{p.cycle}</td>
                         <td>{inr(p.amount)}</td>
                         <td>{modeLabel(p.mode || "cash")}</td>

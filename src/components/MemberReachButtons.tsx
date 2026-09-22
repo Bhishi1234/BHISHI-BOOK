@@ -1,4 +1,5 @@
 import { Phone } from "lucide-react";
+import { useI18n } from "../i18n";
 import { canMessagePhone, openCall, openWhatsApp } from "../lib/share";
 import { WhatsAppIcon } from "./InviteWhatsAppButton";
 
@@ -7,7 +8,6 @@ export function MemberReachButtons({
   whatsappText,
   disabled,
   compact,
-  /** When false, only the Call button is shown (invite lives next to the name). */
   showWhatsApp = true,
 }: {
   phone?: string | null;
@@ -16,6 +16,7 @@ export function MemberReachButtons({
   compact?: boolean;
   showWhatsApp?: boolean;
 }) {
+  const { m } = useI18n();
   const ok = canMessagePhone(phone) && !disabled;
   const cls = compact ? "reach-btn reach-btn-sm" : "reach-btn";
 
@@ -25,7 +26,7 @@ export function MemberReachButtons({
         <button
           type="button"
           className={`${cls} wa`}
-          title="WhatsApp"
+          title={m.reach.whatsapp}
           disabled={!ok}
           onClick={() => {
             if (!phone || !ok) return;
@@ -33,13 +34,13 @@ export function MemberReachButtons({
           }}
         >
           <WhatsAppIcon size={compact ? 14 : 15} />
-          {!compact ? <span>WhatsApp</span> : null}
+          {!compact ? <span>{m.reach.whatsapp}</span> : null}
         </button>
       ) : null}
       <button
         type="button"
         className={`${cls} call`}
-        title="Call"
+        title={m.reach.call}
         disabled={!ok}
         onClick={() => {
           if (!phone || !ok) return;
@@ -47,7 +48,7 @@ export function MemberReachButtons({
         }}
       >
         <Phone size={compact ? 14 : 15} strokeWidth={2.3} />
-        {!compact ? <span>Call</span> : null}
+        {!compact ? <span>{m.reach.call}</span> : null}
       </button>
     </div>
   );

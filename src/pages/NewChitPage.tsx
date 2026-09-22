@@ -20,7 +20,7 @@ function needsStyleStep(type: ChitType) {
 
 export function NewChitPage() {
   const { customers, addCustomer, addChit, error, user } = useStore();
-  const { m, freqLabel, freqHint } = useI18n();
+  const { m, tx, freqLabel, freqHint, typeLabel } = useI18n();
   const nav = useNavigate();
   const canPickContacts = contactsPickerAvailable();
   /** 0 type · 1 style (auction/fixed) · 2 terms · 3 members */
@@ -96,11 +96,11 @@ export function NewChitPage() {
           setPicked((p) => ((!!n && p.length >= n) ? p : [...p, existing.id]));
           continue;
         }
-        const created = await addCustomer(row.name.trim() || "Member", phone);
+        const created = await addCustomer(row.name.trim() || m.common.member, phone);
         setPicked((p) => ((!!n && p.length >= n) ? p : [...p, created.id]));
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not open contacts";
+      const msg = e instanceof Error ? e.message : m.chit.couldNotOpenContacts;
       window.alert(msg);
     } finally {
       setPickingContacts(false);
@@ -127,22 +127,22 @@ export function NewChitPage() {
       : type;
   const styleLabel =
     type === "auction"
-      ? (auctionStyle === "auction_first" ? "Auction first" : "Collect first")
+      ? (auctionStyle === "auction_first" ? m.auctionStyle.auction_first : m.auctionStyle.collect_first)
       : type === "fixed"
         ? fixedStyle === "lucky_draw"
-          ? "Lucky draw"
+          ? m.fixedStyle.lucky_draw
           : fixedStyle === "hand_sacrifice"
-            ? "Sacrifice hand"
-            : "Fixed order"
+            ? m.fixedStyle.hand_sacrifice
+            : m.fixedStyle.fixed_order
         : null;
 
   const preview = useMemo(() => ({
     members: n || "—",
-    duration: months ? `${months} months` : "0 months",
+    duration: months ? tx(m.newChitExtra.monthsCount, { n: months }) : m.newChitExtra.monthsZero,
     per: instalment ? inr(instalment) : "—",
     commission: commMonth ? inr(commMonth) : "—",
     style: styleLabel,
-  }), [n, months, instalment, commMonth, styleLabel]);
+  }), [n, months, instalment, commMonth, styleLabel, m, tx]);
 
   const stepper = needsStyleStep(type)
     ? [
@@ -166,34 +166,29 @@ export function NewChitPage() {
 
   async function create() {
     if (!n || n < 1) {
-      window.alert("Set the number of members / slots first.");
+      window.alert(m.newChitExtra.setMembersAlert);
       return;
     }
     if (picked.length !== n) {
-      window.alert(`Fill all ${n} slots before creating this chit (currently ${picked.length}). Use + Hand for each seat.`);
+      window.alert(tx(m.newChitExtra.fillSlotsAlert, { n, filled: picked.length }));
       return;
     }
     if (!potN) {
-      window.alert("Enter the pot / face amount.");
+      window.alert(m.newChitExtra.enterPotAlert);
       return;
     }
     if (type === "loan" && !interestN) {
-      window.alert("Enter the monthly interest rate for a loan bhishi.");
+      window.alert(m.newChitExtra.enterInterestAlert);
       return;
     }
     if (!confirm) {
-      window.alert("Confirm that you understand the terms.");
+      window.alert(m.newChitExtra.confirmAlert);
       return;
     }
     setSaving(true);
     try {
       const members = picked.map((customerId, i) => ({ customerId, slot: i + 1 }));
-      const typeTitle =
-        resolvedType === "lucky_draw"
-          ? "Lucky draw"
-          : resolvedType === "hand_sacrifice"
-            ? "Sacrifice hand"
-            : TYPES.find((t) => t.id === type)?.title;
+      const typeTitle = typeLabel(resolvedType) || TYPES.find((t) => t.id === type)?.title;
       const id = await addChit({
         name: title.trim() || `${typeTitle} - ${inr(potN)}`,
         title: title.trim() || undefined,
@@ -249,18 +244,26 @@ export function NewChitPage() {
     }
   }
 
+  const memberHelp = showPayoutOrder
+    ? fixedStyle === "hand_sacrifice"
+      ? m.newChitExtra.memberHelpSacrifice
+      : m.newChitExtra.memberHelpFixedOrder
+    : fixedStyle === "lucky_draw" && type === "fixed"
+      ? m.newChitExtra.memberHelpLuckyDraw
+      : m.newChitExtra.memberHelpDefault;
+
   return (
     <AppShell crumb={m.nav.chits} crumb2={m.newChit.title}>
       <div className="page new-chit-page">
         <div className="row-head">
           <div>
-            <h1>New chit</h1>
-            <p className="page-sub">One step at a time — then create your bhishi.</p>
+            <h1>{m.newChit.title}</h1>
+            <p className="page-sub">{m.newChitExtra.pageSubtitle}</p>
           </div>
-          <button className="btn ghost" onClick={() => nav("/chits")}>Cancel</button>
+          <button className="btn ghost" onClick={() => nav("/chits")}>{m.common.cancel}</button>
         </div>
 
-        <nav className="wizard-tabs" aria-label="Create steps">
+        <nav className="wizard-tabs" aria-label={m.newChitExtra.createStepsAria}>
           {stepper.map(([t], i) => {
             const active = i === displayStep;
             const done = i < displayStep;
@@ -294,7 +297,7 @@ export function NewChitPage() {
             </div>
             <div className="wizard-actions">
               <span />
-              <button className="btn" onClick={goFromType}>Next</button>
+              <button className="btn" onClick={goFromType}>{m.common.next}</button>
             </div>
           </div>
         )}
@@ -317,8 +320,8 @@ export function NewChitPage() {
               ))}
             </div>
             <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
-              <button className="btn" onClick={() => setStep(2)}>Next</button>
+              <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
+              <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
             </div>
           </div>
         )}
@@ -341,8 +344,8 @@ export function NewChitPage() {
               ))}
             </div>
             <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(0)}>Back</button>
-              <button className="btn" onClick={() => setStep(2)}>Next</button>
+              <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
+              <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
             </div>
           </div>
         )}
@@ -391,40 +394,40 @@ export function NewChitPage() {
                 <h2>{m.terms.collected}</h2>
                 <label className="label">{m.terms.commission}</label>
                 <div className="seg" style={{ marginBottom: 12 }}>
-                  <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>₹ Amount</button>
-                  <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>% Percentage</button>
+                  <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>{m.newChitExtra.amountKind}</button>
+                  <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>{m.newChitExtra.percentKind}</button>
                 </div>
                 <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
                 <p className="hint">
                   {type === "loan"
-                    ? "Taken from cash on hand the first time you give a loan each month."
+                    ? m.newChitExtra.commissionFromTill
                     : type === "auction" && auctionStyle === "auction_first"
-                      ? "Auction-first settles the winning bid peer-to-peer (bid ÷ members). Foreman commission is not taken from this till."
+                      ? m.newChitExtra.commissionAuctionFirstPeer
                       : type === "auction"
-                        ? "Taken from the pot each month when you settle the auction (not on the last cycle)."
-                        : "Taken from cash on hand when you award the pot."}
+                        ? m.newChitExtra.commissionAuctionFirst
+                        : m.newChitExtra.commissionCollectFirst}
                 </p>
                 {type === "loan" && (
                   <>
-                    <label className="label">Interest rate (% per month)</label>
+                    <label className="label">{m.newChitExtra.interestRateLabel}</label>
                     <input className="field" value={interest} onChange={(e) => setInterest(e.target.value)} />
                     <div className="quick">
                       {[1, 2, 3, 5, 10].map((v) => (
                         <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
                       ))}
                     </div>
-                    <p className="hint">One month’s interest is cut from the loan amount when it is given and stays in the pot. More interest is collected with each repayment month, then shared as dividends to the other members at the end.</p>
-                    <label className="label">Repayment tenure (months)</label>
-                    <input className="field" placeholder="Blank = rest of the chit" value={tenure} onChange={(e) => setTenure(e.target.value)} />
-                    <p className="hint">If someone borrows late, repayment is capped to the months left in this bhishi (not longer than the remaining tenure).</p>
+                    <p className="hint">{m.newChitExtra.interestExplain}</p>
+                    <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
+                    <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value)} />
+                    <p className="hint">{m.newChitExtra.repaymentCapHint}</p>
                   </>
                 )}
                 {type === "auction" && auctionStyle === "collect_first" && (
                   <>
-                    <label className="label">Adjustment style</label>
+                    <label className="label">{m.newChitExtra.adjustmentStyle}</label>
                     <div className="seg">
-                      <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>Every month</button>
-                      <button className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>At the end</button>
+                      <button className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>{m.newChitExtra.everyMonth}</button>
+                      <button className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>{m.newChitExtra.atEnd}</button>
                     </div>
                   </>
                 )}
@@ -434,7 +437,7 @@ export function NewChitPage() {
             <div className="new-chit-terms-side">
               <div className="card live-preview-card">
                 <div className="row-head"><h2>{m.newChit.summary}</h2></div>
-                {preview.style && <div className="kv"><span>{m.newChit.fixedStyle}</span><strong>{preview.style}</strong></div>}
+                {preview.style && <div className="kv"><span>{type === "auction" ? m.newChit.auctionStyle : m.newChit.fixedStyle}</span><strong>{preview.style}</strong></div>}
                 <div className="kv"><span>{m.nav.customers}</span><strong>{preview.members}</strong></div>
                 <div className="kv"><span>{m.newChit.duration}</span><strong>{preview.duration}</strong></div>
                 <div className="kv"><span>{m.terms.perHapta}</span><strong>{preview.per}</strong></div>
@@ -444,20 +447,20 @@ export function NewChitPage() {
                 <h2>{m.newChit.settings}</h2>
                 <label className="check">
                   <input className="toggle" type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
-                  <span><strong>Allow members to view this chit</strong></span>
+                  <span><strong>{m.newChit.memberVisible}</strong></span>
                 </label>
                 <label className="check">
                   <input className="toggle" type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
-                  I understand how this chit works and the details above are correct.
+                  {m.newChitExtra.confirmCheckbox}
                 </label>
                 <div className="wizard-actions">
-                  <button className="btn ghost" onClick={() => setStep(needsStyleStep(type) ? 1 : 0)}>Back</button>
+                  <button className="btn ghost" onClick={() => setStep(needsStyleStep(type) ? 1 : 0)}>{m.common.back}</button>
                   <button
                     className="btn"
                     disabled={!confirm || !potN || !n || (type === "loan" && !interestN)}
                     onClick={() => setStep(3)}
                   >
-                    Next
+                    {m.common.next}
                   </button>
                 </div>
               </div>
@@ -468,21 +471,13 @@ export function NewChitPage() {
         {step === 3 && (
           <div className="card">
             <div className="row-head"><h2>{m.newChit.membersStep}</h2><span className="muted">{membersStepLabel} / {stepper.length}</span></div>
-            <p className="muted block">
-              {showPayoutOrder
-                ? fixedStyle === "hand_sacrifice"
-                  ? "Order is the usual take sequence — early slots sacrifice one full hand (cash dividends to those still playing). Last slot takes the full pot. Use the arrows to rearrange. The same person can hold more than one hand."
-                  : "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange. Add another hand for someone who plays twice."
-                : fixedStyle === "lucky_draw" && type === "fixed"
-                  ? "Members who have not won yet stay in the draw each month. One person can play multiple hands."
-                  : "Add people before you start. The same person can take more than one hand — each hand fills one slot and pays its own instalment."}
-            </p>
+            <p className="muted block">{memberHelp}</p>
 
             <div className="add-member-box">
-              <strong className="add-member-title">Add new member</strong>
+              <strong className="add-member-title">{m.newChitExtra.addNewMember}</strong>
               <div className="grid-2" style={{ marginTop: 10 }}>
-                <input className="field" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <input className="field" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+                <input className="field" placeholder={m.profile.name} value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <input className="field" placeholder={m.profile.phone} value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
               </div>
               <div className="add-member-actions">
                 <button
@@ -497,7 +492,7 @@ export function NewChitPage() {
                     setNewPhone("");
                   }}
                 >
-                  Add member
+                  {m.newChit.addMember}
                 </button>
                 {canPickContacts && (
                   <button
@@ -506,21 +501,21 @@ export function NewChitPage() {
                     disabled={pickingContacts || (!!n && picked.length >= n)}
                     onClick={() => void addFromContacts()}
                   >
-                    <BookUser size={15} /> {pickingContacts ? "Opening…" : "From contacts"}
+                    <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromContacts}
                   </button>
                 )}
               </div>
             </div>
 
             <p className="muted" style={{ margin: "16px 0 8px" }}>
-              {picked.length} of {n || 0} slots filled.
-              {n > 0 && picked.length < n ? " Use + Hand below or add someone new above." : ""}
-              {n > 0 && picked.length === n ? " All slots filled — ready to create." : ""}
-              {" "}Invite on WhatsApp appears next to people not yet on the app.
+              {tx(m.newChitExtra.slotsFilled, { filled: picked.length, total: n || 0 })}
+              {n > 0 && picked.length < n ? ` ${m.newChitExtra.useHandBelow}` : ""}
+              {n > 0 && picked.length === n ? ` ${m.newChitExtra.allSlotsReady}` : ""}
+              {" "}{m.newChitExtra.inviteBesideName}
             </p>
 
             {!!customers.length && (
-              <div className="section-label" style={{ paddingLeft: 0, paddingTop: 4 }}>Existing members</div>
+              <div className="section-label" style={{ paddingLeft: 0, paddingTop: 4 }}>{m.newChitExtra.existingMembers}</div>
             )}
             {customers.map((c) => {
               const hands = picked.filter((id) => id === c.id).length;
@@ -538,7 +533,7 @@ export function NewChitPage() {
                       ) : null}
                     </div>
                     <div className="muted">{c.phone}</div>
-                    {hands > 0 ? <div className="muted">{hands} hand{hands > 1 ? "s" : ""} in this chit</div> : null}
+                    {hands > 0 ? <div className="muted">{tx(m.newChitExtra.handsInChit, { n: hands })}</div> : null}
                   </div>
                   <button
                     type="button"
@@ -549,7 +544,7 @@ export function NewChitPage() {
                       if (idx >= 0) setPicked((p) => p.filter((_, i) => i !== idx));
                     }}
                   >
-                    − Hand
+                    {m.newChitExtra.removeHand}
                   </button>
                   <button
                     type="button"
@@ -557,14 +552,14 @@ export function NewChitPage() {
                     disabled={!!n && picked.length >= n}
                     onClick={() => setPicked((p) => [...p, c.id])}
                   >
-                    + Hand
+                    {m.newChit.addHand}
                   </button>
                 </div>
               );
             })}
             {showPayoutOrder && !!picked.length && (
               <div className="card" style={{ margin: "12px 0", background: "#f8fafc" }}>
-                <strong>Payout order (hands)</strong>
+                <strong>{m.newChitExtra.payoutOrder}</strong>
                 {picked.map((id, i) => {
                   const c = customers.find((x) => x.id === id);
                   const handNo = picked.slice(0, i + 1).filter((x) => x === id).length;
@@ -572,11 +567,11 @@ export function NewChitPage() {
                   const needsInvite = Boolean(c?.phone) && !isOnApp(c?.phone);
                   return (
                     <div key={`${id}-${i}`} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
-                      <span className="muted">Slot {i + 1}</span>
+                      <span className="muted">{tx(m.newChitExtra.slotN, { n: i + 1 })}</span>
                       <div className="grow">
                         <div className="member-name-row">
                           <strong>{c?.name}</strong>
-                          {totalHands > 1 ? <span className="muted"> · hand {handNo}</span> : null}
+                          {totalHands > 1 ? <span className="muted"> · {tx(m.chit.handOf, { n: handNo })}</span> : null}
                           {needsInvite && c?.phone ? (
                             <InviteWhatsAppButton phone={c.phone} message={inviteMsg(c.name, c.phone)} />
                           ) : null}
@@ -590,7 +585,7 @@ export function NewChitPage() {
               </div>
             )}
             <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(2)}>Back</button>
+              <button className="btn ghost" onClick={() => setStep(2)}>{m.common.back}</button>
               <button
                 className="btn"
                 disabled={saving || !n || picked.length !== n}

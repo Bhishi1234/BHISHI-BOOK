@@ -49,6 +49,8 @@ export function useI18n() {
     const modeLabel = (id: string) => (m.mode as Record<string, string>)[id] || id;
     const statusLabel = (id: string) => (m.status as Record<string, string>)[id] || id;
     const tabLabel = (id: string) => (m.chit.tabs as Record<string, string>)[id] || id;
+    const payKindLabel = (id: string) => (m.payKind as Record<string, string>)[id] || id;
+    const payStatusLabel = (id: string) => (m.payStatus as Record<string, string>)[id] || id;
     const tx = (template: string, vars: Record<string, string | number>) => fill(template, vars);
 
     const greetingNow = () => {
@@ -76,6 +78,8 @@ export function useI18n() {
       modeLabel,
       statusLabel,
       tabLabel,
+      payKindLabel,
+      payStatusLabel,
       greetingNow,
       longDateNow,
       locale: LOCALE[lang],

@@ -11,7 +11,7 @@ export function CustomerDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { customers, chits } = useStore();
-  const { m, typeLabel, modeLabel } = useI18n();
+  const { m, tx, typeLabel, modeLabel } = useI18n();
   const customer = customers.find((c) => c.id === id);
 
   if (!customer) {
@@ -93,30 +93,30 @@ export function CustomerDetailPage() {
   }).sort((a, b) => b.when.localeCompare(a.when));
 
   return (
-    <AppShell crumb="customers" crumb2={customer.name}>
+    <AppShell crumb={m.nav.customers} crumb2={customer.name}>
       <div className="page">
         <div className="row-head top">
           <div className="person" style={{ gap: 14 }}>
             <div className="avatar" style={{ width: 52, height: 52, fontSize: 16 }}>{initials(customer.name)}</div>
             <div>
               <h1>{customer.name}</h1>
-              <p className="page-sub">{customer.phone || "No phone"} · {memberships.length} chit{memberships.length === 1 ? "" : "s"}</p>
+              <p className="page-sub">{customer.phone || m.customersPage.noPhone} · {memberships.length} {memberships.length === 1 ? m.common.member : m.common.members}</p>
             </div>
           </div>
-          <button className="btn ghost" onClick={() => nav("/customers")}>All customers</button>
+          <button className="btn ghost" onClick={() => nav("/customers")}>{m.customerDetail.allCustomers}</button>
         </div>
 
         <div className="stats four">
-          <StatCard label="Contributed" value={inr(contributed)} hint="lifetime" tone="teal" icon={PiggyBank} />
-          <StatCard label="Received" value={inr(received)} hint="payouts & loans" tone="blue" icon={Wallet} />
+          <StatCard label={m.customerDetail.contributed} value={inr(contributed)} hint={m.customersPage.lifetime} tone="teal" icon={PiggyBank} />
+          <StatCard label={m.customerDetail.received} value={inr(received)} hint="payouts & loans" tone="blue" icon={Wallet} />
           <StatCard
-            label="Outstanding"
+            label={m.terms.outstanding}
             value={<span className={outstanding ? "neg" : undefined}>{inr(outstanding)}</span>}
-            hint="still due"
+            hint={m.customersPage.stillDue}
             tone="rose"
             icon={AlertCircle}
           />
-          <StatCard label="Active chits" value={memberships.filter((m) => m.ch.status === "running").length} hint="running now" tone="green" icon={Layers} />
+          <StatCard label="Active chits" value={memberships.filter((mem) => mem.ch.status === "running").length} hint="running now" tone="green" icon={Layers} />
         </div>
 
         <div className="grid-2 block">
@@ -137,7 +137,7 @@ export function CustomerDetailPage() {
                 </span>
                 <strong style={{ textAlign: "right" }}>
                   Paid {inr(bal.paid)}
-                  <div className="muted">{payouts ? `Got ${inr(payouts)}` : bal.outstanding ? `${inr(bal.outstanding)} due` : "Settled"}</div>
+                  <div className="muted">{payouts ? tx(m.customerDetail.gotAmount, { amount: inr(payouts) }) : bal.outstanding ? `${inr(bal.outstanding)} due` : m.customerDetail.settled}</div>
                 </strong>
               </div>
             ))}
@@ -145,7 +145,7 @@ export function CustomerDetailPage() {
         </div>
 
         <div className="card flush block">
-          <div className="card-pad"><h2>Customer ledger</h2>
+          <div className="card-pad"><h2>{m.customerDetail.ledger}</h2>
             <p className="muted">Every contribution and every amount this person received across your books.</p>
           </div>
           <div className="table-wrap">
@@ -194,7 +194,7 @@ export function CustomerDetailPage() {
                     const paid = paidInCycle(ch, customer.id, cyc);
                     return (
                       <tr key={cyc}>
-                        <td>Cycle {cyc}{member.prizedCycle === cyc ? " · prized" : ""}</td>
+                        <td>{member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : `${m.terms.haptaRound} ${cyc}`}</td>
                         <td>{inr(due)}</td>
                         <td>{inr(paid)}</td>
                         <td>{paid >= due ? "—" : inr(due - paid)}</td>

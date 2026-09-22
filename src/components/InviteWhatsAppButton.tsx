@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { canMessagePhone, openWhatsApp } from "../lib/share";
 
 function WhatsAppIcon({ size = 15 }: { size?: number }) {
@@ -12,19 +13,21 @@ function WhatsAppIcon({ size = 15 }: { size?: number }) {
 export function InviteWhatsAppButton({
   phone,
   message,
-  title = "Invite on WhatsApp",
+  title,
 }: {
   phone?: string | null;
   message: string;
   title?: string;
 }) {
+  const { m } = useI18n();
+  const label = title || m.reach.inviteWhatsApp;
   if (!canMessagePhone(phone)) return null;
   return (
     <button
       type="button"
       className="invite-wa-icon"
-      title={title}
-      aria-label={title}
+      title={label}
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation();
         if (!phone) return;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Loader2, Share2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { displayCycle, handLabel, isLuckyDrawChit } from "../lib/chitMath";
 import { inr } from "../lib/format";
@@ -47,6 +48,7 @@ export function LuckyDrawPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { chits, customers, luckyDraw } = useStore();
+  const { m: copy, tx, locale } = useI18n();
   const chit = chits.find((c) => c.id === id);
 
   const names = useMemo(() => {
@@ -60,7 +62,7 @@ export function LuckyDrawPage() {
   const eligible = useMemo(() => {
     if (!chit) return [] as ChitMember[];
     return [...chit.members]
-      .filter((m) => !m.prizedCycle)
+      .filter((mem) => !mem.prizedCycle)
       .sort((a, b) => a.slot - b.slot);
   }, [chit]);
 
@@ -81,9 +83,9 @@ export function LuckyDrawPage() {
   const spunRef = useRef(false);
   const hydratedRef = useRef(false);
 
-  const labelOf = (m: ChitMember) => {
-    const hands = chit?.members.filter((x) => x.customerId === m.customerId).length || 1;
-    return handLabel(names[m.customerId] || "Member", m.slot, hands);
+  const labelOf = (mem: ChitMember) => {
+    const hands = chit?.members.filter((x) => x.customerId === mem.customerId).length || 1;
+    return handLabel(names[mem.customerId] || "Member", mem.slot, hands);
   };
 
   // Revisit: already drawn this cycle — park on winner for share.
@@ -91,14 +93,14 @@ export function LuckyDrawPage() {
     if (!chit || !existingWin || hydratedRef.current || spunRef.current) return;
     hydratedRef.current = true;
     const winnerHand =
-      chit.members.find((m) => isSameHand(m, existingWin.winnerId, existingWin.winnerSlot)) ||
+      chit.members.find((mem) => isSameHand(mem, existingWin.winnerId, existingWin.winnerSlot)) ||
       ({
         customerId: existingWin.winnerId,
         slot: existingWin.winnerSlot ?? 1,
         prizedCycle: cycle,
       } satisfies ChitMember);
     const rest = chit.members
-      .filter((m) => !m.prizedCycle && !isSameHand(m, existingWin.winnerId, existingWin.winnerSlot))
+      .filter((mem) => !mem.prizedCycle && !isSameHand(mem, existingWin.winnerId, existingWin.winnerSlot))
       .sort((a, b) => a.slot - b.slot);
     const rebuilt = [winnerHand, ...rest];
     setPool(rebuilt);
@@ -113,8 +115,8 @@ export function LuckyDrawPage() {
   const winnerName = useMemo(() => {
     if (!result || !chit) return "";
     const hands = chit.members.filter((x) => x.customerId === result.winnerId).length;
-    return handLabel(names[result.winnerId] || "Winner", result.winnerSlot ?? 1, hands);
-  }, [result, chit, names]);
+    return handLabel(names[result.winnerId] || copy.luckyDraw.winner, result.winnerSlot ?? 1, hands);
+  }, [result, chit, names, copy.luckyDraw.winner]);
 
   async function onSpin() {
     if (!chit || phase === "spinning" || spunRef.current) return;
@@ -124,7 +126,7 @@ export function LuckyDrawPage() {
       return;
     }
     if (eligible.length === 0) {
-      setError("No eligible members left for this draw.");
+      setError(copy.luckyDraw.notFound);
       setPhase("error");
       return;
     }
@@ -142,7 +144,7 @@ export function LuckyDrawPage() {
       setResult(rec);
       setDrawnAt(new Date());
 
-      const idx = snapshot.findIndex((m) => isSameHand(m, rec.winnerId, rec.winnerSlot));
+      const idx = snapshot.findIndex((mem) => isSameHand(mem, rec.winnerId, rec.winnerSlot));
       setRotation((prev) => landRotation(idx >= 0 ? idx : 0, snapshot.length, prev));
 
       window.setTimeout(() => {
@@ -180,11 +182,11 @@ export function LuckyDrawPage() {
 
   if (!chit) {
     return (
-      <AppShell crumb="Chits">
+      <AppShell crumb={copy.nav.chits}>
         <div className="page">
-          <p>Chit not found.</p>
+          <p>{copy.luckyDraw.notFound}</p>
           <button className="btn ghost" type="button" onClick={() => nav("/chits")}>
-            Back
+            {copy.luckyDraw.back}
           </button>
         </div>
       </AppShell>
@@ -195,20 +197,20 @@ export function LuckyDrawPage() {
   const seg = 360 / n;
 
   return (
-    <AppShell crumb="Chits" crumb2={chit.name}>
+    <AppShell crumb={copy.nav.chits} crumb2={chit.name}>
       <div className="page ld-page">
         <div className="ld-topbar">
           <Link className="ld-back" to={`/chits/${chit.id}`}>
-            <ArrowLeft size={18} /> Back
+            <ArrowLeft size={18} /> {copy.luckyDraw.back}
           </Link>
         </div>
 
         <header className="ld-header">
-          <p className="ld-kicker">Bhishi Circle</p>
-          <h1>Lucky Draw</h1>
+          <p className="ld-kicker">{copy.brand}</p>
+          <h1>{copy.luckyDraw.title}</h1>
           <p className="ld-sub">
-            {chit.name} — Round {cycle}
-            {isLuckyDrawChit(chit) ? "" : " · chitthi"}
+            {chit.name} — {copy.terms.haptaRound} {cycle}
+            {isLuckyDrawChit(chit) ? "" : ` · ${copy.luckyDraw.chitthi}`}
           </p>
         </header>
 
@@ -224,14 +226,14 @@ export function LuckyDrawPage() {
                 : "none",
             }}
           >
-            {displayMembers.map((m, i) => {
+            {displayMembers.map((mem, i) => {
               const mid = i * seg + seg / 2;
-              const label = labelOf(m);
+              const label = labelOf(mem);
               const maxLen = n > 10 ? 7 : n > 6 ? 10 : 14;
               const short = label.length > maxLen ? `${label.slice(0, maxLen - 1)}…` : label;
               return (
                 <span
-                  key={memberKey(m)}
+                  key={memberKey(mem)}
                   className="ld-seg-label"
                   style={{
                     transform: `rotate(${mid}deg)`,
@@ -252,7 +254,7 @@ export function LuckyDrawPage() {
         {phase === "ready" && (
           <div className="ld-actions">
             <p className="ld-hint">
-              {eligible.length} eligible member{eligible.length === 1 ? "" : "s"} in this draw
+              {tx(copy.luckyDraw.eligible, { n: eligible.length })}
             </p>
             <button
               className="btn ld-spin-btn"
@@ -260,7 +262,7 @@ export function LuckyDrawPage() {
               disabled={eligible.length === 0}
               onClick={() => void onSpin()}
             >
-              Spin the wheel
+              {copy.luckyDraw.spin}
             </button>
           </div>
         )}
@@ -268,7 +270,7 @@ export function LuckyDrawPage() {
         {phase === "spinning" && (
           <div className="ld-actions">
             <p className="ld-hint ld-hint-pulse">
-              <Loader2 size={16} className="spin" /> Drawing among {displayMembers.length}…
+              <Loader2 size={16} className="spin" /> {tx(copy.luckyDraw.drawing, { n: displayMembers.length })}
             </p>
           </div>
         )}
@@ -284,7 +286,7 @@ export function LuckyDrawPage() {
                 setError("");
               }}
             >
-              Try again
+              {copy.luckyDraw.tryAgain}
             </button>
           </div>
         )}
@@ -292,13 +294,13 @@ export function LuckyDrawPage() {
         {phase === "done" && result && (
           <div className="ld-result" aria-live="polite">
             <div className="ld-result-card">
-              <p className="ld-result-kicker">Winner</p>
+              <p className="ld-result-kicker">{copy.luckyDraw.winner}</p>
               <h2>{winnerName}</h2>
               <p className="ld-result-amount">{inr(result.payout)}</p>
               <p className="ld-result-meta">
-                Month {cycle} of {chit.duration}
+                {tx(copy.chit.monthOf, { cycle, duration: chit.duration })}
                 {drawnAt
-                  ? ` · ${drawnAt.toLocaleString("en-IN", {
+                  ? ` · ${drawnAt.toLocaleString(locale, {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",
@@ -309,7 +311,7 @@ export function LuckyDrawPage() {
                   : ""}
               </p>
             </div>
-            <div className="ld-verified">Verified random draw · Bhishi Circle</div>
+            <div className="ld-verified">{copy.luckyDraw.verified}</div>
             <div className="ld-actions row">
               <button
                 className="btn ld-share-btn"
@@ -318,10 +320,10 @@ export function LuckyDrawPage() {
                 onClick={() => void onShare()}
               >
                 {sharing ? <Loader2 size={16} className="spin" /> : <Share2 size={16} />}
-                Share on WhatsApp
+                {copy.luckyDraw.shareWhatsApp}
               </button>
               <button className="btn ghost" type="button" onClick={() => nav(`/chits/${chit.id}`)}>
-                Done
+                {copy.luckyDraw.done}
               </button>
             </div>
           </div>
