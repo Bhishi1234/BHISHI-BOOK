@@ -7,6 +7,7 @@ import { ChitsPage, CustomersPage } from "./pages/ChitsCustomers";
 import { CustomerDetailPage } from "./pages/CustomerDetailPage";
 import { NewChitPage } from "./pages/NewChitPage";
 import { ChitDetailPage } from "./pages/ChitDetailPage";
+import { LuckyDrawPage } from "./pages/LuckyDrawPage";
 import { TrackedChitPage } from "./pages/TrackedChitPage";
 import { MemberChitPage } from "./pages/MemberChitPage";
 import { CollectionsPage } from "./pages/CollectionsPage";
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/chits" element={<Guard><ChitsPage /></Guard>} />
       <Route path="/chits/new" element={<Guard><NewChitPage /></Guard>} />
       <Route path="/chits/:id" element={<Guard><ChitDetailPage /></Guard>} />
+      <Route path="/chits/:id/lucky-draw" element={<Guard><LuckyDrawPage /></Guard>} />
       <Route path="/tracked/:id" element={<Guard><TrackedChitPage /></Guard>} />
       <Route path="/member/:id" element={<Guard><MemberChitPage /></Guard>} />
       <Route path="/collections" element={<Guard><CollectionsPage /></Guard>} />

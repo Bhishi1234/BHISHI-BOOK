@@ -76,7 +76,7 @@ import type { PayMode, PaymentKind } from "../types";
 export function ChitDetailPage() {
   const { id } = useParams();
   const {
-    chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, luckyDraw, closeCycle,
+    chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, closeCycle,
     cancelChit, addMember, addCustomer, undoPayment, updateChitSettings, error, user,
   } = useStore();
   const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
@@ -928,6 +928,16 @@ export function ChitDetailPage() {
                   {lastWin.dividend > 0 && (
                     <div className="kv"><span>Dividend next month / member</span><strong>{inr(lastWin.dividend)}</strong></div>
                   )}
+                  {lastWin.method === "lucky_draw" && (
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      style={{ marginTop: 12 }}
+                      onClick={() => nav(`/chits/${data.id}/lucky-draw`)}
+                    >
+                      View wheel & share result
+                    </button>
+                  )}
                   <p className="muted" style={{ marginTop: 12 }}>Already recorded for this month. Use Close month when you are ready.</p>
                 </div>
               ) : !auctionFirst && !canSettleCycle(data) ? (
@@ -1029,7 +1039,7 @@ export function ChitDetailPage() {
                               </div>
                             );
                           })()}
-                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void luckyDraw(data.id).then(() => goAfterAward())}>Lucky draw</button>
+                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => nav(`/chits/${data.id}/lucky-draw`)}>Lucky draw</button>
                         </>
                       )}
                     </>
@@ -1145,7 +1155,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!canSettleCycle(data) || unprized.length === 0}
-                              onClick={() => void luckyDraw(data.id).then(() => goAfterAward())}
+                              onClick={() => nav(`/chits/${data.id}/lucky-draw`)}
                             >
                               Roll lucky draw ({unprized.length} left)
                             </button>
@@ -1183,7 +1193,7 @@ export function ChitDetailPage() {
                             className="btn ghost"
                             style={{ marginTop: 10 }}
                             disabled={!canSettleCycle(data) || unprized.length === 0}
-                            onClick={() => void luckyDraw(data.id).then(() => goAfterAward())}
+                            onClick={() => nav(`/chits/${data.id}/lucky-draw`)}
                           >
                             Lucky draw instead ({unprized.length} left)
                           </button>
