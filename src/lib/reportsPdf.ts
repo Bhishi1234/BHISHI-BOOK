@@ -33,6 +33,16 @@ const MARGIN = 14;
 const PAGE_W = 210;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
+/** App brand blue — matches --blue / chit-hero */
+const BLUE: [number, number, number] = [47, 111, 237];
+const BLUE_SOFT: [number, number, number] = [237, 243, 255];
+const INK: [number, number, number] = [15, 23, 42];
+const MUTED: [number, number, number] = [100, 116, 139];
+const LINE: [number, number, number] = [226, 232, 240];
+const GREEN: [number, number, number] = [15, 159, 110];
+const ROSE: [number, number, number] = [225, 29, 72];
+const TEAL: [number, number, number] = [13, 148, 136];
+
 function money(n: number) {
   const v = Math.round(Number(n) || 0);
   const abs = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.abs(v));
@@ -76,30 +86,42 @@ async function savePdf(doc: jsPDF, filename: string) {
   }
 }
 
+/** Top brand bar + blue hero card for the bhishi / document title (matches app chit-hero). */
 function brandHeader(doc: Doc, title: string, subtitle: string) {
-  doc.setFillColor(15, 55, 70);
-  doc.rect(0, 0, PAGE_W, 28, "F");
+  doc.setFillColor(...BLUE);
+  doc.rect(0, 0, PAGE_W, 18, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("Bhishi Circle", MARGIN, 12);
+  doc.setFontSize(11);
+  doc.text("Bhishi Circle", MARGIN, 11.5);
+
+  const heroY = 24;
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(MARGIN, heroY, CONTENT_W, 28, 3, 3, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(title.slice(0, 48), MARGIN + 6, heroY + 12);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(title, MARGIN, 20);
-  doc.text(subtitle, PAGE_W - MARGIN, 12, { align: "right" });
-  doc.setTextColor(40, 40, 40);
+  doc.setFontSize(8.5);
+  doc.setTextColor(220, 232, 255);
+  doc.text(subtitle.slice(0, 70), MARGIN + 6, heroY + 21);
+  doc.setTextColor(...INK);
 }
 
 function footer(doc: Doc) {
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, 286, PAGE_W - MARGIN, 286);
     doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
+    doc.setTextColor(...MUTED);
     doc.text(
       `Generated ${new Date().toLocaleString("en-IN")} · Page ${i} of ${pages} · Bhishi Circle`,
       MARGIN,
-      290,
+      291,
     );
   }
 }
@@ -110,13 +132,13 @@ function sectionTitle(doc: Doc, y: number, text: string) {
     y = 20;
   }
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(15, 55, 70);
+  doc.setFontSize(11);
+  doc.setTextColor(...BLUE);
   doc.text(text, MARGIN, y);
-  doc.setDrawColor(15, 55, 70);
-  doc.setLineWidth(0.4);
-  doc.line(MARGIN, y + 2, PAGE_W - MARGIN, y + 2);
-  doc.setTextColor(40, 40, 40);
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN, y + 2, MARGIN + 36, y + 2);
+  doc.setTextColor(...INK);
   return y + 8;
 }
 
@@ -124,18 +146,22 @@ function kpiRow(doc: Doc, y: number, items: { label: string; value: string }[]) 
   const colW = CONTENT_W / items.length;
   items.forEach((item, i) => {
     const x = MARGIN + i * colW;
-    doc.setFillColor(245, 248, 250);
-    doc.roundedRect(x, y, colW - 3, 16, 1, 1, "F");
+    doc.setFillColor(...BLUE_SOFT);
+    doc.roundedRect(x, y, colW - 3, 18, 2, 2, "F");
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(x, y, colW - 3, 18, 2, 2, "S");
     doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    doc.text(item.label, x + 2, y + 5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...MUTED);
+    doc.text(item.label, x + 3, y + 6);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(20, 20, 20);
-    doc.text(item.value, x + 2, y + 12);
+    doc.setTextColor(...INK);
+    doc.text(item.value, x + 3, y + 13.5);
     doc.setFont("helvetica", "normal");
   });
-  return y + 22;
+  return y + 24;
 }
 
 /** Simple horizontal bar chart (amounts). */
@@ -155,12 +181,13 @@ function barChart(
       y = 20;
     }
     doc.setFontSize(8);
-    doc.setTextColor(60, 60, 60);
+    doc.setTextColor(...MUTED);
     doc.text(row.label.slice(0, 28), MARGIN, y + 3);
     const w = (Math.abs(row.value) / max) * barMax;
-    if (row.value < 0) doc.setFillColor(180, 70, 70);
-    else doc.setFillColor(30, 120, 110);
-    doc.rect(MARGIN + 55, y - 2, Math.max(1, w), 5, "F");
+    if (row.value < 0) doc.setFillColor(...ROSE);
+    else doc.setFillColor(...TEAL);
+    doc.roundedRect(MARGIN + 55, y - 2, Math.max(1, w), 5, 1, 1, "F");
+    doc.setTextColor(...INK);
     doc.text(money(row.value), MARGIN + 55 + barMax + 4, y + 3);
     y += 8;
   }
@@ -175,6 +202,13 @@ function ensureY(doc: Doc, y: number, need = 40) {
   return y;
 }
 
+/** Content starts below brand bar + blue hero card. */
+const CONTENT_START_Y = 58;
+
+const tableHead = { fillColor: BLUE as [number, number, number], textColor: 255 as const, fontStyle: "bold" as const };
+const tableStyles = { fontSize: 8, cellPadding: 2, textColor: INK as [number, number, number], lineColor: LINE as [number, number, number] };
+const tableAlt = { fillColor: BLUE_SOFT as [number, number, number] };
+
 /**
  * Full chit books PDF: cover KPIs, member ledger, cycle summary,
  * collections, payouts, loan details, charts.
@@ -187,20 +221,22 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
 
   brandHeader(doc, chit.name, subtitle);
 
-  let y = 36;
+  let y = CONTENT_START_Y;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(12);
+  doc.setTextColor(...INK);
   doc.text("Chit ledger report", MARGIN, y);
-  y += 6;
+  y += 5;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(90, 90, 90);
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTED);
   doc.text(
     `Started ${new Date(chit.startDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · Month ${cycle} of ${chit.duration} · ${chit.members.length} of ${chit.membersCount} slots`,
     MARGIN,
     y,
   );
-  y += 10;
+  y += 8;
+  doc.setTextColor(...INK);
 
   y = kpiRow(doc, y, [
     { label: "Pot / face", value: money(chit.pot) },
@@ -244,9 +280,9 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(row.net),
       ];
     }),
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: tableStyles,
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
   y = (doc.lastAutoTable?.finalY || y) + 10;
 
@@ -281,9 +317,9 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
     margin: { left: MARGIN, right: MARGIN },
     head: [["Month", "Collected", "Payouts", "Commission", "Dividend / cut", "Till after"]],
     body: cycleRows,
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: tableStyles,
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
   y = (doc.lastAutoTable?.finalY || y) + 10;
 
@@ -321,9 +357,9 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(p.amount),
       ];
     }),
-    styles: { fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
   y = (doc.lastAutoTable?.finalY || y) + 10;
 
@@ -350,9 +386,9 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(a.dividend || 0),
       ];
     }),
-    styles: { fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
   y = (doc.lastAutoTable?.finalY || y) + 10;
 
@@ -375,8 +411,9 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
           `${money(row.principalSharePerMonth)} + ${money(row.interestPerMonth)} int`,
         ];
       }),
-      styles: { fontSize: 7.5, cellPadding: 1.8 },
-      headStyles: { fillColor: [15, 55, 70], textColor: 255 },
+      styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
+      headStyles: tableHead,
+      alternateRowStyles: tableAlt,
     });
     y = (doc.lastAutoTable?.finalY || y) + 10;
   }
@@ -400,16 +437,16 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(paidInCycle(chit, m.customerId, cycle, m.slot)),
       ];
     }),
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: tableStyles,
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
 
   footer(doc);
   downloadBlob(doc, `${safeName(chit.name)}-ledger-report.pdf`);
 }
 
-/** Single receipt PDF — printable slip. */
+/** Single receipt PDF — printable slip matching app blue cards. */
 export function downloadReceiptPdf(
   chit: Chit,
   payment: Payment,
@@ -417,18 +454,19 @@ export function downloadReceiptPdf(
   organiserName?: string,
 ) {
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
-  brandHeader(doc, "Payment receipt", chit.name);
+  brandHeader(doc, chit.name, "Payment receipt");
 
-  let y = 40;
+  let y = CONTENT_START_Y;
+  doc.setFillColor(...GREEN);
+  doc.roundedRect(MARGIN, y, 36, 8, 1.5, 1.5, "F");
+  doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(15, 55, 70);
-  doc.text("RECEIPT", MARGIN, y);
-  y += 8;
+  doc.setFontSize(9);
+  doc.text("PAID", MARGIN + 18, y + 5.5, { align: "center" });
+  doc.setTextColor(...MUTED);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Receipt no. ${payment.id}`, MARGIN, y);
+  doc.setFontSize(9);
+  doc.text(`Receipt · ${payment.id}`, MARGIN + 40, y + 5.5);
   doc.text(
     new Date(payment.date).toLocaleString("en-IN", {
       day: "numeric",
@@ -436,15 +474,10 @@ export function downloadReceiptPdf(
       year: "numeric",
     }),
     PAGE_W - MARGIN,
-    y,
+    y + 5.5,
     { align: "right" },
   );
-  y += 12;
-
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.3);
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-  y += 10;
+  y += 16;
 
   const hands = chit.members.filter((m) => m.customerId === payment.memberId).length;
   const memberLabel = payment.slot != null
@@ -458,44 +491,50 @@ export function downloadReceiptPdf(
     ["Cycle / month", `Month ${payment.cycle} of ${chit.duration}`],
     ["Payment mode", MODE_LABEL[payment.mode || "cash"] || payment.mode || "cash"],
     ["Kind", payment.kind],
-    ["Amount received", money(payment.amount)],
   ];
   if (organiserName) rows.push(["Recorded by", organiserName]);
 
   for (const [k, v] of rows) {
-    doc.setFontSize(9);
-    doc.setTextColor(110, 110, 110);
-    doc.text(k, MARGIN, y);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(20, 20, 20);
-    doc.setFontSize(11);
-    doc.text(v, MARGIN + 55, y);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 10, 1.5, 1.5, "F");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
     doc.setFont("helvetica", "normal");
-    y += 9;
+    doc.text(k, MARGIN + 3, y + 2);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...INK);
+    doc.setFontSize(10);
+    doc.text(v, MARGIN + 52, y + 2);
+    doc.setFont("helvetica", "normal");
+    y += 12;
   }
 
-  y += 6;
-  doc.setFillColor(240, 248, 246);
-  doc.roundedRect(MARGIN, y, CONTENT_W, 22, 2, 2, "F");
+  y += 4;
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(MARGIN, y, CONTENT_W, 24, 3, 3, "F");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(220, 232, 255);
+  doc.text("Amount received", MARGIN + 6, y + 9);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(15, 55, 70);
-  doc.text("Amount", MARGIN + 4, y + 9);
-  doc.setFontSize(16);
-  doc.text(money(payment.amount), PAGE_W - MARGIN - 4, y + 14, { align: "right" });
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text(money(payment.amount), PAGE_W - MARGIN - 6, y + 16, { align: "right" });
 
-  y += 36;
+  y += 34;
   doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(...MUTED);
   doc.text(
     "This is a computer-generated receipt from Bhishi Circle for record-keeping. It is not a tax invoice.",
     MARGIN,
     y,
     { maxWidth: CONTENT_W },
   );
-  y += 14;
-  doc.setDrawColor(180, 180, 180);
+  y += 16;
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.4);
   doc.line(PAGE_W - MARGIN - 50, y, PAGE_W - MARGIN, y);
+  doc.setFontSize(8);
   doc.text("Authorised signatory", PAGE_W - MARGIN, y + 5, { align: "right" });
 
   footer(doc);
@@ -512,9 +551,10 @@ export function downloadDayBookPdf(
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
   brandHeader(doc, "Collection register", title);
 
-  let y = 36;
+  let y = CONTENT_START_Y;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(12);
+  doc.setTextColor(...INK);
   doc.text("Day book", MARGIN, y);
   y += 8;
 
@@ -553,9 +593,9 @@ export function downloadDayBookPdf(
         MODE_LABEL[p.mode || "cash"] || String(p.mode || "cash"),
         money(p.amount),
       ]),
-    styles: { fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
 
   footer(doc);
@@ -569,10 +609,11 @@ export { downloadChitCsv } from "./exportCsv";
 export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) {
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
   const cycle = displayCycle(chit);
-  brandHeader(doc, `Month ${cycle} dues`, chit.name);
-  let y = 36;
+  brandHeader(doc, chit.name, `Month ${cycle} dues`);
+  let y = CONTENT_START_Y;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(12);
+  doc.setTextColor(...INK);
   doc.text(`Month ${cycle} collection sheet`, MARGIN, y);
   y += 8;
   y = kpiRow(doc, y, [
@@ -598,8 +639,9 @@ export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) 
         st,
       ];
     }),
-    styles: { fontSize: 9, cellPadding: 2.5 },
-    headStyles: { fillColor: [15, 55, 70], textColor: 255 },
+    styles: { ...tableStyles, fontSize: 9, cellPadding: 2.5 },
+    headStyles: tableHead,
+    alternateRowStyles: tableAlt,
   });
   footer(doc);
   downloadBlob(doc, `${safeName(chit.name)}-month-${cycle}-dues.pdf`);

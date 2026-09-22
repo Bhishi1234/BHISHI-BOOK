@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
+  BookUser,
   Calendar,
   CalendarRange,
   ChevronLeft,
@@ -12,8 +13,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { PayModal } from "../components/PayModal";
+import { MemberReachButtons } from "../components/MemberReachButtons";
 import { AppShell } from "../layout/AppShell";
 import { StatCard } from "../ui/StatCard";
+import { useI18n } from "../i18n";
 import {
   balanceAfterCycle,
   canCloseLastMonth,
@@ -64,8 +67,9 @@ import {
   downloadMonthDuesPdf,
   downloadReceiptPdf,
 } from "../lib/reportsPdf";
+import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
+import { dueReminderWhatsAppMessage, inviteMemberWhatsAppMessage, openWhatsApp, tryPhone10 } from "../lib/share";
 import { initials, inr } from "../lib/format";
-import { useI18n } from "../i18n";
 import { useStore } from "../store";
 import type { PayMode, PaymentKind } from "../types";
 
@@ -73,7 +77,7 @@ export function ChitDetailPage() {
   const { id } = useParams();
   const {
     chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, luckyDraw, closeCycle,
-    cancelChit, addMember, undoPayment, updateChitSettings, error,
+    cancelChit, addMember, addCustomer, undoPayment, updateChitSettings, error, user,
   } = useStore();
   const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
   const nav = useNavigate();
@@ -826,11 +830,32 @@ export function ChitDetailPage() {
                           <td>{last ? new Date(last.date).toLocaleDateString(locale, { day: "numeric", month: "short" }) : "—"}</td>
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             {isRunning && !(auctionFirst && !lastWin) && (status === "due" || status === "partial") ? (
                               <button className="btn ghost btn-sm" onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}>{copy.chit.record}</button>
                             ) : (
                               <span className="muted">—</span>
                             )}
+                            {(() => {
+                              const cust = customers.find((c) => c.id === m.customerId);
+                              const left = Math.max(0, due - paid);
+                              if (!cust?.phone || left <= 0) return null;
+                              return (
+                                <MemberReachButtons
+                                  compact
+                                  phone={cust.phone}
+                                  whatsappText={dueReminderWhatsAppMessage({
+                                    memberName: names[m.customerId] || cust.name,
+                                    chitName: data.name,
+                                    cycle,
+                                    duration: data.duration,
+                                    amountDue: left,
+                                    organiserName: user?.name,
+                                  })}
+                                />
+                              );
+                            })()}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1349,10 +1374,63 @@ export function ChitDetailPage() {
               <button
                 className="btn"
                 disabled={!newMemberId || data.members.length >= data.membersCount}
-                onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}
+                onClick={() => void addMember(data.id, newMemberId).then(() => {
+                  const c = customers.find((x) => x.id === newMemberId);
+                  if (c?.phone) {
+                    openWhatsApp(
+                      c.phone,
+                      inviteMemberWhatsAppMessage({
+                        memberName: c.name,
+                        phone: c.phone,
+                        chitName: data.name,
+                        organiserName: user?.name,
+                        instalment: data.instalment,
+                      }),
+                    );
+                  }
+                  setNewMemberId("");
+                })}
               >
                 {data.members.some((m) => m.customerId === newMemberId) ? copy.chit.addHand : copy.chit.addMember}
               </button>
+              {contactsPickerAvailable() && (
+                <button
+                  className="btn ghost"
+                  type="button"
+                  disabled={data.members.length >= data.membersCount}
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        const rows = await pickContactsFromBook({ multiple: true });
+                        for (const row of rows) {
+                          if (data.members.length >= data.membersCount) break;
+                          const phone = tryPhone10(row.phone);
+                          if (!phone) continue;
+                          let cust = customers.find((c) => c.phone === phone);
+                          if (!cust) cust = await addCustomer(row.name.trim() || "Member", phone);
+                          if (!data.members.some((m) => m.customerId === cust!.id) || data.members.length < data.membersCount) {
+                            await addMember(data.id, cust.id);
+                          }
+                          openWhatsApp(
+                            phone,
+                            inviteMemberWhatsAppMessage({
+                              memberName: cust.name,
+                              phone,
+                              chitName: data.name,
+                              organiserName: user?.name,
+                              instalment: data.instalment,
+                            }),
+                          );
+                        }
+                      } catch (e) {
+                        window.alert(e instanceof Error ? e.message : "Could not open contacts");
+                      }
+                    })();
+                  }}
+                >
+                  <BookUser size={15} /> From contacts
+                </button>
+              )}
             </div>
             <p className="muted" style={{ marginBottom: 12 }}>
               One person can play multiple hands (slots). Each hand pays its own instalment and can win once. {data.members.length} of {data.membersCount} slots filled.
@@ -1369,6 +1447,7 @@ export function ChitDetailPage() {
                   .reduce((s, a) => s + a.payout, 0);
                 const left = Math.max(0, memberBalance(data, m.customerId, m.slot).outstanding);
                 const hands = data.members.filter((x) => x.customerId === m.customerId).length;
+                const cust = customers.find((c) => c.id === m.customerId);
                 return (
                   <div key={`${m.customerId}-${m.slot}`} className="list-row">
                     <div className="avatar">{initials(names[m.customerId] || "?")}</div>
@@ -1383,6 +1462,30 @@ export function ChitDetailPage() {
                       </div>
                     </div>
                     <div className="num">{inr(left)} left to pay</div>
+                    {cust?.phone ? (
+                      <MemberReachButtons
+                        compact
+                        phone={cust.phone}
+                        whatsappText={
+                          left > 0
+                            ? dueReminderWhatsAppMessage({
+                              memberName: cust.name,
+                              chitName: data.name,
+                              cycle,
+                              duration: data.duration,
+                              amountDue: left,
+                              organiserName: user?.name,
+                            })
+                            : inviteMemberWhatsAppMessage({
+                              memberName: cust.name,
+                              phone: cust.phone,
+                              chitName: data.name,
+                              organiserName: user?.name,
+                              instalment: data.instalment,
+                            })
+                        }
+                      />
+                    ) : null}
                   </div>
                 );
               })}

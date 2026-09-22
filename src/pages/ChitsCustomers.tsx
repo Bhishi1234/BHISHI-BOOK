@@ -1,11 +1,13 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { AlertCircle, ArrowUpRight, CircleX, PiggyBank, Plus, UserRound, Users } from "lucide-react";
+import { AlertCircle, ArrowUpRight, BookUser, CircleX, PiggyBank, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
+import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
 import { chitPath, initials, inr } from "../lib/format";
+import { inviteMemberWhatsAppMessage, openWhatsApp, tryPhone10 } from "../lib/share";
 import { useStore } from "../store";
 import { StatCard, toneAt } from "../ui/StatCard";
 
@@ -203,11 +205,13 @@ export function ChitsPage() {
 }
 
 export function CustomersPage() {
-  const { customers, chits, addCustomer } = useStore();
+  const { customers, chits, addCustomer, user } = useStore();
   const { m } = useI18n();
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "out" | "dues">("all");
+  const [picking, setPicking] = useState(false);
+  const canPick = contactsPickerAvailable();
 
   function onAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -215,8 +219,41 @@ export function CustomersPage() {
     const name = String(fd.get("name") || "").trim();
     const phone = String(fd.get("phone") || "").trim();
     if (!name) return;
-    void addCustomer(name, phone);
+    void addCustomer(name, phone).then((c) => {
+      if (c.phone) {
+        // optional: leave form reset below
+      }
+    });
     e.currentTarget.reset();
+  }
+
+  async function fromContacts() {
+    setPicking(true);
+    try {
+      const rows = await pickContactsFromBook({ multiple: true });
+      let last: { name: string; phone: string } | null = null;
+      for (const row of rows) {
+        const phone = tryPhone10(row.phone);
+        if (!phone) continue;
+        if (customers.some((c) => c.phone === phone)) continue;
+        const c = await addCustomer(row.name.trim() || "Member", phone);
+        last = { name: c.name, phone: c.phone };
+      }
+      if (last) {
+        openWhatsApp(
+          last.phone,
+          inviteMemberWhatsAppMessage({
+            memberName: last.name,
+            phone: last.phone,
+            organiserName: user?.name,
+          }),
+        );
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not open contacts");
+    } finally {
+      setPicking(false);
+    }
   }
 
   const rows = customers.map((c) => {
@@ -252,6 +289,11 @@ export function CustomersPage() {
           <input className="field" name="name" placeholder="Name" style={{ margin: 0, maxWidth: 200 }} />
           <input className="field" name="phone" placeholder="Phone" style={{ margin: 0, maxWidth: 160 }} />
           <button className="btn">Add customer</button>
+          {canPick && (
+            <button className="btn ghost" type="button" disabled={picking} onClick={() => void fromContacts()}>
+              <BookUser size={15} /> {picking ? "Opening…" : "From contacts"}
+            </button>
+          )}
         </form>
         <div className="stats four">
           <StatCard label="People" value={customers.length} hint="in your directory" tone="blue" icon={UserRound} />

@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BookUser } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import type { AuctionStyle, ChitType, FixedStyle, Frequency } from "../types";
 import { inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
+import { pickContactsFromBook, contactsPickerAvailable } from "../lib/contacts";
+import { inviteMemberWhatsAppMessage, openWhatsApp, tryPhone10 } from "../lib/share";
 import { useStore } from "../store";
 
 const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
@@ -14,9 +17,10 @@ function needsStyleStep(type: ChitType) {
 }
 
 export function NewChitPage() {
-  const { customers, addCustomer, addChit, error } = useStore();
+  const { customers, addCustomer, addChit, error, user } = useStore();
   const { m, freqLabel, freqHint } = useI18n();
   const nav = useNavigate();
+  const canPickContacts = contactsPickerAvailable();
   /** 0 type · 1 style (auction/fixed) · 2 terms · 3 members */
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ChitType>("auction");
@@ -39,6 +43,8 @@ export function NewChitPage() {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pickingContacts, setPickingContacts] = useState(false);
+  const [lastInvite, setLastInvite] = useState<{ name: string; phone: string } | null>(null);
 
   const TYPES = useMemo(
     () => ([
@@ -74,6 +80,48 @@ export function NewChitPage() {
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
   const interestN = Number(interest) || 0;
   const tenureN = Number(tenure) || 0;
+
+  async function addFromContacts() {
+    setPickingContacts(true);
+    try {
+      const rows = await pickContactsFromBook({ multiple: true });
+      let last: { name: string; phone: string } | null = null;
+      for (const row of rows) {
+        const phone = tryPhone10(row.phone);
+        if (!phone) continue;
+        const existing = customers.find((c) => c.phone === phone);
+        if (existing) {
+          setPicked((p) => ((!!n && p.length >= n) ? p : [...p, existing.id]));
+          last = { name: existing.name, phone };
+          continue;
+        }
+        const created = await addCustomer(row.name.trim() || "Member", phone);
+        setPicked((p) => ((!!n && p.length >= n) ? p : [...p, created.id]));
+        last = { name: created.name, phone: created.phone };
+      }
+      if (last) setLastInvite(last);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not open contacts";
+      window.alert(msg);
+    } finally {
+      setPickingContacts(false);
+    }
+  }
+
+  function inviteLastOnWhatsApp() {
+    if (!lastInvite) return;
+    openWhatsApp(
+      lastInvite.phone,
+      inviteMemberWhatsAppMessage({
+        memberName: lastInvite.name,
+        phone: lastInvite.phone,
+        chitName: title.trim() || undefined,
+        organiserName: user?.name,
+        instalment: instalment || undefined,
+      }),
+    );
+  }
+
   const resolvedType: ChitType =
     type === "fixed"
       ? fixedStyle === "lucky_draw"
@@ -441,21 +489,38 @@ export function NewChitPage() {
                 <input className="field" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
                 <input className="field" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
               </div>
-              <button
-                className="btn"
-                type="button"
-                style={{ width: "100%" }}
-                disabled={!newName.trim() || (!!n && picked.length >= n)}
-                onClick={async () => {
-                  if (!newName.trim()) return;
-                  const c = await addCustomer(newName.trim(), newPhone.trim());
-                  setPicked((p) => [...p, c.id]);
-                  setNewName("");
-                  setNewPhone("");
-                }}
-              >
-                Add member
-              </button>
+              <div className="add-member-actions">
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={!newName.trim() || (!!n && picked.length >= n)}
+                  onClick={async () => {
+                    if (!newName.trim()) return;
+                    const c = await addCustomer(newName.trim(), newPhone.trim());
+                    setPicked((p) => [...p, c.id]);
+                    if (c.phone) setLastInvite({ name: c.name, phone: c.phone });
+                    setNewName("");
+                    setNewPhone("");
+                  }}
+                >
+                  Add member
+                </button>
+                {canPickContacts && (
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    disabled={pickingContacts || (!!n && picked.length >= n)}
+                    onClick={() => void addFromContacts()}
+                  >
+                    <BookUser size={15} /> {pickingContacts ? "Opening…" : "From contacts"}
+                  </button>
+                )}
+              </div>
+              {lastInvite && (
+                <button type="button" className="invite-chip" onClick={inviteLastOnWhatsApp}>
+                  Invite {lastInvite.name} on WhatsApp
+                </button>
+              )}
             </div>
 
             <p className="muted" style={{ margin: "16px 0 8px" }}>
