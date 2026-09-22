@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTable, { type UserOptions } from "jspdf-autotable";
 import type { AuctionRecord, Chit, Payment } from "../types";
 import {
   balanceAfterCycle,
@@ -35,22 +35,28 @@ type Cell = string | number;
 
 const MARGIN = 14;
 const PAGE_W = 210;
+const PAGE_H = 297;
 const CONTENT_W = PAGE_W - MARGIN * 2;
+const FOOTER_Y = 284;
+const TABLE_BOTTOM = 278;
+const CONTENT_START_Y = 60;
 
 /** App brand blue — matches --blue / chit-hero */
 const BLUE: [number, number, number] = [47, 111, 237];
 const BLUE_SOFT: [number, number, number] = [237, 243, 255];
+const BLUE_MID: [number, number, number] = [191, 214, 255];
 const INK: [number, number, number] = [15, 23, 42];
 const MUTED: [number, number, number] = [100, 116, 139];
 const LINE: [number, number, number] = [226, 232, 240];
 const GREEN: [number, number, number] = [15, 159, 110];
 const ROSE: [number, number, number] = [225, 29, 72];
 const TEAL: [number, number, number] = [13, 148, 136];
+const WHITE: [number, number, number] = [255, 255, 255];
+const SLATE: [number, number, number] = [248, 250, 252];
 
 function money(n: number) {
   const v = Math.round(Number(n) || 0);
   const abs = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.abs(v));
-  // Helvetica in jsPDF cannot draw ₹ — use ASCII "Rs" for clean PDFs.
   return v < 0 ? `-Rs ${abs}` : `Rs ${abs}`;
 }
 
@@ -85,31 +91,47 @@ async function savePdf(doc: jsPDF, filename: string) {
       dialogTitle: "Share Bhishi Circle report",
     });
   } catch {
-    // Fallback if native share fails
     doc.save(filename);
   }
 }
 
-/** Top brand bar + blue hero card for the bhishi / document title (matches app chit-hero). */
+/** Soft page wash — page 1 keeps hero; later pages get a light top band. */
+function paintPageChrome(doc: Doc, page: number) {
+  if (page === 1) return;
+  doc.setFillColor(...BLUE);
+  doc.rect(0, 0, PAGE_W, 12, "F");
+  doc.setTextColor(...WHITE);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("Bhishi Circle", MARGIN, 8);
+  doc.setTextColor(...INK);
+}
+
 function brandHeader(doc: Doc, title: string, subtitle: string) {
   doc.setFillColor(...BLUE);
-  doc.rect(0, 0, PAGE_W, 18, "F");
-  doc.setTextColor(255, 255, 255);
+  doc.rect(0, 0, PAGE_W, 16, "F");
+  doc.setTextColor(...WHITE);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Bhishi Circle", MARGIN, 11.5);
+  doc.setFontSize(10);
+  doc.text("Bhishi Circle", MARGIN, 10.5);
 
-  const heroY = 24;
+  const heroY = 22;
   doc.setFillColor(...BLUE);
-  doc.roundedRect(MARGIN, heroY, CONTENT_W, 28, 3, 3, "F");
-  doc.setTextColor(255, 255, 255);
+  doc.roundedRect(MARGIN, heroY, CONTENT_W, 30, 3.5, 3.5, "F");
+  // Accent edge
+  doc.setFillColor(33, 88, 210);
+  doc.roundedRect(MARGIN, heroY, 4, 30, 3.5, 3.5, "F");
+  doc.setFillColor(...BLUE);
+  doc.rect(MARGIN + 2, heroY, 4, 30, "F");
+
+  doc.setTextColor(...WHITE);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text(title.slice(0, 48), MARGIN + 6, heroY + 12);
+  doc.setFontSize(15);
+  doc.text(title.slice(0, 46), MARGIN + 10, heroY + 13);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor(220, 232, 255);
-  doc.text(subtitle.slice(0, 70), MARGIN + 6, heroY + 21);
+  doc.text(subtitle.slice(0, 72), MARGIN + 10, heroY + 22.5);
   doc.setTextColor(...INK);
 }
 
@@ -117,58 +139,86 @@ function footer(doc: Doc) {
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
+    paintPageChrome(doc, i);
     doc.setDrawColor(...LINE);
-    doc.setLineWidth(0.3);
-    doc.line(MARGIN, 286, PAGE_W - MARGIN, 286);
-    doc.setFontSize(8);
+    doc.setLineWidth(0.35);
+    doc.line(MARGIN, FOOTER_Y, PAGE_W - MARGIN, FOOTER_Y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
     doc.text(
-      `Generated ${new Date().toLocaleString("en-IN")} · Page ${i} of ${pages} · Bhishi Circle`,
+      `Generated ${new Date().toLocaleString("en-IN")}`,
       MARGIN,
-      291,
+      FOOTER_Y + 5,
     );
+    doc.text(
+      `Page ${i} of ${pages}`,
+      PAGE_W / 2,
+      FOOTER_Y + 5,
+      { align: "center" },
+    );
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...BLUE);
+    doc.text("Bhishi Circle", PAGE_W - MARGIN, FOOTER_Y + 5, { align: "right" });
+    doc.setTextColor(...INK);
   }
 }
 
 function sectionTitle(doc: Doc, y: number, text: string) {
-  if (y > 260) {
-    doc.addPage();
-    y = 20;
-  }
+  y = ensureY(doc, y, 28);
+  doc.setFillColor(...BLUE_SOFT);
+  doc.roundedRect(MARGIN, y - 4, CONTENT_W, 11, 2, 2, "F");
+  doc.setDrawColor(...BLUE_MID);
+  doc.setLineWidth(0.6);
+  doc.line(MARGIN, y - 4, MARGIN, y + 7);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...BLUE);
-  doc.text(text, MARGIN, y);
-  doc.setDrawColor(...BLUE);
-  doc.setLineWidth(0.5);
-  doc.line(MARGIN, y + 2, MARGIN + 36, y + 2);
+  doc.text(text, MARGIN + 5, y + 3.5);
   doc.setTextColor(...INK);
-  return y + 8;
+  return y + 12;
+}
+
+function docTitle(doc: Doc, y: number, title: string, meta: string) {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...INK);
+  doc.text(title, MARGIN, y);
+  y += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTED);
+  doc.text(meta, MARGIN, y);
+  doc.setTextColor(...INK);
+  return y + 9;
 }
 
 function kpiRow(doc: Doc, y: number, items: { label: string; value: string }[]) {
-  const colW = CONTENT_W / items.length;
+  y = ensureY(doc, y, 28);
+  const gap = 3;
+  const colW = (CONTENT_W - gap * (items.length - 1)) / items.length;
   items.forEach((item, i) => {
-    const x = MARGIN + i * colW;
-    doc.setFillColor(...BLUE_SOFT);
-    doc.roundedRect(x, y, colW - 3, 18, 2, 2, "F");
+    const x = MARGIN + i * (colW + gap);
+    doc.setFillColor(...WHITE);
+    doc.roundedRect(x, y, colW, 20, 2.5, 2.5, "F");
     doc.setDrawColor(...LINE);
-    doc.setLineWidth(0.2);
-    doc.roundedRect(x, y, colW - 3, 18, 2, 2, "S");
+    doc.setLineWidth(0.35);
+    doc.roundedRect(x, y, colW, 20, 2.5, 2.5, "S");
+    doc.setFillColor(...BLUE);
+    doc.rect(x, y, 1.6, 20, "F");
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...MUTED);
-    doc.text(item.label, x + 3, y + 6);
+    doc.text(item.label, x + 5, y + 7);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(...INK);
-    doc.text(item.value, x + 3, y + 13.5);
+    doc.text(item.value, x + 5, y + 15);
     doc.setFont("helvetica", "normal");
   });
-  return y + 24;
+  return y + 26;
 }
 
-/** Simple horizontal bar chart (amounts). */
 function barChart(
   doc: Doc,
   y: number,
@@ -178,40 +228,161 @@ function barChart(
   if (!rows.length) return y;
   y = sectionTitle(doc, y, title);
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1);
-  const barMax = 90;
+  const barMax = 88;
   for (const row of rows.slice(0, 12)) {
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
-    }
+    y = ensureY(doc, y, 12);
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text(row.label.slice(0, 28), MARGIN, y + 3);
+    doc.text(row.label.slice(0, 26), MARGIN, y + 3.5);
     const w = (Math.abs(row.value) / max) * barMax;
+    doc.setFillColor(...SLATE);
+    doc.roundedRect(MARGIN + 52, y - 1.5, barMax, 6, 1.5, 1.5, "F");
     if (row.value < 0) doc.setFillColor(...ROSE);
     else doc.setFillColor(...TEAL);
-    doc.roundedRect(MARGIN + 55, y - 2, Math.max(1, w), 5, 1, 1, "F");
+    doc.roundedRect(MARGIN + 52, y - 1.5, Math.max(2, w), 6, 1.5, 1.5, "F");
     doc.setTextColor(...INK);
-    doc.text(money(row.value), MARGIN + 55 + barMax + 4, y + 3);
-    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(money(row.value), MARGIN + 52 + barMax + 4, y + 3.5);
+    doc.setFont("helvetica", "normal");
+    y += 9;
   }
   return y + 4;
 }
 
 function ensureY(doc: Doc, y: number, need = 40) {
-  if (y + need > 275) {
+  if (y + need > TABLE_BOTTOM) {
     doc.addPage();
     return 20;
   }
   return y;
 }
 
-/** Content starts below brand bar + blue hero card. */
-const CONTENT_START_Y = 58;
+function drawKvBlock(doc: Doc, y: number, rows: [string, string][]) {
+  for (const [k, v] of rows) {
+    y = ensureY(doc, y, 14);
+    doc.setFillColor(...SLATE);
+    doc.roundedRect(MARGIN, y - 3.5, CONTENT_W, 10, 2, 2, "F");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.setFont("helvetica", "normal");
+    doc.text(k, MARGIN + 4, y + 2.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...INK);
+    doc.setFontSize(9.5);
+    doc.text(String(v), MARGIN + 60, y + 2.5);
+    doc.setFont("helvetica", "normal");
+    y += 11.5;
+  }
+  return y;
+}
 
-const tableHead = { fillColor: BLUE as [number, number, number], textColor: 255 as const, fontStyle: "bold" as const };
-const tableStyles = { fontSize: 8, cellPadding: 2, textColor: INK as [number, number, number], lineColor: LINE as [number, number, number] };
-const tableAlt = { fillColor: BLUE_SOFT as [number, number, number] };
+function amountBanner(doc: Doc, y: number, label: string, amount: string) {
+  y = ensureY(doc, y, 30);
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(MARGIN, y, CONTENT_W, 24, 3.5, 3.5, "F");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(220, 232, 255);
+  doc.text(label, MARGIN + 7, y + 9);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(...WHITE);
+  doc.text(amount, PAGE_W - MARGIN - 7, y + 16, { align: "right" });
+  doc.setTextColor(...INK);
+  return y + 32;
+}
+
+const baseTableStyles = {
+  font: "helvetica" as const,
+  fontSize: 8,
+  cellPadding: { top: 2.6, right: 2.4, bottom: 2.6, left: 2.4 },
+  textColor: INK,
+  lineColor: LINE,
+  lineWidth: 0.2,
+  valign: "middle" as const,
+  overflow: "linebreak" as const,
+};
+
+const baseHeadStyles = {
+  fillColor: BLUE,
+  textColor: WHITE,
+  fontStyle: "bold" as const,
+  fontSize: 8,
+  cellPadding: { top: 3.2, right: 2.4, bottom: 3.2, left: 2.4 },
+  halign: "left" as const,
+};
+
+/**
+ * Draw a titled data table with:
+ * - column headers on every page
+ * - section title (and “continued”) on wrap pages
+ */
+function drawDataTable(
+  doc: Doc,
+  y: number,
+  opts: {
+    title: string;
+    head: string[][];
+    body: Cell[][];
+    fontSize?: number;
+    columnStyles?: UserOptions["columnStyles"];
+    hint?: string;
+  },
+) {
+  if (opts.hint) {
+    y = sectionTitle(doc, y, opts.title);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.setFont("helvetica", "normal");
+    doc.text(opts.hint, MARGIN, y, { maxWidth: CONTENT_W });
+    y += 7;
+  } else {
+    y = sectionTitle(doc, y, opts.title);
+  }
+
+  if (!opts.body.length) {
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text("No rows for this section.", MARGIN, y + 2);
+    return y + 10;
+  }
+
+  autoTable(doc, {
+    startY: y,
+    head: opts.head,
+    body: opts.body,
+    margin: { left: MARGIN, right: MARGIN, top: 26, bottom: PAGE_H - TABLE_BOTTOM },
+    styles: {
+      ...baseTableStyles,
+      fontSize: opts.fontSize ?? 8,
+    },
+    headStyles: baseHeadStyles,
+    alternateRowStyles: { fillColor: BLUE_SOFT },
+    bodyStyles: { fillColor: WHITE },
+    showHead: "everyPage",
+    rowPageBreak: "auto",
+    theme: "grid",
+    columnStyles: opts.columnStyles,
+    didDrawPage: (data) => {
+      // Table-relative page 2+: repeat the section title above the column headers
+      if (data.pageNumber > 1) {
+        doc.setFillColor(...BLUE_SOFT);
+        doc.roundedRect(MARGIN, 14, CONTENT_W, 9, 1.5, 1.5, "F");
+        doc.setDrawColor(...BLUE);
+        doc.setLineWidth(0.6);
+        doc.line(MARGIN, 14, MARGIN, 23);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...BLUE);
+        doc.text(`${opts.title}  ·  continued`, MARGIN + 4, 20);
+        doc.setTextColor(...INK);
+      }
+    },
+  });
+
+  return (doc.lastAutoTable?.finalY || y) + 12;
+}
 
 /**
  * Full chit books PDF: cover KPIs, member ledger, cycle summary,
@@ -226,21 +397,12 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
   brandHeader(doc, chit.name, subtitle);
 
   let y = CONTENT_START_Y;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(...INK);
-  doc.text("Chit ledger report", MARGIN, y);
-  y += 5;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...MUTED);
-  doc.text(
-    `Started ${new Date(chit.startDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · Month ${cycle} of ${chit.duration} · ${chit.members.length} of ${chit.membersCount} slots`,
-    MARGIN,
+  y = docTitle(
+    doc,
     y,
+    "Chit ledger report",
+    `Started ${new Date(chit.startDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · Month ${cycle} of ${chit.duration} · ${chit.members.length} of ${chit.membersCount} slots`,
   );
-  y += 8;
-  doc.setTextColor(...INK);
 
   y = kpiRow(doc, y, [
     { label: "Pot / face", value: money(chit.pot) },
@@ -258,14 +420,11 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
     },
   ]);
 
-  // Member ledger
-  y = sectionTitle(doc, y, chit.type === "loan"
-    ? "Member ledger (Paid in = monthly deposits only)"
-    : "Member ledger (per hand)");
   const ledger = memberLedgerRows(chit);
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: chit.type === "loan"
+      ? "Member ledger (deposits only)"
+      : "Member ledger (per hand)",
     head: [[
       "Hand",
       chit.type === "loan" ? "Deposits" : "Paid in",
@@ -284,11 +443,13 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(row.net),
       ];
     }),
-    styles: tableStyles,
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    columnStyles: {
+      1: { halign: "right" },
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right", fontStyle: "bold" },
+    },
   });
-  y = (doc.lastAutoTable?.finalY || y) + 10;
 
   y = barChart(
     doc,
@@ -300,10 +461,7 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
     })),
   );
 
-  // Cycle summary
-  y = ensureY(doc, y, 50);
-  y = sectionTitle(doc, y, "Month-by-month summary");
-  const cycleRows: (string | number)[][] = [];
+  const cycleRows: Cell[][] = [];
   for (let c = 1; c <= Math.max(cycle, chit.duration); c++) {
     if (c > cycle && chit.status === "running") break;
     const led = cycleLedger(chit, c);
@@ -316,40 +474,39 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
       money(balanceAfterCycle(chit, c)),
     ]);
   }
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Month-by-month summary",
     head: [["Month", "Collected", "Payouts", "Commission", "Dividend / cut", "Till after"]],
     body: cycleRows,
-    styles: tableStyles,
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    columnStyles: {
+      0: { halign: "center", cellWidth: 16 },
+      1: { halign: "right" },
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right" },
+      5: { halign: "right", fontStyle: "bold" },
+    },
   });
-  y = (doc.lastAutoTable?.finalY || y) + 10;
 
   y = barChart(
     doc,
     y,
     "Collections by month",
     cycleRows.map((_, idx) => {
-      const c = Number(cycleRows[idx][0]);
+      const c = Number(cycleRows[idx]![0]);
       return { label: `Month ${c}`, value: cycleLedger(chit, c).collected };
     }),
   );
 
-  // Collections register
-  y = ensureY(doc, y, 40);
-  y = sectionTitle(doc, y, "Collection register (all receipts)");
   const pays = [...chit.payments].sort((a, b) => a.cycle - b.cycle || a.date.localeCompare(b.date));
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Collection register",
+    hint: "All receipts recorded for this bhishi, ordered by month then date.",
     head: [["#", "Date", "Month", "Member / hand", "Mode", "Kind", "Amount"]],
     body: pays.map((p, i): Cell[] => {
-      const slot = p.slot;
       const hands = chit.members.filter((m) => m.customerId === p.memberId).length;
-      const who = slot != null
-        ? handLabel(names[p.memberId] || p.memberId, slot, hands)
+      const who = p.slot != null
+        ? handLabel(names[p.memberId] || p.memberId, p.slot, hands)
         : (names[p.memberId] || p.memberId);
       return [
         i + 1,
@@ -361,18 +518,16 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(p.amount),
       ];
     }),
-    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    fontSize: 7.5,
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      2: { halign: "center", cellWidth: 14 },
+      6: { halign: "right", fontStyle: "bold" },
+    },
   });
-  y = (doc.lastAutoTable?.finalY || y) + 10;
 
-  // Payouts
-  y = ensureY(doc, y, 40);
-  y = sectionTitle(doc, y, "Payouts & awards");
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Payouts & awards",
     head: [["Month", "Winner", "Method", "Bid / face", "Paid out", "Commission", "Discount", "Dividend"]],
     body: chit.auctions.map((a) => {
       const hands = chit.members.filter((m) => m.customerId === a.winnerId).length;
@@ -390,18 +545,20 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(a.dividend || 0),
       ];
     }),
-    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    fontSize: 7.5,
+    columnStyles: {
+      0: { halign: "center", cellWidth: 14 },
+      3: { halign: "right" },
+      4: { halign: "right", fontStyle: "bold" },
+      5: { halign: "right" },
+      6: { halign: "right" },
+      7: { halign: "right" },
+    },
   });
-  y = (doc.lastAutoTable?.finalY || y) + 10;
 
   if (chit.type === "loan" && loanDetailRows(chit).length) {
-    y = ensureY(doc, y, 40);
-    y = sectionTitle(doc, y, "Loan schedule");
-    autoTable(doc, {
-      startY: y,
-      margin: { left: MARGIN, right: MARGIN },
+    y = drawDataTable(doc, y, {
+      title: "Loan schedule",
       head: [["Borrower", "Month", "Face", "Interest cut", "Net paid", "Repay window", "Share / mo"]],
       body: loanDetailRows(chit).map((row) => {
         const hands = chit.members.filter((m) => m.customerId === row.memberId).length;
@@ -415,19 +572,18 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
           `${money(row.principalSharePerMonth)} + ${money(row.interestPerMonth)} int`,
         ];
       }),
-      styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
-      headStyles: tableHead,
-      alternateRowStyles: tableAlt,
+      fontSize: 7.5,
+      columnStyles: {
+        1: { halign: "center", cellWidth: 14 },
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right", fontStyle: "bold" },
+      },
     });
-    y = (doc.lastAutoTable?.finalY || y) + 10;
   }
 
-  // Outstanding by hand
-  y = ensureY(doc, y, 40);
-  y = sectionTitle(doc, y, "Balances by hand");
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Balances by hand",
     head: [["Hand", "Total due", "Total paid", "Outstanding", "This month due", "This month paid"]],
     body: chit.members.map((m) => {
       const bal = memberBalance(chit, m.customerId, m.slot);
@@ -441,9 +597,13 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
         money(paidInCycle(chit, m.customerId, cycle, m.slot)),
       ];
     }),
-    styles: tableStyles,
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    columnStyles: {
+      1: { halign: "right" },
+      2: { halign: "right" },
+      3: { halign: "right", fontStyle: "bold" },
+      4: { halign: "right" },
+      5: {halign: "right" },
+    },
   });
 
   footer(doc);
@@ -462,15 +622,15 @@ export function downloadReceiptPdf(
 
   let y = CONTENT_START_Y;
   doc.setFillColor(...GREEN);
-  doc.roundedRect(MARGIN, y, 36, 8, 1.5, 1.5, "F");
-  doc.setTextColor(255, 255, 255);
+  doc.roundedRect(MARGIN, y, 34, 8, 2, 2, "F");
+  doc.setTextColor(...WHITE);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("PAID", MARGIN + 18, y + 5.5, { align: "center" });
+  doc.text("PAID", MARGIN + 17, y + 5.5, { align: "center" });
   doc.setTextColor(...MUTED);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(`Receipt · ${payment.id}`, MARGIN + 40, y + 5.5);
+  doc.setFontSize(8.5);
+  doc.text(`Receipt · ${payment.id}`, MARGIN + 38, y + 5.5);
   doc.text(
     new Date(payment.date).toLocaleString("en-IN", {
       day: "numeric",
@@ -498,34 +658,10 @@ export function downloadReceiptPdf(
   ];
   if (organiserName) rows.push(["Recorded by", organiserName]);
 
-  for (const [k, v] of rows) {
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 10, 1.5, 1.5, "F");
-    doc.setFontSize(8);
-    doc.setTextColor(...MUTED);
-    doc.setFont("helvetica", "normal");
-    doc.text(k, MARGIN + 3, y + 2);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...INK);
-    doc.setFontSize(10);
-    doc.text(v, MARGIN + 52, y + 2);
-    doc.setFont("helvetica", "normal");
-    y += 12;
-  }
+  y = drawKvBlock(doc, y, rows);
+  y += 2;
+  y = amountBanner(doc, y, "Amount received", money(payment.amount));
 
-  y += 4;
-  doc.setFillColor(...BLUE);
-  doc.roundedRect(MARGIN, y, CONTENT_W, 24, 3, 3, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(220, 232, 255);
-  doc.text("Amount received", MARGIN + 6, y + 9);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(255, 255, 255);
-  doc.text(money(payment.amount), PAGE_W - MARGIN - 6, y + 16, { align: "right" });
-
-  y += 34;
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
   doc.text(
@@ -556,11 +692,7 @@ export function downloadDayBookPdf(
   brandHeader(doc, "Collection register", title);
 
   let y = CONTENT_START_Y;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(...INK);
-  doc.text("Day book", MARGIN, y);
-  y += 8;
+  y = docTitle(doc, y, "Day book", title);
 
   y = kpiRow(doc, y, [
     { label: "Total collected", value: money(summary.collected) },
@@ -580,11 +712,8 @@ export function downloadDayBookPdf(
     [...byChit.entries()].map(([label, value]) => ({ label, value })),
   );
 
-  y = ensureY(doc, y, 40);
-  y = sectionTitle(doc, y, "Receipt listing");
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Receipt listing",
     head: [["#", "Date", "Chit", "Member", "Month", "Mode", "Amount"]],
     body: [...receipts]
       .sort((a, b) => b.date.localeCompare(a.date))
@@ -597,9 +726,12 @@ export function downloadDayBookPdf(
         MODE_LABEL[p.mode || "cash"] || String(p.mode || "cash"),
         money(p.amount),
       ]),
-    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    fontSize: 7.5,
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      4: { halign: "center", cellWidth: 14 },
+      6: {halign: "right", fontStyle: "bold" },
+    },
   });
 
   footer(doc);
@@ -615,20 +747,15 @@ export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) 
   const cycle = displayCycle(chit);
   brandHeader(doc, chit.name, `Month ${cycle} dues`);
   let y = CONTENT_START_Y;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(...INK);
-  doc.text(`Month ${cycle} collection sheet`, MARGIN, y);
-  y += 8;
+  y = docTitle(doc, y, `Month ${cycle} collection sheet`, `${chit.members.length} hands · ${FREQ_LABEL[chit.frequency] || chit.frequency}`);
   y = kpiRow(doc, y, [
     { label: "Expected", value: money(expectedThisCycle(chit)) },
     { label: "Collected", value: money(collectedThisCycle(chit)) },
     { label: "Outstanding", value: money(outstandingOf(chit)) },
     { label: "Cash on hand", value: money(treasuryOf(chit)) },
   ]);
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Dues by hand",
     head: [["Hand", "Due", "Paid", "Balance", "Status"]],
     body: chit.members.map((m) => {
       const d = cycleDue(chit, m.customerId, cycle, m.slot);
@@ -643,9 +770,13 @@ export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) 
         st,
       ];
     }),
-    styles: { ...tableStyles, fontSize: 9, cellPadding: 2.5 },
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    fontSize: 9,
+    columnStyles: {
+      1: { halign: "right" },
+      2: {halign: "right" },
+      3: {halign: "right", fontStyle: "bold" },
+      4: {halign: "center" },
+    },
   });
   footer(doc);
   downloadBlob(doc, `${safeName(chit.name)}-month-${cycle}-dues.pdf`);
@@ -653,7 +784,6 @@ export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) 
 
 /**
  * Single-loan report: face amount, interest cut, net paid out, and full repayment schedule.
- * Shareable with the borrower and the bhishi group.
  */
 export function downloadLoanReportPdf(
   chit: Chit,
@@ -678,21 +808,12 @@ export function downloadLoanReportPdf(
   brandHeader(doc, chit.name, "Loan report");
 
   let y = CONTENT_START_Y;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(...INK);
-  doc.text("Loan disbursal report", MARGIN, y);
-  y += 5;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...MUTED);
-  doc.text(
-    `Month ${auction.cycle} of ${chit.duration} · Interest ${chit.interestRate ?? 0}% · Tenure ${tenure} months`,
-    MARGIN,
+  y = docTitle(
+    doc,
     y,
+    "Loan disbursal report",
+    `Month ${auction.cycle} of ${chit.duration} · Interest ${chit.interestRate ?? 0}% · Tenure ${tenure} months`,
   );
-  y += 10;
-  doc.setTextColor(...INK);
 
   y = kpiRow(doc, y, [
     { label: "Face loan", value: money(face) },
@@ -715,52 +836,13 @@ export function downloadLoanReportPdf(
   ];
   if (organiserName) detailRows.push(["Recorded by", organiserName]);
 
-  for (const [k, v] of detailRows) {
-    if (y > 260) {
-      doc.addPage();
-      y = 20;
-    }
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 9.5, 1.5, 1.5, "F");
-    doc.setFontSize(8);
-    doc.setTextColor(...MUTED);
-    doc.setFont("helvetica", "normal");
-    doc.text(k, MARGIN + 3, y + 1.5);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...INK);
-    doc.setFontSize(9.5);
-    doc.text(v, MARGIN + 62, y + 1.5);
-    doc.setFont("helvetica", "normal");
-    y += 11;
-  }
+  y = drawKvBlock(doc, y, detailRows);
+  y += 2;
+  y = amountBanner(doc, y, "Amount handed to borrower", money(auction.payout));
 
-  y += 4;
-  doc.setFillColor(...BLUE);
-  doc.roundedRect(MARGIN, y, CONTENT_W, 22, 3, 3, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(220, 232, 255);
-  doc.text("Amount handed to borrower", MARGIN + 6, y + 8);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text(money(auction.payout), PAGE_W - MARGIN - 6, y + 15, { align: "right" });
-  y += 30;
-
-  y = sectionTitle(doc, y, "Repayment schedule");
-  doc.setFontSize(8);
-  doc.setTextColor(...MUTED);
-  doc.text(
-    "Each month the borrower pays hapta + interest (if due) + principal share. Month 1 interest is skipped when already cut at disbursal.",
-    MARGIN,
-    y,
-    { maxWidth: CONTENT_W },
-  );
-  y += 8;
-
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
+  y = drawDataTable(doc, y, {
+    title: "Repayment schedule",
+    hint: "Each month: hapta + interest (if due) + principal share. First repay month skips interest when already cut at disbursal.",
     head: [["#", "Month", "Hapta", "Interest", "Principal", "Total due", "Note"]],
     body: schedule.map((r): Cell[] => [
       r.monthIndex,
@@ -771,16 +853,19 @@ export function downloadLoanReportPdf(
       money(r.total),
       r.note || "—",
     ]),
-    styles: { ...tableStyles, fontSize: 7.5, cellPadding: 1.8 },
-    headStyles: tableHead,
-    alternateRowStyles: tableAlt,
+    fontSize: 7.5,
     columnStyles: {
+      0: { cellWidth: 10,halign: "center" },
+      1: { cellWidth: 16,halign: "center" },
+      2: {halign: "right" },
+      3: {halign: "right" },
+      4: {halign: "right" },
+      5: {halign: "right", fontStyle: "bold" },
       6: { cellWidth: 42 },
     },
   });
-  y = (doc.lastAutoTable?.finalY || y) + 10;
 
-  y = ensureY(doc, y, 24);
+  y = ensureY(doc, y, 20);
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
   doc.text(
