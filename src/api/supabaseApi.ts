@@ -37,10 +37,12 @@ async function syncProfileName(sb: ReturnType<typeof getSupabase>, name: string 
 
 async function requireUser() {
   const sb = getSupabase();
-  const { data, error } = await sb.auth.getUser();
+  // Prefer local session (no Auth network round-trip). JWT still goes with PostgREST.
+  const { data, error } = await sb.auth.getSession();
   throwIf(error);
-  if (!data.user) throw new Error("Unauthorized");
-  return { sb, user: data.user };
+  const user = data.session?.user;
+  if (!user) throw new Error("Unauthorized");
+  return { sb, user };
 }
 
 function roleFor(row: Record<string, unknown>, userId: string): Chit["viewerRole"] {
@@ -55,10 +57,6 @@ async function loadChit(id: string) {
   return mapChit(row, roleFor(row, user.id));
 }
 
-async function loadPayments(chitId: string) {
-  return (await loadChit(chitId)).payments;
-}
-
 export const supabaseApi = {
   authHint() {
     return "Enter the 6-digit SMS code sent to this number.";
@@ -66,7 +64,11 @@ export const supabaseApi = {
 
   onAuthChange(cb: () => void) {
     const sb = getSupabase();
-    const { data } = sb.auth.onAuthStateChange(() => cb());
+    const { data } = sb.auth.onAuthStateChange((event) => {
+      // Skip noise that would re-fetch the whole store on every tab focus / token refresh.
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
+      cb();
+    });
     return () => data.subscription.unsubscribe();
   },
 
@@ -144,7 +146,7 @@ export const supabaseApi = {
 
   async profile() {
     const { sb, user } = await requireUser();
-    const { data, error } = await sb.rpc("reactivate_if_allowed");
+    const { data, error } = await sb.from("profiles").select("*").eq("id", user.id).single();
     throwIf(error);
     const phoneFromAuth = right10(user.phone);
     return mapUser({
@@ -152,6 +154,13 @@ export const supabaseApi = {
       email: (data as { email?: string })?.email || user.email || "",
       phone: (data as { phone?: string })?.phone || phoneFromAuth || "",
     });
+  },
+
+  /** One-shot on app open / login — not on every payment refresh. */
+  async ensureActive() {
+    const { sb } = await requireUser();
+    const { error } = await sb.rpc("reactivate_if_allowed");
+    throwIf(error);
   },
 
   async updateProfile(patch: Partial<User>) {
@@ -305,14 +314,14 @@ export const supabaseApi = {
       p_member_slot: slot ?? null,
     });
     throwIf(error);
-    return loadPayments(chitId);
+    return loadChit(chitId);
   },
 
   async undoPayment(chitId: string, paymentId: string) {
     const { sb } = await requireUser();
     const { error } = await sb.rpc("undo_payment", { p_chit_id: chitId, p_payment_id: paymentId });
     throwIf(error);
-    return loadPayments(chitId);
+    return loadChit(chitId);
   },
 
   async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {

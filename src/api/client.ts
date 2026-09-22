@@ -31,12 +31,13 @@ type Backend = {
     title?: string;
   }) => Promise<Chit>;
   closeCycle: (id: string) => Promise<Chit>;
-  recordPayment: (chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode, slot?: number) => Promise<unknown>;
-  undoPayment: (chitId: string, paymentId: string) => Promise<unknown>;
+  recordPayment: (chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode, slot?: number) => Promise<Chit>;
+  undoPayment: (chitId: string, paymentId: string) => Promise<Chit>;
   settlePayout: (chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) => Promise<AuctionRecord>;
   luckyDraw: (chitId: string) => Promise<AuctionRecord>;
   tickets: () => Promise<unknown>;
   addTicket: (subject: string, message: string) => Promise<unknown>;
+  ensureActive?: () => Promise<void>;
 };
 
 const mockApi: Backend = {
@@ -68,6 +69,7 @@ const mockApi: Backend = {
   luckyDraw: (chitId) => delay(mockServer.auctions.draw(chitId)),
   tickets: () => delay(mockServer.support.list()),
   addTicket: (subject, message) => delay(mockServer.support.create(subject, message)),
+  ensureActive: async () => undefined,
 };
 
 function impl(): Backend {

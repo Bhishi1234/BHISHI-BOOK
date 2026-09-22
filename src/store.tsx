@@ -69,6 +69,14 @@ type Store = {
 
 const Ctx = createContext<Store | null>(null);
 
+function upsertChit(list: Chit[], next: Chit) {
+  const i = list.findIndex((c) => c.id === next.id);
+  if (i < 0) return [next, ...list];
+  const copy = list.slice();
+  copy[i] = next;
+  return copy;
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,8 +87,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   async function reload() {
     try {
-      const me = await api.profile();
-      const [cs, ch, ts] = await Promise.all([
+      const [me, cs, ch, ts] = await Promise.all([
+        api.profile(),
         api.customers(),
         api.chits(),
         api.tickets(),
@@ -99,11 +107,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function patchChit(id: string) {
+    const next = await api.chit(id);
+    setChits((prev) => upsertChit(prev, next));
+    return next;
+  }
+
   useEffect(() => {
-    void reload();
-    return api.onAuthChange(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        await api.ensureActive?.();
+      } catch {
+        // Not signed in yet, or RPC unavailable — fine.
+      }
+      if (!cancelled) await reload();
+    })();
+    const unsub = api.onAuthChange(() => {
       void reload();
     });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
   async function guarded<T>(fn: () => Promise<T>): Promise<T> {
@@ -160,9 +186,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await reload();
       },
       addCustomer: async (name, phone) => {
-        const c = await guarded(() => api.addCustomer(name, phone));
-        await reload();
-        return c as Customer;
+        const c = (await guarded(() => api.addCustomer(name, phone))) as Customer;
+        setCustomers((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)));
+        return c;
       },
       addChit: async (chit) => {
         if (chit.mode === "organise") {
@@ -174,48 +200,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         }
         const created = await guarded(() => api.createChit(chit));
-        await reload();
+        setChits((prev) => upsertChit(prev, created));
         return created.id;
       },
       cancelChit: async (id) => {
-        await guarded(() => api.cancelChit(id));
-        await reload();
+        const next = await guarded(() => api.cancelChit(id));
+        setChits((prev) => upsertChit(prev, next));
       },
       addMember: async (chitId, customerId) => {
-        await guarded(() => api.addMember(chitId, customerId));
-        await reload();
+        const next = await guarded(() => api.addMember(chitId, customerId));
+        setChits((prev) => upsertChit(prev, next));
       },
       updateChitSettings: async (chitId, patch) => {
-        await guarded(() => api.updateChitSettings(chitId, patch));
-        await reload();
+        const next = await guarded(() => api.updateChitSettings(chitId, patch));
+        setChits((prev) => upsertChit(prev, next));
       },
       recordPayment: async (chitId, memberId, amount, kind, mode, slot) => {
-        await guarded(() => api.recordPayment(chitId, memberId, amount, kind, mode, slot));
-        await reload();
+        const next = await guarded(() => api.recordPayment(chitId, memberId, amount, kind, mode, slot));
+        setChits((prev) => upsertChit(prev, next));
       },
       recordAllPayments: async (chitId) => {
         const chit = chits.find((c) => c.id === chitId);
         if (!chit) throw new Error("Not found");
         if (chit.status !== "running") throw new Error("Chit is not running");
+        let next: Chit | null = null;
         await guarded(async () => {
           for (const member of chit.members) {
             const due = cycleDue(chit, member.customerId, chit.currentCycle, member.slot);
             const paid = paidInCycle(chit, member.customerId, chit.currentCycle, member.slot);
             const left = Math.max(0, due - paid);
             if (left > 0) {
-              await api.recordPayment(chitId, member.customerId, left, "full", "cash", member.slot);
+              next = await api.recordPayment(chitId, member.customerId, left, "full", "cash", member.slot);
             }
           }
         });
-        await reload();
+        if (next) setChits((prev) => upsertChit(prev, next!));
+        else await patchChit(chitId);
       },
       undoPayment: async (chitId, paymentId) => {
-        await guarded(() => api.undoPayment(chitId, paymentId));
-        await reload();
+        const next = await guarded(() => api.undoPayment(chitId, paymentId));
+        setChits((prev) => upsertChit(prev, next));
       },
       recordAuction: async (chitId, winnerId, bid, method, winnerSlot) => {
         const rec = await guarded(() => api.settlePayout(chitId, winnerId, bid, method, winnerSlot));
-        await reload();
+        await patchChit(chitId);
         return rec;
       },
       settleBooksEqually: async (chitId) => {
@@ -232,11 +260,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }
           }
         });
-        await reload();
+        await patchChit(chitId);
       },
       luckyDraw: async (chitId) => {
         const rec = await guarded(() => api.luckyDraw(chitId));
-        await reload();
+        await patchChit(chitId);
         return rec;
       },
       closeCycle: async (id) => {
@@ -245,12 +273,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const gate = canCloseLastMonth(chit);
           if (!gate.ok) throw new Error(gate.reason);
         }
-        await guarded(() => api.closeCycle(id));
-        await reload();
+        const next = await guarded(() => api.closeCycle(id));
+        setChits((prev) => upsertChit(prev, next));
       },
       addTicket: async (subject, message) => {
-        await guarded(() => api.addTicket(subject, message));
-        await reload();
+        const t = (await guarded(() => api.addTicket(subject, message))) as Ticket;
+        setTickets((prev) => [t, ...prev]);
       },
     }),
     [ready, error, user, customers, chits, tickets],

@@ -453,7 +453,7 @@ export const mockServer = {
         return { ...c, payments: [...c.payments, payment] };
       });
       write(db);
-      return this.listByChit(chitId);
+      return mockServer.chits.get(chitId);
     },
     listByChit(chitId: string) {
       return mockServer.chits.get(chitId).payments;
@@ -472,7 +472,7 @@ export const mockServer = {
         return { ...c, payments: c.payments.filter((p) => p.id !== paymentId) };
       });
       write(db);
-      return this.listByChit(chitId);
+      return mockServer.chits.get(chitId);
     },
   },
 

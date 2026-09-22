@@ -177,12 +177,12 @@ export const restApi = {
       method: "POST",
       body: JSON.stringify({ memberId, amount, kind, mode, slot }),
     });
-    return (await mapChit(await request(`/api/v1/chits/${chitId}`))).payments;
+    return mapChit(await request(`/api/v1/chits/${chitId}`));
   },
 
   async undoPayment(chitId: string, paymentId: string) {
     await request(`/api/v1/chits/${chitId}/payments/${paymentId}`, { method: "DELETE" });
-    return (await mapChit(await request(`/api/v1/chits/${chitId}`))).payments;
+    return mapChit(await request(`/api/v1/chits/${chitId}`));
   },
 
   async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
