@@ -11,6 +11,8 @@ import {
   handSacrificeDividendsReceived,
   isLastAuctionCycle,
   loanContributionPaid,
+  loanCycleDue,
+  loanPrincipalDueInCycle,
   loanPrincipalOf,
   loanPrincipalRepaid,
   memberLedgerRows,
@@ -486,6 +488,50 @@ assert(!canCloseLastMonth(loanLast).ok, "loan last month with cash should block 
 assert(
   String(canCloseLastMonth(loanLast).reason || "").includes("Settlement"),
   "loan last month reason mentions settlement",
+);
+
+// Principal-at-end: interest months have no principal share; last month has full face
+const balloon = chit({
+  members: [
+    { customerId: "b1", slot: 1 },
+    { customerId: "b2", slot: 2 },
+  ],
+  type: "loan",
+  pot: 20000,
+  instalment: 10000,
+  duration: 4,
+  interestRate: 5,
+  loanPrincipalMode: "end",
+  commissionKind: "amount",
+  commissionValue: 0,
+  auctions: [{
+    cycle: 1,
+    winnerId: "b1",
+    winnerSlot: 1,
+    bid: 20000,
+    method: "fixed",
+    discount: 1000,
+    commission: 0,
+    dividend: 0,
+    payout: 19000,
+    arrearsWithheld: 0,
+  }],
+});
+assert(loanPrincipalDueInCycle(balloon, "b1", 2, 1) === 0, "balloon mid month principal 0");
+assert(loanPrincipalDueInCycle(balloon, "b1", 4, 1) === 20000, "balloon last month full principal");
+// Cycle 2 = first repay month: interest already cut at disbursal → deposit only
+assert(
+  loanCycleDue(balloon, "b1", 2, 1) === 10000,
+  `balloon first repay due ${loanCycleDue(balloon, "b1", 2, 1)}`,
+);
+// Cycle 3 = second repay: deposit + interest, still no principal
+assert(
+  loanCycleDue(balloon, "b1", 3, 1) === 10000 + 1000,
+  `balloon mid due ${loanCycleDue(balloon, "b1", 3, 1)}`,
+);
+assert(
+  loanCycleDue(balloon, "b1", 4, 1) === 10000 + 1000 + 20000,
+  `balloon end due ${loanCycleDue(balloon, "b1", 4, 1)}`,
 );
 
 console.log("chit math ok");

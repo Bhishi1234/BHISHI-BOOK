@@ -41,6 +41,7 @@ export function NewChitPage() {
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
   const [interest, setInterest] = useState("5");
   const [tenure, setTenure] = useState("");
+  const [loanPrincipalMode, setLoanPrincipalMode] = useState<"emi" | "end">("emi");
   const [visible, setVisible] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -228,6 +229,7 @@ export function NewChitPage() {
         fixedStyle: type === "fixed" ? fixedStyle : undefined,
         interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
+        loanPrincipalMode: type === "loan" ? loanPrincipalMode : undefined,
         remindDays: [],
         memberVisible: visible,
       });
@@ -495,6 +497,28 @@ export function NewChitPage() {
                     <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
                     <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value)} />
                     <p className="hint">{m.newChitExtra.repaymentCapHint}</p>
+                    <label className="label">{m.newChitExtra.principalModeLabel}</label>
+                    <div className="seg" style={{ marginBottom: 8 }}>
+                      <button
+                        type="button"
+                        className={`chip ${loanPrincipalMode === "emi" ? "on" : ""}`}
+                        onClick={() => setLoanPrincipalMode("emi")}
+                      >
+                        {m.newChitExtra.principalEmi}
+                      </button>
+                      <button
+                        type="button"
+                        className={`chip ${loanPrincipalMode === "end" ? "on" : ""}`}
+                        onClick={() => setLoanPrincipalMode("end")}
+                      >
+                        {m.newChitExtra.principalAtEnd}
+                      </button>
+                    </div>
+                    <p className="hint">
+                      {loanPrincipalMode === "end"
+                        ? m.newChitExtra.principalAtEndHint
+                        : m.newChitExtra.principalEmiHint}
+                    </p>
                   </>
                 )}
                 {type === "auction" && auctionStyle === "collect_first" && (

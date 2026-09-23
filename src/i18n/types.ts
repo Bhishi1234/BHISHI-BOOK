@@ -358,6 +358,8 @@ export type Messages = {
     payout: string;
     loanGiven: string;
     giveLoan: string;
+    skipLoan: string;
+    skipLoanHint: string;
     loanAmount: string;
     winningBidPlaceholder: string;
     rollLuckyDraw: string;
@@ -610,6 +612,11 @@ export type Messages = {
     interestExplain: string;
     repaymentTenureLabel: string;
     repaymentCapHint: string;
+    principalModeLabel: string;
+    principalEmi: string;
+    principalAtEnd: string;
+    principalEmiHint: string;
+    principalAtEndHint: string;
     adjustmentStyle: string;
     everyMonth: string;
     atEnd: string;

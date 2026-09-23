@@ -93,6 +93,12 @@ export type Chit = {
   premiumAmount?: number;
   interestRate?: number;
   repaymentTenure?: number;
+  /**
+   * Loan repayment of principal:
+   * - emi: principal share each repayment month (default)
+   * - end: interest (+ hapta) each month; full principal on the last repayment month
+   */
+  loanPrincipalMode?: "emi" | "end";
   title?: string;
   commissionKind?: "amount" | "percent";
   commissionValue?: number;

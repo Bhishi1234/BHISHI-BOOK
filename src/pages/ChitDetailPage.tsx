@@ -106,6 +106,7 @@ export function ChitDetailPage() {
   const [newMemberId, setNewMemberId] = useState("");
   const [visible, setVisible] = useState(true);
   const [unpaidNoted, setUnpaidNoted] = useState(false);
+  const [loanSkipped, setLoanSkipped] = useState(false);
   const [colRange, setColRange] = useState<"today" | "week" | "all">("all");
   const [busyAll, setBusyAll] = useState(false);
   const [busySettle, setBusySettle] = useState(false);
@@ -115,6 +116,11 @@ export function ChitDetailPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [loanShare, setLoanShare] = useState<AuctionRecord | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setUnpaidNoted(false);
+    setLoanSkipped(false);
+  }, [chit?.id, chit?.currentCycle]);
 
   useEffect(() => {
     if (!chit) return;
@@ -132,18 +138,19 @@ export function ChitDetailPage() {
       const due = cycleDue(chit, m.customerId, cyc, m.slot);
       return due - paidInCycle(chit, m.customerId, cyc, m.slot) > 0;
     }).length;
+    const loanOk = chit.type === "loan" && (Boolean(lw) || loanSkipped || !canGiveLoan(chit));
     if (af) {
-      if (!lw) setMonthSub("award");
+      if (!lw && !loanOk) setMonthSub("award");
       else if (dueLeft > 0) setMonthSub("collect");
       else setMonthSub("close");
-    } else if (lw || (chit.type === "loan" && canSettleCycle(chit))) {
-      setMonthSub(lw ? "close" : "award");
+    } else if (lw || loanOk || (chit.type === "loan" && canSettleCycle(chit))) {
+      setMonthSub(lw || loanSkipped ? "close" : chit.type === "loan" ? "award" : "close");
     } else if (canSettleCycle(chit)) {
       setMonthSub("award");
     } else {
       setMonthSub("collect");
     }
-  }, [tab, chit?.id, chit?.currentCycle]);
+  }, [tab, chit?.id, chit?.currentCycle, loanSkipped]);
 
   useEffect(() => {
     if (!chit) return;
@@ -215,6 +222,11 @@ export function ChitDetailPage() {
   const lastMember = lastAuctionMonth ? unprized[0] : undefined;
   const auctionFirst = isAuctionFirst(data);
   const awardFirst = isAwardFirst(data);
+  /** Loan can skip giving a loan; other types need a recorded award. */
+  const awardResolved =
+    data.type === "loan"
+      ? Boolean(lastWin) || loanSkipped || !loanAllowed
+      : Boolean(lastWin);
   const shareHint = lastWin && auctionFirst
     ? auctionFirstShare(data, cycle)
     : null;
@@ -391,11 +403,13 @@ export function ChitDetailPage() {
               </div>
             </div>
           </div>
-          {(data.type === "loan" && (data.interestRate != null || data.repaymentTenure)) && (
+          {(data.type === "loan" && (data.interestRate != null || data.repaymentTenure || data.loanPrincipalMode)) && (
             <p className="chit-hero-note">
               {data.interestRate != null ? `Interest ${data.interestRate}%` : ""}
               {data.interestRate != null && data.repaymentTenure ? " · " : ""}
               {data.repaymentTenure ? `Repay ${data.repaymentTenure} mo` : ""}
+              {(data.interestRate != null || data.repaymentTenure) ? " · " : ""}
+              {data.loanPrincipalMode === "end" ? "Principal at end" : "Principal + interest monthly"}
             </p>
           )}
         </section>
@@ -631,8 +645,17 @@ export function ChitDetailPage() {
                               <div className="muted">M{row.repayFrom}–M{row.repayTo}</div>
                             </td>
                             <td>
-                              {inr(row.principalSharePerMonth)}
-                              <div className="muted">+ {inr(row.interestPerMonth)} int/mo</div>
+                              {row.principalAtEnd ? (
+                                <>
+                                  {inr(row.face)} at end
+                                  <div className="muted">+ {inr(row.interestPerMonth)} int/mo</div>
+                                </>
+                              ) : (
+                                <>
+                                  {inr(row.principalSharePerMonth)}
+                                  <div className="muted">+ {inr(row.interestPerMonth)} int/mo</div>
+                                </>
+                              )}
                             </td>
                             <td>
                               {auction ? (
@@ -807,9 +830,9 @@ export function ChitDetailPage() {
                     { id: "award" as const, label: `2. ${awardLabel}` },
                     { id: "close" as const, label: `3. ${copy.chit.closeStep}` },
                   ];
-              const awardDone = Boolean(lastWin) || (data.type === "loan" && !loanAllowed);
+              const awardDone = awardResolved;
               const collectDone = awardFirst
-                ? Boolean(lastWin) && remainDue === 0
+                ? awardResolved && remainDue === 0
                 : collectedThisCycle(data) > 0 || unpaidNoted;
               return (
                 <div className="month-steps" role="tablist" aria-label={copy.chit.monthlySteps}>
@@ -856,7 +879,7 @@ export function ChitDetailPage() {
                 <div className="seg">
                   <button
                     className="btn"
-                    disabled={!isRunning || !remainDue || busyAll || (awardFirst && !lastWin)}
+                    disabled={!isRunning || !remainDue || busyAll || (awardFirst && !awardResolved)}
                     onClick={() => {
                       setBusyAll(true);
                       void recordAllPayments(data.id).finally(() => {
@@ -867,7 +890,7 @@ export function ChitDetailPage() {
                   >
                     {busyAll ? copy.chit.recording : copy.chit.recordAll}
                   </button>
-                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (awardFirst && !lastWin)} onClick={() => {
+                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (awardFirst && !awardResolved)} onClick={() => {
                     setUnpaidNoted(true);
                     goAfterCollect();
                   }}>
@@ -875,11 +898,13 @@ export function ChitDetailPage() {
                   </button>
                 </div>
               </div>
-              {awardFirst && !lastWin && (
+              {awardFirst && !awardResolved && (
                 <p className="month-hint">
                   {auctionFirst
                     ? "Record the auction first (Award tab). Then each member owes winning bid ÷ members — the winner’s share counts as paid-in (self-contribution), so cash on hand stays ₹0."
-                    : "Award the pot first (Award tab), then record hapta payments for this month."}
+                    : data.type === "loan"
+                      ? "Give a loan or skip loan this month (Award tab), then record hapta payments."
+                      : "Award the pot first (Award tab), then record hapta payments for this month."}
                 </p>
               )}
               {auctionFirst && lastWin && shareHint != null && (
@@ -898,7 +923,7 @@ export function ChitDetailPage() {
               {unpaidNoted && remainDue > 0 && (
                 <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button{awardFirst ? "." : "; auction still needs at least one receipt."}</p>
               )}
-              {!awardFirst || lastWin ? (
+              {!awardFirst || awardResolved ? (
               <div className="table-wrap">
                 <table className="table month-table">
                   <thead>
@@ -944,7 +969,7 @@ export function ChitDetailPage() {
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            {isRunning && !(awardFirst && !lastWin) && (status === "due" || status === "partial") ? (
+                            {isRunning && !(awardFirst && !awardResolved) && (status === "due" || status === "partial") ? (
                               <button className="btn ghost btn-sm" onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}>{copy.chit.record}</button>
                             ) : (
                               <span className="muted">—</span>
@@ -1242,13 +1267,19 @@ export function ChitDetailPage() {
                             />
                             <button
                               className="btn"
-                              disabled={!winnerId || winnerSlot == null || !Number(bid) || Number(bid) > cashOnHand}
+                              disabled={
+                                !winnerId
+                                || winnerSlot == null
+                                || !Number(bid)
+                                || (!awardFirst && Number(bid) > cashOnHand)
+                              }
                               onClick={() => {
                                 const amount = Number(bid);
                                 void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot).then((rec) => {
                                   setBid(String(data.pot));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
+                                  setLoanSkipped(false);
                                   if (rec) setLoanShare(rec);
                                   goAfterAward();
                                 });
@@ -1270,7 +1301,9 @@ export function ChitDetailPage() {
                             const start = cycle;
                             const tenure = loanEffectiveTenure(data, start);
                             const face = Number(bid);
-                            const share = Math.ceil(face / tenure);
+                            const share = (data.loanPrincipalMode || "emi") === "end"
+                              ? face
+                              : Math.ceil(face / tenure);
                             const interest = loanMonthlyInterest(data, face);
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
@@ -1282,16 +1315,48 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>Repayment months</span><strong>{tenure} (remaining of chit: {Math.max(0, data.duration - start)})</strong></div>
                                 <div className="kv"><span>From next month · deposit</span><strong>{inr(data.instalment)}</strong></div>
                                 <div className="kv"><span>Interest / month after 1st repay</span><strong>{inr(interest)} ({data.interestRate || 0}% of principal)</strong></div>
-                                <div className="kv"><span>Principal share / month</span><strong>{inr(share)} over {tenure} mo</strong></div>
+                                <div className="kv">
+                                  <span>{(data.loanPrincipalMode || "emi") === "end" ? "Principal (last month)" : "Principal share / month"}</span>
+                                  <strong>
+                                    {inr(share)}
+                                    {(data.loanPrincipalMode || "emi") === "end" ? " at end" : ` over ${tenure} mo`}
+                                  </strong>
+                                </div>
                                 <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
-                                {cashAfter < 0 && <p className="due">Not enough cash on hand for this loan.</p>}
+                                {cashAfter < 0 && !awardFirst && <p className="due">Not enough cash on hand for this loan.</p>}
                               </div>
                             );
                           })()}
-                          <p className="muted" style={{ marginTop: 12 }}>You can skip giving a loan this month and still close it after collections.</p>
+                          <button
+                            type="button"
+                            className="btn ghost wide"
+                            style={{ marginTop: 12 }}
+                            onClick={() => {
+                              setLoanSkipped(true);
+                              setLoanShare(null);
+                              goAfterAward();
+                            }}
+                          >
+                            {copy.chit.skipLoan}
+                          </button>
+                          <p className="muted" style={{ marginTop: 8 }}>{copy.chit.skipLoanHint}</p>
                         </>
                       )}
                     </>
+                  )}
+                  {data.type === "loan" && loanSkipped && !monthLoans.length && (
+                    <div className="card" style={{ marginTop: 12, background: "#f0fdf4" }}>
+                      <strong>{copy.chit.skipLoan}</strong>
+                      <p className="muted" style={{ margin: "6px 0 0" }}>{copy.chit.skipLoanHint}</p>
+                      <button
+                        type="button"
+                        className="btn ghost btn-sm"
+                        style={{ marginTop: 8 }}
+                        onClick={() => setLoanSkipped(false)}
+                      >
+                        {copy.common.back}
+                      </button>
+                    </div>
                   )}
                   {fixedLike && !lastWin && (
                     <>
