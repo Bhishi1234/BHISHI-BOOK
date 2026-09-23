@@ -403,13 +403,15 @@ export function ChitDetailPage() {
               </div>
             </div>
           </div>
-          {(data.type === "loan" && (data.interestRate != null || data.repaymentTenure || data.loanPrincipalMode)) && (
+          {(data.type === "loan" && (data.interestRate != null || data.repaymentTenure || data.loanPrincipalMode || data.loanInterestUpfront != null)) && (
             <p className="chit-hero-note">
               {data.interestRate != null ? `Interest ${data.interestRate}%` : ""}
               {data.interestRate != null && data.repaymentTenure ? " · " : ""}
               {data.repaymentTenure ? `Repay ${data.repaymentTenure} mo` : ""}
               {(data.interestRate != null || data.repaymentTenure) ? " · " : ""}
-              {data.loanPrincipalMode === "end" ? "Principal at end" : "Principal + interest monthly"}
+              {data.loanPrincipalMode === "end" ? "Principal at end" : "Principal + interest (reducing)"}
+              {" · "}
+              {data.loanInterestUpfront === false ? "Interest from next month" : "Interest cut at give"}
             </p>
           )}
         </section>
@@ -1305,21 +1307,28 @@ export function ChitDetailPage() {
                               ? face
                               : Math.ceil(face / tenure);
                             const interest = loanMonthlyInterest(data, face);
+                            const balloon = (data.loanPrincipalMode || "emi") === "end";
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.hand}</span><strong>Slot {winnerSlot}</strong></div>
                                 <div className="kv"><span>Face loan</span><strong>{inr(face)}</strong></div>
-                                <div className="kv"><span>Interest cut now (stays in pot)</span><strong>{inr(preview.discount)}</strong></div>
+                                <div className="kv">
+                                  <span>{preview.discount > 0 ? "Interest cut now (stays in pot)" : "Interest cut now"}</span>
+                                  <strong>{inr(preview.discount)}{preview.discount === 0 ? " (none — from next month)" : ""}</strong>
+                                </div>
                                 <div className="kv"><span>Borrower receives</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>Your commission</span><strong>{inr(preview.commission)}</strong></div>
                                 <div className="kv"><span>Repayment months</span><strong>{tenure} (remaining of chit: {Math.max(0, data.duration - start)})</strong></div>
                                 <div className="kv"><span>From next month · deposit</span><strong>{inr(data.instalment)}</strong></div>
-                                <div className="kv"><span>Interest / month after 1st repay</span><strong>{inr(interest)} ({data.interestRate || 0}% of principal)</strong></div>
                                 <div className="kv">
-                                  <span>{(data.loanPrincipalMode || "emi") === "end" ? "Principal (last month)" : "Principal share / month"}</span>
+                                  <span>{balloon ? "Interest / month" : "Interest (first month on face; then reducing)"}</span>
+                                  <strong>{inr(interest)} ({data.interestRate || 0}%{balloon ? " of face" : " of outstanding"})</strong>
+                                </div>
+                                <div className="kv">
+                                  <span>{balloon ? "Principal (last month)" : "Principal share / month"}</span>
                                   <strong>
                                     {inr(share)}
-                                    {(data.loanPrincipalMode || "emi") === "end" ? " at end" : ` over ${tenure} mo`}
+                                    {balloon ? " at end" : ` over ${tenure} mo`}
                                   </strong>
                                 </div>
                                 <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>

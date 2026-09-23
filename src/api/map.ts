@@ -106,6 +106,7 @@ export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerR
       ? num(row.repayment_tenure ?? row.repaymentTenure)
       : undefined,
     loanPrincipalMode: ((row.loan_principal_mode ?? row.loanPrincipalMode) === "end" ? "end" : "emi") as Chit["loanPrincipalMode"],
+    loanInterestUpfront: (row.loan_interest_upfront ?? row.loanInterestUpfront) === false ? false : true,
     commissionKind: (row.commission_kind as Chit["commissionKind"]) || (row.commissionKind as Chit["commissionKind"]),
     commissionValue: num(row.commission_value ?? row.commissionValue),
     adjustmentStyle: (row.adjustment_style as Chit["adjustmentStyle"]) || (row.adjustmentStyle as Chit["adjustmentStyle"]),
@@ -151,6 +152,7 @@ export function chitPayload(input: Omit<Chit, "id" | "payments" | "status">) {
     interestRate: input.interestRate ?? "",
     repaymentTenure: input.repaymentTenure ?? "",
     loanPrincipalMode: input.loanPrincipalMode ?? "emi",
+    loanInterestUpfront: input.loanInterestUpfront !== false,
     commissionKind: input.commissionKind ?? "percent",
     commissionValue: input.commissionValue ?? 0,
     adjustmentStyle: input.adjustmentStyle ?? "every_month",

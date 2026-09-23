@@ -610,6 +610,11 @@ export type Messages = {
     percentKind: string;
     interestRateLabel: string;
     interestExplain: string;
+    interestCutLabel: string;
+    interestCutAtGive: string;
+    interestCutNextMonth: string;
+    interestCutAtGiveHint: string;
+    interestCutNextMonthHint: string;
     repaymentTenureLabel: string;
     repaymentCapHint: string;
     principalModeLabel: string;

@@ -320,8 +320,8 @@ assert(lateLoan.discount === 1000, `late upfront ${lateLoan.discount}`);
 assert(lateLoan.payout === 19000, `late net ${lateLoan.payout}`);
 late.currentCycle = 4;
 assert(rawCycleDue(late, "m1", 4) === 10000 + 0 + 10000, `late m4 due ${rawCycleDue(late, "m1", 4)}`);
-loan.currentCycle = 5;
-assert(rawCycleDue(late, "m1", 5) === 10000 + 1000 + 10000, `late m5 due ${rawCycleDue(late, "m1", 5)}`);
+// Tenure 2 (capped): month 2 outstanding 10k → interest 500 (reducing), principal 10k
+assert(rawCycleDue(late, "m1", 5) === 10000 + 500 + 10000, `late m5 due ${rawCycleDue(late, "m1", 5)}`);
 
 // Multi-hand: same person, 2 slots → each hand independent (1× instalment each)
 const multi = chit({
@@ -532,6 +532,72 @@ assert(
 assert(
   loanCycleDue(balloon, "b1", 4, 1) === 10000 + 1000 + 20000,
   `balloon end due ${loanCycleDue(balloon, "b1", 4, 1)}`,
+);
+
+// EMI reducing-balance: interest falls as principal is repaid
+const reducing = chit({
+  members: [
+    { customerId: "r1", slot: 1 },
+    { customerId: "r2", slot: 2 },
+  ],
+  type: "loan",
+  pot: 20000,
+  instalment: 10000,
+  duration: 4,
+  interestRate: 5,
+  repaymentTenure: 2,
+  loanPrincipalMode: "emi",
+  loanInterestUpfront: true,
+  commissionKind: "amount",
+  commissionValue: 0,
+  auctions: [{
+    cycle: 1,
+    winnerId: "r1",
+    winnerSlot: 1,
+    bid: 20000,
+    method: "fixed",
+    discount: 1000,
+    commission: 0,
+    dividend: 0,
+    payout: 19000,
+    arrearsWithheld: 0,
+  }],
+});
+// Cycle 2: first repay — interest already cut → deposit + principal share only
+assert(
+  loanCycleDue(reducing, "r1", 2, 1) === 10000 + 0 + 10000,
+  `reducing m1 due ${loanCycleDue(reducing, "r1", 2, 1)}`,
+);
+// Cycle 3: outstanding 10k → interest 500 + principal 10k
+assert(
+  loanCycleDue(reducing, "r1", 3, 1) === 10000 + 500 + 10000,
+  `reducing m2 due ${loanCycleDue(reducing, "r1", 3, 1)}`,
+);
+
+// Interest not cut at give → full face payout; first repay includes interest
+const deferred = chit({
+  members: [
+    { customerId: "d1", slot: 1 },
+    { customerId: "d2", slot: 2 },
+  ],
+  type: "loan",
+  pot: 20000,
+  instalment: 10000,
+  duration: 3,
+  interestRate: 5,
+  loanPrincipalMode: "end",
+  loanInterestUpfront: false,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+collectAll(deferred, 10000);
+const dg = settleWinner(deferred, "d1", 20000, "fixed");
+assert(dg.discount === 0, `deferred no upfront cut ${dg.discount}`);
+assert(dg.payout === 20000, `deferred full face ${dg.payout}`);
+deferred.auctions.push(dg);
+assert(
+  loanCycleDue({ ...deferred, auctions: [dg] }, "d1", 2, 1) === 10000 + 1000,
+  `deferred first repay includes interest`,
 );
 
 console.log("chit math ok");

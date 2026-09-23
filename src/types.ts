@@ -95,10 +95,16 @@ export type Chit = {
   repaymentTenure?: number;
   /**
    * Loan repayment of principal:
-   * - emi: principal share each repayment month (default)
-   * - end: interest (+ hapta) each month; full principal on the last repayment month
+   * - emi: equal principal share each month + reducing-balance interest on outstanding
+   * - end: straight-line interest on face each month; full principal on last repay month
    */
   loanPrincipalMode?: "emi" | "end";
+  /**
+   * When true (default), one month’s interest is cut from the loan payout at disbursal
+   * and the first repay month skips that interest. When false, full face is paid out and
+   * interest starts from the first repayment month.
+   */
+  loanInterestUpfront?: boolean;
   title?: string;
   commissionKind?: "amount" | "percent";
   commissionValue?: number;

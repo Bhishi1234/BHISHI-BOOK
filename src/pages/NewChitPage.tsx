@@ -42,6 +42,7 @@ export function NewChitPage() {
   const [interest, setInterest] = useState("5");
   const [tenure, setTenure] = useState("");
   const [loanPrincipalMode, setLoanPrincipalMode] = useState<"emi" | "end">("emi");
+  const [loanInterestUpfront, setLoanInterestUpfront] = useState(true);
   const [visible, setVisible] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -230,6 +231,7 @@ export function NewChitPage() {
         interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
         loanPrincipalMode: type === "loan" ? loanPrincipalMode : undefined,
+        loanInterestUpfront: type === "loan" ? loanInterestUpfront : undefined,
         remindDays: [],
         memberVisible: visible,
       });
@@ -493,7 +495,28 @@ export function NewChitPage() {
                         <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
                       ))}
                     </div>
-                    <p className="hint">{m.newChitExtra.interestExplain}</p>
+                    <label className="label">{m.newChitExtra.interestCutLabel}</label>
+                    <div className="seg" style={{ marginBottom: 8 }}>
+                      <button
+                        type="button"
+                        className={`chip ${loanInterestUpfront ? "on" : ""}`}
+                        onClick={() => setLoanInterestUpfront(true)}
+                      >
+                        {m.newChitExtra.interestCutAtGive}
+                      </button>
+                      <button
+                        type="button"
+                        className={`chip ${!loanInterestUpfront ? "on" : ""}`}
+                        onClick={() => setLoanInterestUpfront(false)}
+                      >
+                        {m.newChitExtra.interestCutNextMonth}
+                      </button>
+                    </div>
+                    <p className="hint">
+                      {loanInterestUpfront
+                        ? m.newChitExtra.interestCutAtGiveHint
+                        : m.newChitExtra.interestCutNextMonthHint}
+                    </p>
                     <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
                     <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value)} />
                     <p className="hint">{m.newChitExtra.repaymentCapHint}</p>

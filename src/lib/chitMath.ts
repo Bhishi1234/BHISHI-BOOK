@@ -268,6 +268,11 @@ export function loanMonthlyInterest(chit: Chit, principal: number) {
   return Math.round((principal * rate) / 100);
 }
 
+/** Whether this chit cuts interest from the payout when the loan is given (default true). */
+export function loanCutsInterestUpfront(chit: Chit) {
+  return chit.loanInterestUpfront !== false;
+}
+
 export function loanHadUpfrontInterest(chit: Chit, memberId: string, slot?: number) {
   return chit.auctions.some(
     (a) =>
@@ -278,59 +283,93 @@ export function loanHadUpfrontInterest(chit: Chit, memberId: string, slot?: numb
   );
 }
 
+/** Equal principal share for monthIndex (1..tenure) under EMI / reducing mode. */
+function loanEmiPrincipalShare(face: number, tenure: number, monthIndex: number) {
+  const baseShare = Math.ceil(face / tenure);
+  if (monthIndex === tenure) {
+    return Math.max(0, face - baseShare * (tenure - 1));
+  }
+  return baseShare;
+}
+
+/** Outstanding principal before repayment monthIndex (1-based) for EMI reducing schedule. */
+function loanEmiOutstandingBefore(face: number, tenure: number, monthIndex: number) {
+  if (monthIndex <= 1) return face;
+  const baseShare = Math.ceil(face / tenure);
+  return Math.max(0, face - baseShare * (monthIndex - 1));
+}
+
 /**
- * Loan due for one hand = deposit + interest + principal share for that hand’s loan only.
+ * Interest + principal due in `cycle` for one loan auction row.
+ * - end (balloon): straight-line interest on face; principal only on last month
+ * - emi: equal principal slices; interest = rate × outstanding (reducing balance)
+ */
+export function loanAuctionPartsDue(
+  chit: Chit,
+  auction: AuctionRecord,
+  cycle: number,
+): { interest: number; principal: number; monthIndex: number; tenure: number } {
+  const face = loanFaceAmount(auction);
+  const start = auction.cycle;
+  const tenure = loanEffectiveTenure(chit, start);
+  const monthIndex = cycle - start;
+  if (monthIndex < 1 || monthIndex > tenure || face <= 0) {
+    return { interest: 0, principal: 0, monthIndex, tenure };
+  }
+  const hadUpfront = (Number(auction.discount) || 0) > 0;
+  const balloon = (chit.loanPrincipalMode || "emi") === "end";
+
+  if (balloon) {
+    const interestFlat = loanMonthlyInterest(chit, face);
+    const interest = hadUpfront && monthIndex === 1 ? 0 : interestFlat;
+    const principal = monthIndex === tenure ? face : 0;
+    return { interest, principal, monthIndex, tenure };
+  }
+
+  const outstanding = loanEmiOutstandingBefore(face, tenure, monthIndex);
+  const interestReducing = loanMonthlyInterest(chit, outstanding);
+  const interest = hadUpfront && monthIndex === 1 ? 0 : interestReducing;
+  const principal = loanEmiPrincipalShare(face, tenure, monthIndex);
+  return { interest, principal, monthIndex, tenure };
+}
+
+function loansForHand(chit: Chit, memberId: string, slot?: number) {
+  return chit.auctions.filter(
+    (a) => a.winnerId === memberId && a.method === "fixed" && loanMatchesHand(chit, a, slot),
+  );
+}
+
+/**
+ * Loan due for one hand = deposit + interest + principal for that hand’s loan(s).
  */
 export function loanCycleDue(chit: Chit, memberId: string, cycle: number, slot?: number) {
   const base = baseInstalment(chit);
-  const principal = loanPrincipalOf(chit, memberId, slot);
-  if (!principal) return base;
-  const start = firstLoanCycle(chit, memberId, slot);
-  if (!start || cycle <= start) return base;
-  const tenure = loanEffectiveTenure(chit, start);
-  const monthIndex = cycle - start;
-  if (monthIndex < 1 || monthIndex > tenure) return base;
-
-  const interestMonthly = loanMonthlyInterest(chit, principal);
-  const interest =
-    loanHadUpfrontInterest(chit, memberId, slot) && monthIndex === 1 ? 0 : interestMonthly;
-
-  const share = loanPrincipalDueInCycle(chit, memberId, cycle, slot);
-  return base + interest + share;
+  const loans = loansForHand(chit, memberId, slot);
+  if (!loans.length) return base;
+  let interest = 0;
+  let principal = 0;
+  for (const a of loans) {
+    const part = loanAuctionPartsDue(chit, a, cycle);
+    interest += part.interest;
+    principal += part.principal;
+  }
+  return base + interest + principal;
 }
 
 /** Interest portion due in a repayment cycle for this hand. */
 export function loanInterestDueInCycle(chit: Chit, memberId: string, cycle: number, slot?: number) {
-  const principal = loanPrincipalOf(chit, memberId, slot);
-  if (!principal) return 0;
-  const start = firstLoanCycle(chit, memberId, slot);
-  if (!start || cycle <= start) return 0;
-  const tenure = loanEffectiveTenure(chit, start);
-  const monthIndex = cycle - start;
-  if (monthIndex < 1 || monthIndex > tenure) return 0;
-  if (loanHadUpfrontInterest(chit, memberId, slot) && monthIndex === 1) return 0;
-  return loanMonthlyInterest(chit, principal);
+  return loansForHand(chit, memberId, slot).reduce(
+    (s, a) => s + loanAuctionPartsDue(chit, a, cycle).interest,
+    0,
+  );
 }
 
 /** Principal share due in a repayment cycle for this hand (0 before/after tenure). */
 export function loanPrincipalDueInCycle(chit: Chit, memberId: string, cycle: number, slot?: number) {
-  const principal = loanPrincipalOf(chit, memberId, slot);
-  if (!principal) return 0;
-  const start = firstLoanCycle(chit, memberId, slot);
-  if (!start || cycle <= start) return 0;
-  const tenure = loanEffectiveTenure(chit, start);
-  const monthIndex = cycle - start;
-  if (monthIndex < 1 || monthIndex > tenure) return 0;
-  // Balloon: all principal on the last repayment month only.
-  if ((chit.loanPrincipalMode || "emi") === "end") {
-    return monthIndex === tenure ? principal : 0;
-  }
-  let share = Math.ceil(principal / tenure);
-  if (monthIndex === tenure) {
-    const prior = Math.ceil(principal / tenure) * (tenure - 1);
-    share = Math.max(0, principal - prior);
-  }
-  return share;
+  return loansForHand(chit, memberId, slot).reduce(
+    (s, a) => s + loanAuctionPartsDue(chit, a, cycle).principal,
+    0,
+  );
 }
 
 /**
@@ -874,8 +913,8 @@ export function loanDetailRows(chit: Chit) {
     .map((a) => {
       const face = loanFaceAmount(a);
       const tenure = loanEffectiveTenure(chit, a.cycle);
-      const interestMo = loanMonthlyInterest(chit, face);
       const balloon = (chit.loanPrincipalMode || "emi") === "end";
+      const interestMo = loanMonthlyInterest(chit, face);
       const share = balloon ? face : Math.ceil(face / tenure);
       return {
         id: a.id,
@@ -889,6 +928,7 @@ export function loanDetailRows(chit: Chit) {
         tenure,
         remainingAtLoan: loanRemainingMonths(chit, a.cycle),
         interestPerMonth: interestMo,
+        interestReducing: !balloon,
         principalSharePerMonth: share,
         principalAtEnd: balloon,
         repayFrom: a.cycle + 1,
@@ -909,41 +949,31 @@ export type LoanScheduleRow = {
 
 /** Month-by-month repayment schedule for one loan award. */
 export function loanRepaymentSchedule(chit: Chit, auction: AuctionRecord): LoanScheduleRow[] {
-  const face = loanFaceAmount(auction);
   const start = auction.cycle;
   const tenure = loanEffectiveTenure(chit, start);
   const deposit = baseInstalment(chit);
-  const interestMo = loanMonthlyInterest(chit, face);
   const hadUpfront = (Number(auction.discount) || 0) > 0;
   const balloon = (chit.loanPrincipalMode || "emi") === "end";
-  const baseShare = Math.ceil(face / tenure);
   const rows: LoanScheduleRow[] = [];
   for (let i = 1; i <= tenure; i++) {
     const cycle = start + i;
-    let principal: number;
-    if (balloon) {
-      principal = i === tenure ? face : 0;
-    } else {
-      principal = baseShare;
-      if (i === tenure) {
-        principal = Math.max(0, face - baseShare * (tenure - 1));
-      }
-    }
-    const interest = hadUpfront && i === 1 ? 0 : interestMo;
+    const part = loanAuctionPartsDue(chit, auction, cycle);
     rows.push({
       monthIndex: i,
       cycle,
       deposit,
-      interest,
-      principal,
-      total: deposit + interest + principal,
+      interest: part.interest,
+      principal: part.principal,
+      total: deposit + part.interest + part.principal,
       note: balloon && i === tenure
         ? "Principal due in full"
         : balloon
           ? "Interest only (+ hapta)"
           : hadUpfront && i === 1
             ? "Interest already cut at disbursal"
-            : undefined,
+            : !balloon
+              ? "Reducing-balance interest"
+              : undefined,
     });
   }
   return rows;
@@ -1060,9 +1090,9 @@ export function settleWinner(
       safeBid = Math.min(safeBid, maxPayout);
     }
   } else if (method === "fixed" && chit.type === "loan") {
-    // Face principal; one month’s interest is cut from the amount handed over and stays in the pot.
+    // Face principal; optional one month’s interest cut stays in the pot (loanInterestUpfront).
     safeBid = Math.max(0, Number(bid) || 0);
-    discount = loanMonthlyInterest(chit, safeBid);
+    discount = loanCutsInterestUpfront(chit) ? loanMonthlyInterest(chit, safeBid) : 0;
   } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice")) {
     const requested = Math.max(0, Number(bid) || chit.pot);
     if (awardFirst) {
