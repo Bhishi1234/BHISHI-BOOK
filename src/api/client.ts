@@ -24,6 +24,8 @@ type Backend = {
   createChit: (input: Omit<Chit, "id" | "payments" | "status">) => Promise<Chit>;
   cancelChit: (id: string) => Promise<Chit>;
   addMember: (chitId: string, customerId: string) => Promise<Chit>;
+  removeMember: (chitId: string, slot: number) => Promise<Chit>;
+  swapMember: (chitId: string, slot: number, newCustomerId: string) => Promise<Chit>;
   updateChitSettings: (chitId: string, patch: {
     memberVisible?: boolean;
     remindDays?: number[];
@@ -62,6 +64,8 @@ const mockApi: Backend = {
   createChit: (input) => delay(mockServer.chits.create(input)),
   cancelChit: (id) => delay(mockServer.chits.cancel(id)),
   addMember: (chitId, customerId) => delay(mockServer.chits.addMember(chitId, customerId)),
+  removeMember: (chitId, slot) => delay(mockServer.chits.removeMember(chitId, slot)),
+  swapMember: (chitId, slot, newCustomerId) => delay(mockServer.chits.swapMember(chitId, slot, newCustomerId)),
   updateChitSettings: (chitId, patch) => delay(mockServer.chits.updateSettings(chitId, patch)),
   closeCycle: (id) => delay(mockServer.chits.closeCycle(id)),
   recordPayment: (chitId, memberId, amount, kind, mode, slot) =>

@@ -331,6 +331,18 @@ export type Messages = {
     monthlyBreakdown: string;
     addMember: string;
     addHand: string;
+    swapMember: string;
+    swapMemberTitle: string;
+    swapMemberHint: string;
+    swapMemberConfirm: string;
+    cannotAddAfterStart: string;
+    removeMember: string;
+    removeMemberConfirm: string;
+    membersBeforeStartHint: string;
+    membersAfterStartHint: string;
+    inlineAddName: string;
+    inlineAddPhone: string;
+    inlineAdd: string;
     slot: string;
     handOf: string;
     memberVisibility: string;

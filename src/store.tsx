@@ -38,6 +38,8 @@ type Store = {
   addChit: (chit: Omit<Chit, "id" | "payments" | "status">) => Promise<string>;
   cancelChit: (id: string) => Promise<void>;
   addMember: (chitId: string, customerId: string) => Promise<void>;
+  removeMember: (chitId: string, slot: number) => Promise<void>;
+  swapMember: (chitId: string, slot: number, newCustomerId: string) => Promise<void>;
   updateChitSettings: (chitId: string, patch: {
     memberVisible?: boolean;
     remindDays?: number[];
@@ -217,6 +219,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       addMember: async (chitId, customerId) => {
         const next = await guarded(() => api.addMember(chitId, customerId));
+        setChits((prev) => upsertChit(prev, next));
+      },
+      removeMember: async (chitId, slot) => {
+        const next = await guarded(() => api.removeMember(chitId, slot));
+        setChits((prev) => upsertChit(prev, next));
+      },
+      swapMember: async (chitId, slot, newCustomerId) => {
+        const next = await guarded(() => api.swapMember(chitId, slot, newCustomerId));
         setChits((prev) => upsertChit(prev, next));
       },
       updateChitSettings: async (chitId, patch) => {

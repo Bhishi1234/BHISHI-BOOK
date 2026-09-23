@@ -154,6 +154,19 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${chitId}`));
   },
 
+  async removeMember(chitId: string, slot: number) {
+    await request(`/api/v1/chits/${chitId}/members/${slot}`, { method: "DELETE" });
+    return mapChit(await request(`/api/v1/chits/${chitId}`));
+  },
+
+  async swapMember(chitId: string, slot: number, newCustomerId: string) {
+    await request(`/api/v1/chits/${chitId}/members/${slot}/swap`, {
+      method: "POST",
+      body: JSON.stringify({ customerId: newCustomerId }),
+    });
+    return mapChit(await request(`/api/v1/chits/${chitId}`));
+  },
+
   async updateChitSettings(chitId: string, patch: {
     memberVisible?: boolean;
     remindDays?: number[];

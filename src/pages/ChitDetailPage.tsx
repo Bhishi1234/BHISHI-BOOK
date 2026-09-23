@@ -24,6 +24,7 @@ import {
   canCloseLastMonth,
   canGiveLoan,
   canSettleCycle,
+  chitHasStarted,
   collectedThisCycle,
   collectedCount,
   commissionEarned,
@@ -95,7 +96,7 @@ export function ChitDetailPage() {
   const { id } = useParams();
   const {
     chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, closeCycle,
-    cancelChit, addMember, addCustomer, undoPayment, updateChitSettings, error, user,
+    cancelChit, addMember, removeMember, swapMember, addCustomer, undoPayment, updateChitSettings, error, user,
   } = useStore();
   const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
   const nav = useNavigate();
@@ -108,6 +109,10 @@ export function ChitDetailPage() {
   const [winnerId, setWinnerId] = useState("");
   const [winnerSlot, setWinnerSlot] = useState<number | undefined>(undefined);
   const [newMemberId, setNewMemberId] = useState("");
+  const [inlineName, setInlineName] = useState("");
+  const [inlinePhone, setInlinePhone] = useState("");
+  const [swapSlot, setSwapSlot] = useState<number | null>(null);
+  const [swapToId, setSwapToId] = useState("");
   const [visible, setVisible] = useState(true);
   const [unpaidNoted, setUnpaidNoted] = useState(false);
   const [loanSkipped, setLoanSkipped] = useState(false);
@@ -197,6 +202,7 @@ export function ChitDetailPage() {
   const data = chit;
   const cycle = displayCycle(data);
   const isRunning = data.status === "running";
+  const started = chitHasStarted(data);
   const pending = isRunning
     ? data.members.filter((m) => paymentStatus(data, m.customerId, cycle, m.slot) === "due").length
     : 0;
@@ -1691,58 +1697,203 @@ export function ChitDetailPage() {
 
         {tab === "members" && (
           <>
-            <div className="toolbar">
-              <select className="field" style={{ margin: 0, maxWidth: 260 }} value={newMemberId} onChange={(e) => setNewMemberId(e.target.value)}>
-                <option value="">Add member / hand</option>
-                {customers.map((c) => {
-                  const hands = data.members.filter((m) => m.customerId === c.id).length;
-                  return (
-                    <option key={c.id} value={c.id}>
-                      {c.name}{hands ? ` · add hand (${hands} now)` : ""}
-                    </option>
-                  );
-                })}
-              </select>
-              <button
-                className="btn"
-                disabled={!newMemberId || data.members.length >= data.membersCount}
-                onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}
-              >
-                {data.members.some((m) => m.customerId === newMemberId) ? copy.chit.addHand : copy.chit.addMember}
-              </button>
-              {contactsPickerAvailable() && (
-                <button
-                  className="btn ghost"
-                  type="button"
-                  disabled={data.members.length >= data.membersCount}
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        const rows = await pickContactsFromBook({ multiple: true });
-                        for (const row of rows) {
-                          if (data.members.length >= data.membersCount) break;
-                          const phone = tryPhone10(row.phone);
-                          if (!phone) continue;
-                          let cust = customers.find((c) => c.phone === phone);
-                          if (!cust) cust = await addCustomer(row.name.trim() || "Member", phone);
-                          if (!data.members.some((m) => m.customerId === cust!.id) || data.members.length < data.membersCount) {
-                            await addMember(data.id, cust.id);
+            {!started ? (
+              <>
+                <p className="muted" style={{ marginBottom: 12 }}>{copy.chit.membersBeforeStartHint}</p>
+                <div className="toolbar">
+                  <select className="field" style={{ margin: 0, maxWidth: 260 }} value={newMemberId} onChange={(e) => setNewMemberId(e.target.value)}>
+                    <option value="">{copy.chit.addMember} / {copy.chit.addHand}</option>
+                    {customers.map((c) => {
+                      const hands = data.members.filter((m) => m.customerId === c.id).length;
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{hands ? ` · add hand (${hands} now)` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button
+                    className="btn"
+                    disabled={!isRunning || !newMemberId || data.members.length >= data.membersCount}
+                    onClick={() => void addMember(data.id, newMemberId).then(() => setNewMemberId(""))}
+                  >
+                    {data.members.some((m) => m.customerId === newMemberId) ? copy.chit.addHand : copy.chit.addMember}
+                  </button>
+                  {contactsPickerAvailable() && (
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      disabled={!isRunning || data.members.length >= data.membersCount}
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const rows = await pickContactsFromBook({ multiple: true });
+                            for (const row of rows) {
+                              if (data.members.length >= data.membersCount) break;
+                              const phone = tryPhone10(row.phone);
+                              if (!phone) continue;
+                              let cust = customers.find((c) => c.phone === phone);
+                              if (!cust) cust = await addCustomer(row.name.trim() || "Member", phone);
+                              if (!data.members.some((m) => m.customerId === cust!.id) || data.members.length < data.membersCount) {
+                                await addMember(data.id, cust.id);
+                              }
+                            }
+                          } catch (e) {
+                            window.alert(e instanceof Error ? e.message : copy.chit.couldNotOpenContacts);
                           }
+                        })();
+                      }}
+                    >
+                      <BookUser size={15} /> {copy.chit.fromContacts}
+                    </button>
+                  )}
+                </div>
+                <div className="toolbar" style={{ marginTop: 8 }}>
+                  <input
+                    className="field"
+                    style={{ margin: 0, maxWidth: 180 }}
+                    placeholder={copy.chit.inlineAddName}
+                    value={inlineName}
+                    onChange={(e) => setInlineName(e.target.value)}
+                  />
+                  <input
+                    className="field"
+                    style={{ margin: 0, maxWidth: 140 }}
+                    inputMode="tel"
+                    placeholder={copy.chit.inlineAddPhone}
+                    value={inlinePhone}
+                    onChange={(e) => setInlinePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  />
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    disabled={!isRunning || data.members.length >= data.membersCount || !inlineName.trim() || inlinePhone.length !== 10}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          const phone = tryPhone10(inlinePhone);
+                          if (!phone) return;
+                          let cust = customers.find((c) => c.phone === phone);
+                          if (!cust) cust = await addCustomer(inlineName.trim(), phone);
+                          await addMember(data.id, cust.id);
+                          setInlineName("");
+                          setInlinePhone("");
+                        } catch (e) {
+                          window.alert(e instanceof Error ? e.message : String(e));
                         }
-                      } catch (e) {
-                        window.alert(e instanceof Error ? e.message : copy.chit.couldNotOpenContacts);
-                      }
-                    })();
-                  }}
-                >
-                  <BookUser size={15} /> {copy.chit.fromContacts}
-                </button>
-              )}
-            </div>
+                      })();
+                    }}
+                  >
+                    {copy.chit.inlineAdd}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="muted" style={{ marginBottom: 12 }}>{copy.chit.membersAfterStartHint}</p>
+            )}
             <p className="muted" style={{ marginBottom: 12 }}>
               One person can play multiple hands (slots). Each hand pays its own instalment and can win once. {data.members.length} of {data.membersCount} slots filled.
               {" "}{copy.chit.inviteNotOnApp}
             </p>
+            {swapSlot != null && (
+              <div className="card" style={{ marginBottom: 12, background: "#f8fafc" }}>
+                <strong>{copy.chit.swapMemberTitle}</strong>
+                <p className="muted" style={{ margin: "6px 0 10px" }}>{copy.chit.swapMemberHint}</p>
+                <div className="toolbar" style={{ margin: 0 }}>
+                  <select className="field" style={{ margin: 0, maxWidth: 280 }} value={swapToId} onChange={(e) => setSwapToId(e.target.value)}>
+                    <option value="">Choose replacement…</option>
+                    {customers
+                      .filter((c) => {
+                        const curr = data.members.find((m) => m.slot === swapSlot);
+                        return curr && c.id !== curr.customerId;
+                      })
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>{c.name} · {c.phone}</option>
+                      ))}
+                  </select>
+                  <button
+                    className="btn"
+                    disabled={!swapToId || !isRunning}
+                    onClick={() => {
+                      const curr = data.members.find((m) => m.slot === swapSlot);
+                      const next = customers.find((c) => c.id === swapToId);
+                      if (!curr || !next) return;
+                      const ok = window.confirm(
+                        tx(copy.chit.swapMemberConfirm, {
+                          old: names[curr.customerId] || curr.customerId,
+                          new: next.name,
+                          slot: String(swapSlot),
+                        }),
+                      );
+                      if (!ok) return;
+                      void swapMember(data.id, swapSlot, swapToId).then(() => {
+                        setSwapSlot(null);
+                        setSwapToId("");
+                      });
+                    }}
+                  >
+                    {copy.chit.swapMember}
+                  </button>
+                  <button type="button" className="btn ghost" onClick={() => { setSwapSlot(null); setSwapToId(""); }}>
+                    {copy.common.cancel}
+                  </button>
+                </div>
+                <div className="toolbar" style={{ margin: "8px 0 0" }}>
+                  <input
+                    className="field"
+                    style={{ margin: 0, maxWidth: 160 }}
+                    placeholder={copy.chit.inlineAddName}
+                    value={inlineName}
+                    onChange={(e) => setInlineName(e.target.value)}
+                  />
+                  <input
+                    className="field"
+                    style={{ margin: 0, maxWidth: 120 }}
+                    inputMode="tel"
+                    placeholder={copy.chit.inlineAddPhone}
+                    value={inlinePhone}
+                    onChange={(e) => setInlinePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  />
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    disabled={!isRunning || !inlineName.trim() || inlinePhone.length !== 10}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          const phone = tryPhone10(inlinePhone);
+                          if (!phone || swapSlot == null) return;
+                          const curr = data.members.find((m) => m.slot === swapSlot);
+                          let cust = customers.find((c) => c.phone === phone);
+                          if (!cust) cust = await addCustomer(inlineName.trim(), phone);
+                          if (curr && cust.id === curr.customerId) {
+                            window.alert("Same person already on this seat.");
+                            return;
+                          }
+                          const ok = window.confirm(
+                            tx(copy.chit.swapMemberConfirm, {
+                              old: curr ? (names[curr.customerId] || curr.customerId) : "?",
+                              new: cust.name,
+                              slot: String(swapSlot),
+                            }),
+                          );
+                          if (!ok) return;
+                          await swapMember(data.id, swapSlot, cust.id);
+                          setSwapSlot(null);
+                          setSwapToId("");
+                          setInlineName("");
+                          setInlinePhone("");
+                        } catch (e) {
+                          window.alert(e instanceof Error ? e.message : String(e));
+                        }
+                      })();
+                    }}
+                  >
+                    {copy.chit.inlineAdd} + {copy.chit.swapMember}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="card flush">
               {data.members.map((m) => {
                 const first = firstSlotOf(data, m.customerId);
@@ -1803,6 +1954,36 @@ export function ChitDetailPage() {
                         })}
                       />
                     ) : null}
+                    {isRunning && started && (
+                      <button
+                        type="button"
+                        className="btn ghost btn-sm"
+                        onClick={() => {
+                          setSwapSlot(m.slot);
+                          setSwapToId("");
+                        }}
+                      >
+                        {copy.chit.swapMember}
+                      </button>
+                    )}
+                    {isRunning && !started && (
+                      <button
+                        type="button"
+                        className="btn ghost btn-sm"
+                        onClick={() => {
+                          const ok = window.confirm(
+                            tx(copy.chit.removeMemberConfirm, {
+                              name: names[m.customerId] || m.customerId,
+                              slot: String(m.slot),
+                            }),
+                          );
+                          if (!ok) return;
+                          void removeMember(data.id, m.slot);
+                        }}
+                      >
+                        {copy.chit.removeMember}
+                      </button>
+                    )}
                   </div>
                 );
               })}

@@ -462,6 +462,15 @@ export function displayCycle(chit: Chit) {
   return Math.min(Math.max(1, chit.currentCycle || 1), Math.max(1, chit.duration || 1));
 }
 
+/** True once any money or award has been recorded — members can only be swapped, not added/removed. */
+export function chitHasStarted(chit: Chit) {
+  if ((chit.currentCycle || 1) > 1) return true;
+  if (chit.payments.length > 0) return true;
+  if (chit.auctions.length > 0) return true;
+  if (chit.members.some((m) => m.prizedCycle != null)) return true;
+  return false;
+}
+
 /** Last auction month: remaining member takes all cash; no discount / dividend / commission. */
 export function isLastAuctionCycle(chit: Chit) {
   if (chit.type !== "auction") return false;

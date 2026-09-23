@@ -277,6 +277,24 @@ export const supabaseApi = {
     return loadChit(chitId);
   },
 
+  async removeMember(chitId: string, slot: number) {
+    const { sb } = await requireUser();
+    const { error } = await sb.rpc("remove_chit_member", { p_chit_id: chitId, p_slot: slot });
+    throwIf(error);
+    return loadChit(chitId);
+  },
+
+  async swapMember(chitId: string, slot: number, newCustomerId: string) {
+    const { sb } = await requireUser();
+    const { error } = await sb.rpc("swap_chit_member", {
+      p_chit_id: chitId,
+      p_slot: slot,
+      p_new_customer_id: newCustomerId,
+    });
+    throwIf(error);
+    return loadChit(chitId);
+  },
+
   async updateChitSettings(chitId: string, patch: {
     memberVisible?: boolean;
     remindDays?: number[];

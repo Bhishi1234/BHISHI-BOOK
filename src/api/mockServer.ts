@@ -8,7 +8,7 @@ import type {
   Ticket,
   User,
 } from "../types";
-import { assertCanSettlePayout, canCloseLastMonth, cycleDue, inferKind } from "../lib/chitMath";
+import { assertCanSettlePayout, canCloseLastMonth, chitHasStarted, cycleDue, inferKind } from "../lib/chitMath";
 import { uid } from "../lib/format";
 
 const KEY = "bhishi-book-api-v8";
@@ -371,11 +371,70 @@ export const mockServer = {
       needUser(db);
       db.chits = db.chits.map((c) => {
         if (c.id !== chitId) return c;
+        if (chitHasStarted(c)) {
+          throw new Error("Cannot add members after the bhishi has started. Use Swap to replace a person on a seat.");
+        }
         if (c.members.length >= c.membersCount) throw new Error("All slots are filled");
         const slot = Math.max(0, ...c.members.map((m) => m.slot)) + 1;
         return {
           ...c,
           members: [...c.members, { customerId, slot }],
+        };
+      });
+      write(db);
+      return this.get(chitId);
+    },
+    removeMember(chitId: string, slot: number) {
+      const db = read();
+      needUser(db);
+      db.chits = db.chits.map((c) => {
+        if (c.id !== chitId) return c;
+        if (chitHasStarted(c)) {
+          throw new Error("Cannot remove members after the bhishi has started. Use Swap instead.");
+        }
+        if (!c.members.some((m) => m.slot === slot)) throw new Error("Hand / slot not found");
+        return { ...c, members: c.members.filter((m) => m.slot !== slot) };
+      });
+      write(db);
+      return this.get(chitId);
+    },
+    swapMember(chitId: string, slot: number, newCustomerId: string) {
+      const db = read();
+      needUser(db);
+      if (!db.customers.some((cu) => cu.id === newCustomerId)) {
+        throw new Error("Customer is not in your directory");
+      }
+      db.chits = db.chits.map((c) => {
+        if (c.id !== chitId) return c;
+        if (!chitHasStarted(c)) {
+          throw new Error("Before the bhishi starts, remove and add members instead of swapping");
+        }
+        const hand = c.members.find((m) => m.slot === slot);
+        if (!hand) throw new Error("Hand / slot not found");
+        const oldId = hand.customerId;
+        if (oldId === newCustomerId) return c;
+        const handsOfOld = c.members.filter((m) => m.customerId === oldId).length;
+        const payments = c.payments.map((p) => {
+          if (p.memberId !== oldId) return p;
+          const match =
+            p.slot === slot
+            || (p.slot == null && handsOfOld === 1);
+          return match ? { ...p, memberId: newCustomerId } : p;
+        });
+        const auctions = c.auctions.map((a) => {
+          if (a.winnerId !== oldId) return a;
+          const match =
+            a.winnerSlot === slot
+            || (a.winnerSlot == null && handsOfOld === 1);
+          return match ? { ...a, winnerId: newCustomerId } : a;
+        });
+        return {
+          ...c,
+          payments,
+          auctions,
+          members: c.members.map((m) =>
+            m.slot === slot ? { ...m, customerId: newCustomerId } : m,
+          ),
         };
       });
       write(db);
