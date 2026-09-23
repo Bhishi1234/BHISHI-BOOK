@@ -1,5 +1,5 @@
 -- Loan: optional principal-at-end repayment (interest monthly, principal on last repay month).
--- Also used by create_chit payload key loanPrincipalMode: 'emi' | 'end'.
+-- Payload key: loanPrincipalMode = 'emi' | 'end'
 
 alter table public.chits
   add column if not exists loan_principal_mode text not null default 'emi';
@@ -11,19 +11,21 @@ alter table public.chits
   add constraint chits_loan_principal_mode_check
   check (loan_principal_mode in ('emi', 'end'));
 
-create or replace function public._cycle_due(p_chit uuid, p_member uuid, p_cycle int, p_slot int default null)
+-- Remove mistaken 4-arg overload if a prior draft created it
+drop function if exists public._cycle_due(uuid, uuid, int, int);
+
+create or replace function public._raw_due_hand(p_chit uuid, p_member uuid, p_slot int, p_cycle int)
 returns numeric
 language plpgsql
 stable
-security definer
-set search_path = public
 as $$
 declare
   c public.chits;
   base numeric;
-  n_members int;
-  this_a public.auctions;
   prev public.auctions;
+  this_a public.auctions;
+  prized int;
+  n_members int;
   share_of numeric;
   share numeric;
   principal numeric;
@@ -33,7 +35,6 @@ declare
   tenure int;
   month_index int;
   had_upfront boolean;
-  prized int;
 begin
   select * into c from public.chits where id = p_chit;
   if not found then return 0; end if;
