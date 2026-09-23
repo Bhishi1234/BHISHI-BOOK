@@ -185,10 +185,10 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${chitId}`));
   },
 
-  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, interestRate?: number) {
     return mapAuction(await request(`/api/v1/chits/${chitId}/settle`, {
       method: "POST",
-      body: JSON.stringify({ winnerId, bid, method, winnerSlot }),
+      body: JSON.stringify({ winnerId, bid, method, winnerSlot, interestRate }),
     }));
   },
 

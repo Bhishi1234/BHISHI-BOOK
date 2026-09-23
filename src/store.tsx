@@ -60,6 +60,7 @@ type Store = {
     bid: number,
     method: AuctionRecord["method"],
     winnerSlot?: number,
+    interestRate?: number,
   ) => Promise<AuctionRecord | null>;
   replaceCycleAward: (
     chitId: string,
@@ -248,8 +249,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const next = await guarded(() => api.undoPayment(chitId, paymentId));
         setChits((prev) => upsertChit(prev, next));
       },
-      recordAuction: async (chitId, winnerId, bid, method, winnerSlot) => {
-        const rec = await guarded(() => api.settlePayout(chitId, winnerId, bid, method, winnerSlot));
+      recordAuction: async (chitId, winnerId, bid, method, winnerSlot, interestRate) => {
+        const rec = await guarded(() => api.settlePayout(chitId, winnerId, bid, method, winnerSlot, interestRate));
         await patchChit(chitId);
         return rec;
       },

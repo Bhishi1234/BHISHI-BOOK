@@ -39,7 +39,6 @@ export function NewChitPage() {
   const [commKind, setCommKind] = useState<"amount" | "percent">("amount");
   const [comm, setComm] = useState("0");
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
-  const [interest, setInterest] = useState("5");
   const [tenure, setTenure] = useState("");
   const [loanPrincipalMode, setLoanPrincipalMode] = useState<"emi" | "end">("emi");
   const [loanInterestUpfront, setLoanInterestUpfront] = useState(true);
@@ -93,7 +92,6 @@ export function NewChitPage() {
   const instalment = computeInstalment(potN, n);
   const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
-  const interestN = Number(interest) || 0;
   const tenureN = Number(tenure) || 0;
 
   async function addFromContacts() {
@@ -196,10 +194,6 @@ export function NewChitPage() {
       window.alert(m.newChitExtra.enterPotAlert);
       return;
     }
-    if (type === "loan" && !interestN) {
-      window.alert(m.newChitExtra.enterInterestAlert);
-      return;
-    }
     if (!confirm) {
       window.alert(m.newChitExtra.confirmAlert);
       return;
@@ -228,7 +222,6 @@ export function NewChitPage() {
         adjustmentStyle: type === "auction" ? adjust : "every_month",
         auctionStyle,
         fixedStyle: type === "fixed" ? fixedStyle : undefined,
-        interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
         loanPrincipalMode: type === "loan" ? loanPrincipalMode : undefined,
         loanInterestUpfront: type === "loan" ? loanInterestUpfront : undefined,
@@ -488,13 +481,7 @@ export function NewChitPage() {
                 </p>
                 {type === "loan" && (
                   <>
-                    <label className="label">{m.newChitExtra.interestRateLabel}</label>
-                    <input className="field" value={interest} onChange={(e) => setInterest(e.target.value)} />
-                    <div className="quick">
-                      {[1, 2, 3, 5, 10].map((v) => (
-                        <button key={v} className={`chip ${interest === String(v) ? "on" : ""}`} onClick={() => setInterest(String(v))}>{v}%</button>
-                      ))}
-                    </div>
+                    <p className="hint">{m.newChitExtra.interestOnAwardHint}</p>
                     <label className="label">{m.newChitExtra.interestCutLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
                       <button
@@ -579,7 +566,7 @@ export function NewChitPage() {
                   <button className="btn ghost" onClick={() => setStep(needsStyleStep(type) ? 1 : 0)}>{m.common.back}</button>
                   <button
                     className="btn"
-                    disabled={!confirm || !potN || !n || (type === "loan" && !interestN)}
+                    disabled={!confirm || !potN || !n}
                     onClick={() => {
                       const haptaN = Number(duration) || 0;
                       if (haptaN !== n) {

@@ -635,4 +635,26 @@ assert(ok.bid === 200000, `max loan face ${ok.bid}`);
 // Month-2 dues unpaid → arrears withheld from payout
 assert(ok.payout === 150000, `max loan payout after arrears ${ok.payout}`);
 
+// Per-loan interest rate on Award (not chit default)
+const rateChit = chit({
+  members: [
+    { customerId: "x1", slot: 1 },
+    { customerId: "x2", slot: 2 },
+  ],
+  type: "loan",
+  pot: 20000,
+  instalment: 10000,
+  duration: 3,
+  interestRate: 5,
+  loanInterestUpfront: true,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+collectAll(rateChit, 10000);
+const at4 = settleWinner(rateChit, "x1", 20000, "fixed", 1, 4);
+assert(at4.interestRate === 4, `stored rate ${at4.interestRate}`);
+assert(at4.discount === 800, `4% cut ${at4.discount}`);
+const at6 = settleWinner(rateChit, "x1", 20000, "fixed", 1, 6);
+assert(at6.discount === 1200, `6% cut ${at6.discount}`);
+
 console.log("chit math ok");

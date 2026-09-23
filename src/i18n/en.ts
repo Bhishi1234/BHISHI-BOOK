@@ -612,6 +612,7 @@ export const en: Messages = {
     percentKind: "% Percentage",
     interestRateLabel: "Interest rate (% per month)",
     interestExplain: "Interest is charged each repayment month. You choose whether the first month’s interest is cut when the loan is given, or collected from the next month.",
+    interestOnAwardHint: "Interest rate is chosen each time you give a loan on the Award tab — it can differ month to month (e.g. 4% then 5%).",
     interestCutLabel: "When is the first month’s interest taken?",
     interestCutAtGive: "Cut when giving the loan",
     interestCutNextMonth: "Collect from next month",

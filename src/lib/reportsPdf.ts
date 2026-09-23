@@ -794,7 +794,8 @@ export function downloadLoanReportPdf(
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
   const face = loanFaceAmount(auction);
   const tenure = loanEffectiveTenure(chit, auction.cycle);
-  const interestMo = loanMonthlyInterest(chit, face);
+  const rate = auction.interestRate ?? chit.interestRate ?? 0;
+  const interestMo = loanMonthlyInterest(chit, face, rate);
   const slot = auction.winnerSlot ?? 1;
   const hands = chit.members.filter((m) => m.customerId === auction.winnerId).length;
   const borrower = handLabel(names[auction.winnerId] || auction.winnerId, slot, hands);
@@ -812,7 +813,7 @@ export function downloadLoanReportPdf(
     doc,
     y,
     "Loan disbursal report",
-    `Month ${auction.cycle} of ${chit.duration} · Interest ${chit.interestRate ?? 0}% · Tenure ${tenure} months`,
+    `Month ${auction.cycle} of ${chit.duration} · Interest ${rate}% · Tenure ${tenure} months`,
   );
 
   y = kpiRow(doc, y, [
@@ -828,7 +829,7 @@ export function downloadLoanReportPdf(
     ["Loan month", `Month ${auction.cycle} of ${chit.duration}`],
     ["Repayment window", `Month ${auction.cycle + 1} – ${auction.cycle + tenure} (${tenure} mo)`],
     ["Hapta (deposit)", money(baseInstalment(chit))],
-    ["Interest / month", `${money(interestMo)} (${chit.interestRate ?? 0}% of face)`],
+    ["Interest / month", `${money(interestMo)} (${rate}% of face)`],
     ["Principal / month", money(Math.ceil(face / tenure))],
     ["Total interest (life)", money(totalInterest)],
     ["Principal + interest to repay", money(totalRepay)],

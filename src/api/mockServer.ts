@@ -477,7 +477,7 @@ export const mockServer = {
   },
 
   auctions: {
-    create(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+    create(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, interestRate?: number) {
       const db = read();
       needUser(db);
       let record: AuctionRecord | null = null;
@@ -501,7 +501,7 @@ export const mockServer = {
           throw new Error("This member already won");
         }
         if (!bid || bid <= 0) throw new Error("Enter a loan / payout amount");
-        record = assertCanSettlePayout(c, winnerId, bid, method, winner.slot);
+        record = assertCanSettlePayout(c, winnerId, bid, method, winner.slot, interestRate);
         const nextAuctions = isLoan || isSettlement
           ? [...c.auctions, record!]
           : [...c.auctions.filter((a) => a.cycle !== c.currentCycle), record!];

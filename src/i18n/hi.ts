@@ -612,6 +612,7 @@ export const hi: Messages = {
     percentKind: "% प्रतिशत",
     interestRateLabel: "ब्याज दर (% प्रति माह)",
     interestExplain: "ब्याज हर चुकौती महीने पर लगता है। आप चुनते हैं कि पहले महीने का ब्याज कर्ज देते समय कटता है या अगले महीने से वसूला जाता है।",
+    interestOnAwardHint: "ब्याज दर हर बार Award टैब पर कर्ज देते समय चुनें — महीने-महीने अलग हो सकती है (जैसे 4% फिर 5%)।",
     interestCutLabel: "पहले महीने का ब्याज कब लिया जाए?",
     interestCutAtGive: "कर्ज देते समय काटें",
     interestCutNextMonth: "अगले महीने से वसूलें",

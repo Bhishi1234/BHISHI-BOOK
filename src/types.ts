@@ -63,6 +63,8 @@ export type AuctionRecord = {
   dividend: number;
   payout: number;
   arrearsWithheld: number;
+  /** Loan only: interest % per month for this disbursement (set on Award). */
+  interestRate?: number;
   id?: string;
 };
 
@@ -91,6 +93,7 @@ export type Chit = {
   payments: Payment[];
   currentCycle: number;
   premiumAmount?: number;
+  /** @deprecated Prefer per-loan AuctionRecord.interestRate set on Award. Kept for legacy loans. */
   interestRate?: number;
   repaymentTenure?: number;
   /**

@@ -263,8 +263,22 @@ export function loanEffectiveTenure(chit: Chit, startCycle: number) {
   return Math.max(1, Math.min(configured, remaining));
 }
 
-export function loanMonthlyInterest(chit: Chit, principal: number) {
-  const rate = chit.interestRate || 0;
+export function loanRateOf(
+  chit: Chit,
+  auction?: Pick<AuctionRecord, "interestRate"> | null,
+  override?: number | null,
+) {
+  if (override != null && Number.isFinite(Number(override))) {
+    return Math.max(0, Number(override));
+  }
+  if (auction?.interestRate != null && Number.isFinite(Number(auction.interestRate))) {
+    return Math.max(0, Number(auction.interestRate));
+  }
+  return Math.max(0, chit.interestRate || 0);
+}
+
+export function loanMonthlyInterest(chit: Chit, principal: number, rateOverride?: number | null) {
+  const rate = loanRateOf(chit, null, rateOverride);
   return Math.round((principal * rate) / 100);
 }
 
@@ -318,16 +332,17 @@ export function loanAuctionPartsDue(
   }
   const hadUpfront = (Number(auction.discount) || 0) > 0;
   const balloon = (chit.loanPrincipalMode || "emi") === "end";
+  const rate = loanRateOf(chit, auction);
 
   if (balloon) {
-    const interestFlat = loanMonthlyInterest(chit, face);
+    const interestFlat = loanMonthlyInterest(chit, face, rate);
     const interest = hadUpfront && monthIndex === 1 ? 0 : interestFlat;
     const principal = monthIndex === tenure ? face : 0;
     return { interest, principal, monthIndex, tenure };
   }
 
   const outstanding = loanEmiOutstandingBefore(face, tenure, monthIndex);
-  const interestReducing = loanMonthlyInterest(chit, outstanding);
+  const interestReducing = loanMonthlyInterest(chit, outstanding, rate);
   const interest = hadUpfront && monthIndex === 1 ? 0 : interestReducing;
   const principal = loanEmiPrincipalShare(face, tenure, monthIndex);
   return { interest, principal, monthIndex, tenure };
@@ -836,13 +851,13 @@ export function commissionEarned(chit: Chit) {
 }
 
 export function interestCollected(chit: Chit) {
-  if (chit.type !== "loan" || !chit.interestRate) return 0;
+  if (chit.type !== "loan") return 0;
   return chit.members.reduce((sum, m) => sum + interestPaidByMember(chit, m.customerId, m.slot), 0);
 }
 
 /** Interest this hand (or person) has paid in. */
 export function interestPaidByMember(chit: Chit, memberId: string, slot?: number) {
-  if (chit.type !== "loan" || !chit.interestRate) return 0;
+  if (chit.type !== "loan") return 0;
   let total = 0;
   for (const a of chit.auctions) {
     if (a.winnerId === memberId && a.method === "fixed" && loanMatchesHand(chit, a, slot)) {
@@ -937,7 +952,8 @@ export function loanDetailRows(chit: Chit) {
       const face = loanFaceAmount(a);
       const tenure = loanEffectiveTenure(chit, a.cycle);
       const balloon = (chit.loanPrincipalMode || "emi") === "end";
-      const interestMo = loanMonthlyInterest(chit, face);
+      const rate = loanRateOf(chit, a);
+      const interestMo = loanMonthlyInterest(chit, face, rate);
       const share = balloon ? face : Math.ceil(face / tenure);
       return {
         id: a.id,
@@ -950,6 +966,7 @@ export function loanDetailRows(chit: Chit) {
         commission: a.commission || 0,
         tenure,
         remainingAtLoan: loanRemainingMonths(chit, a.cycle),
+        interestRate: rate,
         interestPerMonth: interestMo,
         interestReducing: !balloon,
         principalSharePerMonth: share,
@@ -1052,6 +1069,7 @@ export function settleWinner(
   bid: number,
   method: AuctionRecord["method"],
   winnerSlot?: number,
+  interestRate?: number,
 ): AuctionRecord {
   const alreadyLoanedThisCycle = chit.auctions.some(
     (a) => a.cycle === chit.currentCycle && a.method === "fixed",
@@ -1061,6 +1079,9 @@ export function settleWinner(
   const awardFirst = isAwardFirst(chit);
   const handSacrifice = isHandSacrifice(chit) && (method === "fixed" || method === "lucky_draw");
   const lastHand = handSacrifice && isLastHandSacrificeAward(chit);
+  const loanRate = method === "fixed" && chit.type === "loan"
+    ? loanRateOf(chit, null, interestRate)
+    : 0;
   // Auction peer-settlement: no foreman cut from the till. Other award-first types still take commission.
   const commission =
     method === "settlement" || lastAuction || auctionPeer
@@ -1116,7 +1137,7 @@ export function settleWinner(
     // Face principal; clamp to cash on hand + still expected this month.
     const maxFace = loanMaxFaceAmount(chit);
     safeBid = Math.min(Math.max(0, Number(bid) || 0), maxFace);
-    discount = loanCutsInterestUpfront(chit) ? loanMonthlyInterest(chit, safeBid) : 0;
+    discount = loanCutsInterestUpfront(chit) ? loanMonthlyInterest(chit, safeBid, loanRate) : 0;
   } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice")) {
     const requested = Math.max(0, Number(bid) || chit.pot);
     if (awardFirst) {
@@ -1155,6 +1176,7 @@ export function settleWinner(
     dividend,
     payout,
     arrearsWithheld,
+    interestRate: method === "fixed" && chit.type === "loan" ? loanRate : undefined,
   };
 }
 
@@ -1185,6 +1207,7 @@ export function assertCanSettlePayout(
   bid: number,
   method: AuctionRecord["method"],
   winnerSlot?: number,
+  interestRate?: number,
 ) {
   if (method === "fixed" && chit.type === "loan" && !canGiveLoan(chit)) {
     throw new Error("No new loans on the last month — collect dues and settle leftover cash instead");
@@ -1197,7 +1220,10 @@ export function assertCanSettlePayout(
   if (!lastAuction && (!bid || bid <= 0)) {
     throw new Error("Enter an amount greater than zero");
   }
-  const rec = settleWinner(chit, winnerId, bid, method, winnerSlot);
+  if (method === "fixed" && chit.type === "loan" && interestRate != null && !Number.isFinite(Number(interestRate))) {
+    throw new Error("Enter a valid interest rate for this loan");
+  }
+  const rec = settleWinner(chit, winnerId, bid, method, winnerSlot, interestRate);
   if (method === "fixed" && chit.type === "loan") {
     const capacity = loanFundingCapacity(chit);
     const maxFace = loanMaxFaceAmount(chit);

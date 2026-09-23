@@ -63,6 +63,9 @@ export function mapAuction(row: Record<string, unknown>): AuctionRecord {
     dividend: num(row.dividend),
     payout: num(row.payout),
     arrearsWithheld: num(row.arrears_withheld ?? row.arrearsWithheld),
+    interestRate: row.interest_rate != null || row.interestRate != null
+      ? num(row.interest_rate ?? row.interestRate)
+      : undefined,
   };
 }
 

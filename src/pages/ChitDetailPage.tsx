@@ -49,6 +49,7 @@ import {
   loanMaxFaceAmount,
   loanMonthlyInterest,
   loanPrincipalOf,
+  loanRateOf,
   loanSettlementPlan,
   loansThisCycle,
   handLabel,
@@ -103,6 +104,7 @@ export function ChitDetailPage() {
   const [monthSub, setMonthSub] = useState<"collect" | "award" | "close">("collect");
   const [payFor, setPayFor] = useState<{ customerId: string; slot: number } | null>(null);
   const [bid, setBid] = useState("");
+  const [loanInterest, setLoanInterest] = useState("5");
   const [winnerId, setWinnerId] = useState("");
   const [winnerSlot, setWinnerSlot] = useState<number | undefined>(undefined);
   const [newMemberId, setNewMemberId] = useState("");
@@ -275,6 +277,7 @@ export function ChitDetailPage() {
     const hands = data.members.filter((m) => m.customerId === rec.winnerId).length;
     const memberName = handLabel(names[rec.winnerId] || "Member", slot, hands);
     const phone = customers.find((c) => c.id === rec.winnerId)?.phone;
+    const rate = loanRateOf(data, rec);
     return {
       memberName,
       phone,
@@ -282,11 +285,11 @@ export function ChitDetailPage() {
       tenure,
       interestCut: Math.max(0, Number(rec.discount) || 0),
       netPaid: rec.payout,
-      interestRate: data.interestRate ?? 0,
+      interestRate: rate,
       repayFrom: rec.cycle + 1,
       repayTo: rec.cycle + tenure,
       deposit: data.instalment,
-      interestPerMonth: loanMonthlyInterest(data, face),
+      interestPerMonth: loanMonthlyInterest(data, face, rate),
       principalPerMonth: Math.ceil(face / tenure),
     };
   }
@@ -407,15 +410,14 @@ export function ChitDetailPage() {
               </div>
             </div>
           </div>
-          {(data.type === "loan" && (data.interestRate != null || data.repaymentTenure || data.loanPrincipalMode || data.loanInterestUpfront != null)) && (
+          {(data.type === "loan" && (data.repaymentTenure || data.loanPrincipalMode || data.loanInterestUpfront != null)) && (
             <p className="chit-hero-note">
-              {data.interestRate != null ? `Interest ${data.interestRate}%` : ""}
-              {data.interestRate != null && data.repaymentTenure ? " · " : ""}
               {data.repaymentTenure ? `Repay ${data.repaymentTenure} mo` : ""}
-              {(data.interestRate != null || data.repaymentTenure) ? " · " : ""}
+              {data.repaymentTenure ? " · " : ""}
               {data.loanPrincipalMode === "end" ? "Principal at end" : "Principal + interest (reducing)"}
               {" · "}
               {data.loanInterestUpfront === false ? "Interest from next month" : "Interest cut at give"}
+              {" · Interest rate set per loan"}
             </p>
           )}
         </section>
@@ -614,6 +616,7 @@ export function ChitDetailPage() {
                         <th>{copy.common.member}</th>
                         <th>{copy.chit.month}</th>
                         <th>{copy.chit.faceLoan}</th>
+                        <th>{copy.chit.interest}</th>
                         <th>{copy.chit.interestCut}</th>
                         <th>{copy.chit.netPaidOut}</th>
                         <th>{copy.chit.repay}</th>
@@ -644,6 +647,7 @@ export function ChitDetailPage() {
                             </td>
                             <td>{row.cycle}</td>
                             <td>{inr(row.face)}</td>
+                            <td>{row.interestRate}%</td>
                             <td>{inr(row.upfrontInterest)}</td>
                             <td>{inr(row.netPaidOut)}{row.commission ? <div className="muted">comm {inr(row.commission)}</div> : null}</td>
                             <td>
@@ -713,7 +717,7 @@ export function ChitDetailPage() {
                 <div className="kv"><span>Duration</span><strong>{tx(copy.chit.durationMonths, { n: data.duration })}</strong></div>
                 {data.type === "loan" && (
                   <>
-                    <div className="kv"><span>{copy.chit.interest}</span><strong>{data.interestRate ?? 0}%</strong></div>
+                    <div className="kv"><span>{copy.chit.interest}</span><strong>Set per loan on Award</strong></div>
                     <div className="kv"><span>{copy.chit.repaymentTenure}</span><strong>{data.repaymentTenure ? tx(copy.chit.durationMonths, { n: data.repaymentTenure }) : copy.chit.restOfChit}</strong></div>
                   </>
                 )}
@@ -1265,6 +1269,26 @@ export function ChitDetailPage() {
                                 );
                               })}
                             </select>
+                            <label className="label" style={{ marginTop: 8 }}>{copy.chit.interest} (% / month)</label>
+                            <input
+                              className="field"
+                              inputMode="decimal"
+                              value={loanInterest}
+                              onChange={(e) => setLoanInterest(e.target.value.replace(/[^\d.]/g, ""))}
+                              placeholder="e.g. 5"
+                            />
+                            <div className="quick" style={{ marginBottom: 8 }}>
+                              {[2, 3, 4, 5, 6, 8, 10].map((v) => (
+                                <button
+                                  key={v}
+                                  type="button"
+                                  className={`chip ${loanInterest === String(v) ? "on" : ""}`}
+                                  onClick={() => setLoanInterest(String(v))}
+                                >
+                                  {v}%
+                                </button>
+                              ))}
+                            </div>
                             <input
                               className="field"
                               inputMode="numeric"
@@ -1280,10 +1304,13 @@ export function ChitDetailPage() {
                                 || !Number(bid)
                                 || Number(bid) > loanMaxFace
                                 || loanMaxFace <= 0
+                                || loanInterest === ""
+                                || !Number.isFinite(Number(loanInterest))
                               }
                               onClick={() => {
                                 const amount = Number(bid);
-                                void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot).then((rec) => {
+                                const rate = Number(loanInterest);
+                                void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot, rate).then((rec) => {
                                   setBid(String(Math.min(data.pot, loanMaxFace)));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
@@ -1312,7 +1339,8 @@ export function ChitDetailPage() {
                           )}
                           {winnerId && winnerSlot != null && Number(bid) > 0 && (() => {
                             const faceReq = Number(bid);
-                            const preview = settleWinner(data, winnerId, faceReq, "fixed", winnerSlot);
+                            const rate = Number(loanInterest) || 0;
+                            const preview = settleWinner(data, winnerId, faceReq, "fixed", winnerSlot, rate);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             const start = cycle;
                             const tenure = loanEffectiveTenure(data, start);
@@ -1320,12 +1348,13 @@ export function ChitDetailPage() {
                             const share = (data.loanPrincipalMode || "emi") === "end"
                               ? face
                               : Math.ceil(face / tenure);
-                            const interest = loanMonthlyInterest(data, face);
+                            const interest = loanMonthlyInterest(data, face, rate);
                             const balloon = (data.loanPrincipalMode || "emi") === "end";
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.hand}</span><strong>Slot {winnerSlot}</strong></div>
                                 <div className="kv"><span>Face loan</span><strong>{inr(face)}{faceReq > face ? ` (capped from ${inr(faceReq)})` : ""}</strong></div>
+                                <div className="kv"><span>{copy.chit.interest}</span><strong>{rate}% / month</strong></div>
                                 <div className="kv">
                                   <span>{preview.discount > 0 ? "Interest cut now (stays in pot)" : "Interest cut now"}</span>
                                   <strong>{inr(preview.discount)}{preview.discount === 0 ? " (none — from next month)" : ""}</strong>
@@ -1336,7 +1365,7 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>From next month · deposit</span><strong>{inr(data.instalment)}</strong></div>
                                 <div className="kv">
                                   <span>{balloon ? "Interest / month" : "Interest (first month on face; then reducing)"}</span>
-                                  <strong>{inr(interest)} ({data.interestRate || 0}%{balloon ? " of face" : " of outstanding"})</strong>
+                                  <strong>{inr(interest)} ({rate}%{balloon ? " of face" : " of outstanding"})</strong>
                                 </div>
                                 <div className="kv">
                                   <span>{balloon ? "Principal (last month)" : "Principal share / month"}</span>
