@@ -3,6 +3,7 @@ import type { Messages } from "./types";
 /** Marathi — Maharashtra bhishi vernacular (हप्ता, लिलाव, कसर, लाभांश, चिठ्ठी). */
 export const mr: Messages = {
   brand: "Bhishi Circle",
+  brandTagline: "Save Together. Grow Together.",
   nav: {
     home: "मुख्य",
     dashboard: "डॅशबोर्ड",
@@ -16,6 +17,7 @@ export const mr: Messages = {
     profile: "प्रोफाइल",
     search: "शोधा",
     newChit: "नवीन भिशी",
+    createBhishi: "भिशी तयार करा",
     more: "अधिक",
     moreHint: "खाते, प्लॅन आणि शॉर्टकट",
     signOut: "साइन आउट",

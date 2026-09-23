@@ -172,7 +172,7 @@ export function AppShell({
         </>
       )}
       <div className="main">
-        <div className="topbar">
+        <div className="topbar topbar-desktop">
           <div className="crumbs">
             {crumb && <Link to={crumb === "Chits" || crumb === m.nav.chits ? "/chits" : crumb === "Plan & billing" ? "/upgrade" : "/"}>{crumb}</Link>}
             {crumb2 && <span>›</span>}
@@ -183,6 +183,26 @@ export function AppShell({
             <span className="search-label">{m.searchPlaceholder}</span>
             <span className="search-kbd">⌘K</span>
           </button>
+        </div>
+        <div className="topbar topbar-mobile">
+          <Link to="/" className="mobile-brand" aria-label={m.brand}>
+            <img
+              className="mobile-brand-mark"
+              src="/brand/bhishi-mark.png"
+              alt=""
+              width={36}
+              height={36}
+              decoding="async"
+            />
+            <span className="mobile-brand-text">
+              <strong>BhishiCircle</strong>
+              <em>{m.brandTagline}</em>
+            </span>
+          </Link>
+          <Link to="/chits/new" className="mobile-create">
+            <Plus size={14} strokeWidth={2.6} />
+            <span>{m.nav.createBhishi}</span>
+          </Link>
         </div>
         <div className="main-scroll">{children}</div>
         <nav className="bottom-tabs" aria-label="Primary">

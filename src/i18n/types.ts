@@ -9,6 +9,7 @@ export type Lang = "en" | "hi" | "mr";
 
 export type Messages = {
   brand: string;
+  brandTagline: string;
   nav: {
     home: string;
     dashboard: string;
@@ -22,6 +23,7 @@ export type Messages = {
     profile: string;
     search: string;
     newChit: string;
+    createBhishi: string;
     more: string;
     moreHint: string;
     signOut: string;

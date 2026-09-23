@@ -3,6 +3,7 @@ import type { Messages } from "./types";
 /** Hindi — everyday bhishi / chit terms (हप्ता, नीलामी, कसर, लाभांश). */
 export const hi: Messages = {
   brand: "Bhishi Circle",
+  brandTagline: "Save Together. Grow Together.",
   nav: {
     home: "होम",
     dashboard: "डैशबोर्ड",
@@ -16,6 +17,7 @@ export const hi: Messages = {
     profile: "प्रोफ़ाइल",
     search: "खोजें",
     newChit: "नई भिशी",
+    createBhishi: "भिशी बनाएँ",
     more: "और",
     moreHint: "खाता, प्लान और शॉर्टकट",
     signOut: "साइन आउट",

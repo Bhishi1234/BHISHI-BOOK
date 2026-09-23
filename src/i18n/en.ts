@@ -3,6 +3,7 @@ import type { Messages } from "./types";
 /** English UI — Maharashtra bhishi terms explained in plain language. */
 export const en: Messages = {
   brand: "Bhishi Circle",
+  brandTagline: "Save Together. Grow Together.",
   nav: {
     home: "Home",
     dashboard: "Dashboard",
@@ -16,6 +17,7 @@ export const en: Messages = {
     profile: "Profile",
     search: "Search",
     newChit: "New bhishi",
+    createBhishi: "Create a Bhishi",
     more: "More",
     moreHint: "Account, plans & shortcuts",
     signOut: "Sign out",
