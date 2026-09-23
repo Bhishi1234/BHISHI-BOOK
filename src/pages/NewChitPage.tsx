@@ -12,10 +12,10 @@ import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
 import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { useStore } from "../store";
 
-const FREQS: Frequency[] = ["daily", "weekly", "biweekly", "monthly", "quarterly", "halfyearly", "yearly"];
+const FREQS: Frequency[] = ["biweekly", "monthly"];
 
 function needsStyleStep(type: ChitType) {
-  return type === "auction" || type === "fixed";
+  return type === "auction" || type === "fixed" || type === "loan";
 }
 
 export function NewChitPage() {
@@ -31,6 +31,8 @@ export function NewChitPage() {
   const [pot, setPot] = useState("");
   const [count, setCount] = useState("");
   const [duration, setDuration] = useState("");
+  /** While false, haptas stay mirrored to hands as the user types multi-digit counts. */
+  const [durationManual, setDurationManual] = useState(false);
   const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
   const [title, setTitle] = useState("");
   const [freq, setFreq] = useState<Frequency>("monthly");
@@ -62,6 +64,14 @@ export function NewChitPage() {
     () => ([
       { id: "collect_first" as const, title: m.auctionStyle.collect_first, body: m.auctionStyle.collect_first_body },
       { id: "auction_first" as const, title: m.auctionStyle.auction_first, body: m.auctionStyle.auction_first_body },
+    ]),
+    [m],
+  );
+
+  const SETTLEMENT_STYLES = useMemo(
+    () => ([
+      { id: "collect_first" as const, title: m.settlementStyle.collect_first, body: m.settlementStyle.collect_first_body },
+      { id: "auction_first" as const, title: m.settlementStyle.award_first, body: m.settlementStyle.award_first_body },
     ]),
     [m],
   );
@@ -129,12 +139,14 @@ export function NewChitPage() {
     type === "auction"
       ? (auctionStyle === "auction_first" ? m.auctionStyle.auction_first : m.auctionStyle.collect_first)
       : type === "fixed"
-        ? fixedStyle === "lucky_draw"
+        ? `${fixedStyle === "lucky_draw"
           ? m.fixedStyle.lucky_draw
           : fixedStyle === "hand_sacrifice"
             ? m.fixedStyle.hand_sacrifice
-            : m.fixedStyle.fixed_order
-        : null;
+            : m.fixedStyle.fixed_order} · ${auctionStyle === "auction_first" ? m.settlementStyle.award_first : m.settlementStyle.collect_first}`
+        : type === "loan"
+          ? (auctionStyle === "auction_first" ? m.settlementStyle.award_first : m.settlementStyle.collect_first)
+          : null;
 
   const preview = useMemo(() => ({
     members: n || "—",
@@ -147,7 +159,7 @@ export function NewChitPage() {
   const stepper = needsStyleStep(type)
     ? [
         [m.newChit.pickType, ""],
-        [type === "auction" ? m.newChit.auctionStyle : m.newChit.fixedStyle, ""],
+        [type === "auction" ? m.newChit.auctionStyle : type === "loan" ? m.settlementStyle.title : m.newChit.fixedStyle, ""],
         [m.newChit.terms, ""],
         [m.newChit.membersStep, ""],
       ]
@@ -167,6 +179,11 @@ export function NewChitPage() {
   async function create() {
     if (!n || n < 1) {
       window.alert(m.newChitExtra.setMembersAlert);
+      return;
+    }
+    const haptaN = Number(duration) || 0;
+    if (haptaN !== n) {
+      window.alert(tx(m.newChitExtra.haptasMustMatchHands, { hands: n }));
       return;
     }
     if (picked.length !== n) {
@@ -198,7 +215,7 @@ export function NewChitPage() {
         instalment,
         membersCount: n,
         commissionPct: commPct,
-        duration: months || n,
+        duration: haptaN,
         startDate: start,
         mode: "organise",
         members,
@@ -207,7 +224,7 @@ export function NewChitPage() {
         commissionKind: commKind,
         commissionValue: Number(comm) || 0,
         adjustmentStyle: type === "auction" ? adjust : "every_month",
-        auctionStyle: type === "auction" ? auctionStyle : undefined,
+        auctionStyle,
         fixedStyle: type === "fixed" ? fixedStyle : undefined,
         interestRate: type === "loan" ? interestN : undefined,
         repaymentTenure: type === "loan" && tenureN > 0 ? tenureN : undefined,
@@ -343,6 +360,45 @@ export function NewChitPage() {
                 </button>
               ))}
             </div>
+            <h2 style={{ marginTop: 20 }}>{m.settlementStyle.title}</h2>
+            <p className="muted block">{m.settlementStyle.collect_first}</p>
+            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              {SETTLEMENT_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`type-pick ${auctionStyle === s.id ? "active" : ""}`}
+                  onClick={() => setAuctionStyle(s.id)}
+                >
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </button>
+              ))}
+            </div>
+            <div className="wizard-actions">
+              <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
+              <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && type === "loan" && (
+          <div className="card">
+            <div className="row-head"><h2>{m.settlementStyle.title}</h2><span className="muted">2 / {stepper.length}</span></div>
+            <p className="muted block">{m.settlementStyle.collect_first}</p>
+            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              {SETTLEMENT_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`type-pick ${auctionStyle === s.id ? "active" : ""}`}
+                  onClick={() => setAuctionStyle(s.id)}
+                >
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </button>
+              ))}
+            </div>
             <div className="wizard-actions">
               <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
               <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
@@ -367,11 +423,30 @@ export function NewChitPage() {
                   </div>
                   <div>
                     <label className="label">{m.newChit.memberCount}</label>
-                    <input className="field" placeholder="e.g. 10" value={count} onChange={(e) => { setCount(e.target.value); if (!duration) setDuration(e.target.value); }} />
+                    <input
+                      className="field"
+                      placeholder="e.g. 10"
+                      inputMode="numeric"
+                      value={count}
+                      onChange={(e) => {
+                        const next = e.target.value.replace(/\D/g, "");
+                        setCount(next);
+                        if (!durationManual) setDuration(next);
+                      }}
+                    />
                   </div>
                   <div>
                     <label className="label">{m.newChit.duration}</label>
-                    <input className="field" placeholder="e.g. 10" value={duration} onChange={(e) => setDuration(e.target.value)} />
+                    <input
+                      className="field"
+                      placeholder="e.g. 10"
+                      inputMode="numeric"
+                      value={duration}
+                      onChange={(e) => {
+                        setDurationManual(true);
+                        setDuration(e.target.value.replace(/\D/g, ""));
+                      }}
+                    />
                   </div>
                   <div>
                     <label className="label">{m.newChit.startDate}</label>
@@ -458,7 +533,14 @@ export function NewChitPage() {
                   <button
                     className="btn"
                     disabled={!confirm || !potN || !n || (type === "loan" && !interestN)}
-                    onClick={() => setStep(3)}
+                    onClick={() => {
+                      const haptaN = Number(duration) || 0;
+                      if (haptaN !== n) {
+                        window.alert(tx(m.newChitExtra.haptasMustMatchHands, { hands: n }));
+                        return;
+                      }
+                      setStep(3);
+                    }}
                   >
                     {m.common.next}
                   </button>

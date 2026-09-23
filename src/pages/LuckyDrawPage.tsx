@@ -9,7 +9,7 @@ import { shareLuckyDrawResult, WHEEL_PALETTE } from "../lib/luckyDrawShare";
 import { useStore } from "../store";
 import type { AuctionRecord, ChitMember } from "../types";
 
-type Phase = "ready" | "spinning" | "done" | "error";
+type Phase = "ready" | "spinning" | "pending" | "done" | "error";
 
 const SPIN_MS = 4800;
 
@@ -47,7 +47,7 @@ function conicFor(count: number) {
 export function LuckyDrawPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { chits, customers, luckyDraw } = useStore();
+  const { chits, customers, recordAuction, replaceCycleAward } = useStore();
   const { m: copy, tx, locale } = useI18n();
   const chit = chits.find((c) => c.id === id);
 
@@ -75,8 +75,10 @@ export function LuckyDrawPage() {
   const [rotation, setRotation] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [result, setResult] = useState<AuctionRecord | null>(null);
+  const [pendingKey, setPendingKey] = useState("");
   const [error, setError] = useState("");
   const [sharing, setSharing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [drawnAt, setDrawnAt] = useState<Date | null>(null);
   /** Frozen list of hands on the wheel for this draw (survives store prize update). */
   const [pool, setPool] = useState<ChitMember[] | null>(null);
@@ -88,7 +90,9 @@ export function LuckyDrawPage() {
     return handLabel(names[mem.customerId] || "Member", mem.slot, hands);
   };
 
-  // Revisit: already drawn this cycle — park on winner for share.
+  const pickList = pool ?? eligible;
+
+  // Already awarded this cycle — show result, allow change.
   useEffect(() => {
     if (!chit || !existingWin || hydratedRef.current || spunRef.current) return;
     hydratedRef.current = true;
@@ -100,15 +104,26 @@ export function LuckyDrawPage() {
         prizedCycle: cycle,
       } satisfies ChitMember);
     const rest = chit.members
-      .filter((mem) => !mem.prizedCycle && !isSameHand(mem, existingWin.winnerId, existingWin.winnerSlot))
+      .filter((mem) => !isSameHand(mem, existingWin.winnerId, existingWin.winnerSlot))
       .sort((a, b) => a.slot - b.slot);
-    const rebuilt = [winnerHand, ...rest];
-    setPool(rebuilt);
+    const rebuilt = [winnerHand, ...rest.filter((m) => !m.prizedCycle || isSameHand(m, existingWin.winnerId, existingWin.winnerSlot))];
+    setPool(rebuilt.length ? rebuilt : [winnerHand]);
     setResult(existingWin);
-    setRotation(landRotation(0, rebuilt.length, 0));
+    setPendingKey(memberKey(winnerHand));
+    setRotation(landRotation(0, Math.max(rebuilt.length, 1), 0));
     setPhase("done");
     setDrawnAt(new Date());
   }, [chit, existingWin, cycle]);
+
+  // Last member remaining: award directly (no wheel).
+  useEffect(() => {
+    if (!chit || existingWin || hydratedRef.current || eligible.length !== 1) return;
+    hydratedRef.current = true;
+    const only = eligible[0]!;
+    setPool([only]);
+    setPendingKey(memberKey(only));
+    setPhase("pending");
+  }, [chit, existingWin, eligible]);
 
   const displayMembers = pool ?? eligible;
 
@@ -118,7 +133,9 @@ export function LuckyDrawPage() {
     return handLabel(names[result.winnerId] || copy.luckyDraw.winner, result.winnerSlot ?? 1, hands);
   }, [result, chit, names, copy.luckyDraw.winner]);
 
-  async function onSpin() {
+  const pendingMember = pickList.find((m) => memberKey(m) === pendingKey) || pickList[0];
+
+  function onSpin() {
     if (!chit || phase === "spinning" || spunRef.current) return;
     if (existingWin) {
       setResult(existingWin);
@@ -130,6 +147,12 @@ export function LuckyDrawPage() {
       setPhase("error");
       return;
     }
+    if (eligible.length === 1) {
+      setPool([...eligible]);
+      setPendingKey(memberKey(eligible[0]!));
+      setPhase("pending");
+      return;
+    }
 
     spunRef.current = true;
     setError("");
@@ -137,26 +160,55 @@ export function LuckyDrawPage() {
     setAnimating(true);
     const snapshot = [...eligible];
     setPool(snapshot);
+    const idx = Math.floor(Math.random() * snapshot.length);
+    const picked = snapshot[idx]!;
+    setPendingKey(memberKey(picked));
+    setRotation((prev) => landRotation(idx, snapshot.length, prev));
 
+    window.setTimeout(() => {
+      setAnimating(false);
+      setPhase("pending");
+      spunRef.current = false;
+    }, SPIN_MS + 80);
+  }
+
+  function startPick() {
+    if (!eligible.length) return;
+    setPool([...eligible]);
+    setPendingKey(memberKey(eligible[0]!));
+    setPhase("pending");
+    setError("");
+  }
+
+  function startChange() {
+    const base = eligible.length
+      ? [...eligible]
+      : (pool || []).filter((m) => !m.prizedCycle || (result && isSameHand(m, result.winnerId, result.winnerSlot)));
+    const list = base.length ? base : pickList;
+    setPool(list);
+    setPendingKey(result ? `${result.winnerId}::${result.winnerSlot ?? 1}` : memberKey(list[0]!));
+    setPhase("pending");
+    setError("");
+  }
+
+  async function onConfirm() {
+    if (!chit || !pendingMember) return;
+    setSaving(true);
+    setError("");
     try {
-      const rec = await luckyDraw(chit.id);
-      if (!rec) throw new Error("Draw did not return a winner");
+      const rec = existingWin
+        ? await replaceCycleAward(chit.id, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot)
+        : await recordAuction(chit.id, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot);
+      if (!rec) throw new Error("Could not award winner");
       setResult(rec);
       setDrawnAt(new Date());
-
-      const idx = snapshot.findIndex((mem) => isSameHand(mem, rec.winnerId, rec.winnerSlot));
-      setRotation((prev) => landRotation(idx >= 0 ? idx : 0, snapshot.length, prev));
-
-      window.setTimeout(() => {
-        setAnimating(false);
-        setPhase("done");
-      }, SPIN_MS + 80);
+      setPhase("done");
+      hydratedRef.current = true;
     } catch (e) {
-      spunRef.current = false;
-      setPool(null);
-      setAnimating(false);
-      setError(e instanceof Error ? e.message : "Could not complete lucky draw");
+      setError(e instanceof Error ? e.message : "Could not confirm winner");
       setPhase("error");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -195,6 +247,7 @@ export function LuckyDrawPage() {
 
   const n = Math.max(displayMembers.length, 1);
   const seg = 360 / n;
+  const lastOnly = eligible.length === 1 && !existingWin;
 
   return (
     <AppShell crumb={copy.nav.chits} crumb2={chit.name}>
@@ -214,56 +267,77 @@ export function LuckyDrawPage() {
           </p>
         </header>
 
-        <div className="ld-stage">
-          <div className="ld-pointer" aria-hidden />
-          <div
-            className={`ld-wheel ${animating ? "is-spinning" : ""}`}
-            style={{
-              background: conicFor(n),
-              transform: `rotate(${rotation}deg)`,
-              transition: animating
-                ? `transform ${SPIN_MS}ms cubic-bezier(0.08, 0.82, 0.08, 1)`
-                : "none",
-            }}
-          >
-            {displayMembers.map((mem, i) => {
-              const mid = i * seg + seg / 2;
-              const label = labelOf(mem);
-              const maxLen = n > 10 ? 7 : n > 6 ? 10 : 14;
-              const short = label.length > maxLen ? `${label.slice(0, maxLen - 1)}…` : label;
-              return (
-                <span
-                  key={memberKey(mem)}
-                  className="ld-seg-label"
-                  style={{
-                    transform: `rotate(${mid}deg)`,
-                    fontSize: n > 14 ? 10 : n > 10 ? 11 : n > 6 ? 12 : 13,
-                  }}
-                >
-                  <span className="ld-seg-label-text">{short}</span>
-                </span>
-              );
-            })}
+        {!lastOnly && (
+          <div className="ld-stage">
+            <div className="ld-pointer" aria-hidden />
+            <div
+              className={`ld-wheel ${animating ? "is-spinning" : ""}`}
+              style={{
+                background: conicFor(n),
+                transform: `rotate(${rotation}deg)`,
+                transition: animating
+                  ? `transform ${SPIN_MS}ms cubic-bezier(0.08, 0.82, 0.08, 1)`
+                  : "none",
+              }}
+            >
+              {displayMembers.map((mem, i) => {
+                const mid = i * seg + seg / 2;
+                const label = labelOf(mem);
+                const maxLen = n > 10 ? 7 : n > 6 ? 10 : 14;
+                const short = label.length > maxLen ? `${label.slice(0, maxLen - 1)}…` : label;
+                return (
+                  <span
+                    key={memberKey(mem)}
+                    className="ld-seg-label"
+                    style={{
+                      transform: `rotate(${mid}deg)`,
+                      fontSize: n > 14 ? 10 : n > 10 ? 11 : n > 6 ? 12 : 13,
+                    }}
+                  >
+                    <span className="ld-seg-label-text">{short}</span>
+                  </span>
+                );
+              })}
+            </div>
+            <div className="ld-hub" aria-hidden>
+              <span>BC</span>
+            </div>
           </div>
-          {/* Hub sits outside the rotating wheel so "BC" stays upright */}
-          <div className="ld-hub" aria-hidden>
-            <span>BC</span>
-          </div>
-        </div>
+        )}
 
         {phase === "ready" && (
           <div className="ld-actions">
             <p className="ld-hint">
-              {tx(copy.luckyDraw.eligible, { n: eligible.length })}
+              {lastOnly
+                ? copy.luckyDraw.awardLast
+                : tx(copy.luckyDraw.eligible, { n: eligible.length })}
             </p>
-            <button
-              className="btn ld-spin-btn"
-              type="button"
-              disabled={eligible.length === 0}
-              onClick={() => void onSpin()}
-            >
-              {copy.luckyDraw.spin}
-            </button>
+            <p className="ld-hint">{copy.luckyDraw.spinOrPick}</p>
+            {lastOnly ? (
+              <button className="btn ld-spin-btn" type="button" onClick={startPick}>
+                {copy.luckyDraw.awardLast}
+              </button>
+            ) : (
+              <>
+                <button
+                  className="btn ld-spin-btn"
+                  type="button"
+                  disabled={eligible.length === 0}
+                  onClick={() => onSpin()}
+                >
+                  {copy.luckyDraw.spin}
+                </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  style={{ marginTop: 10 }}
+                  disabled={eligible.length === 0}
+                  onClick={startPick}
+                >
+                  {copy.luckyDraw.pickWinner}
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -275,56 +349,71 @@ export function LuckyDrawPage() {
           </div>
         )}
 
+        {phase === "pending" && (
+          <div className="ld-actions">
+            <p className="ld-hint">{lastOnly ? copy.luckyDraw.awardLast : copy.luckyDraw.pendingHint}</p>
+            <label className="label">{copy.luckyDraw.winner}</label>
+            <select
+              className="field"
+              value={pendingKey}
+              onChange={(e) => setPendingKey(e.target.value)}
+              disabled={saving || (lastOnly && pickList.length === 1)}
+            >
+              {pickList.map((mem) => (
+                <option key={memberKey(mem)} value={memberKey(mem)}>
+                  {labelOf(mem)}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn ld-spin-btn"
+              type="button"
+              style={{ marginTop: 12 }}
+              disabled={!pendingMember || saving}
+              onClick={() => void onConfirm()}
+            >
+              {saving ? copy.common.loading : copy.luckyDraw.confirmWinner}
+            </button>
+            {!lastOnly && !existingWin && (
+              <button className="btn ghost" type="button" style={{ marginTop: 8 }} disabled={saving} onClick={() => { setPool(null); setPhase("ready"); }}>
+                {copy.common.back}
+              </button>
+            )}
+          </div>
+        )}
+
         {phase === "error" && (
           <div className="ld-actions">
             <p className="due">{error}</p>
-            <button
-              className="btn"
-              type="button"
-              onClick={() => {
-                setPhase("ready");
-                setError("");
-              }}
-            >
+            <button className="btn" type="button" onClick={() => { setPhase(existingWin ? "done" : "ready"); setError(""); }}>
               {copy.luckyDraw.tryAgain}
             </button>
           </div>
         )}
 
         {phase === "done" && result && (
-          <div className="ld-result" aria-live="polite">
-            <div className="ld-result-card">
+          <div className="ld-actions">
+            <div className="ld-result">
               <p className="ld-result-kicker">{copy.luckyDraw.winner}</p>
               <h2>{winnerName}</h2>
-              <p className="ld-result-amount">{inr(result.payout)}</p>
-              <p className="ld-result-meta">
-                {tx(copy.chit.monthOf, { cycle, duration: chit.duration })}
+              <p className="ld-result-amt">{inr(result.payout)}</p>
+              <p className="muted">
                 {drawnAt
-                  ? ` · ${drawnAt.toLocaleString(locale, {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                    })}`
+                  ? drawnAt.toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
                   : ""}
               </p>
             </div>
             <div className="ld-verified">{copy.luckyDraw.verified}</div>
-            <div className="ld-actions row">
-              <button
-                className="btn ld-share-btn"
-                type="button"
-                disabled={sharing}
-                onClick={() => void onShare()}
-              >
-                {sharing ? <Loader2 size={16} className="spin" /> : <Share2 size={16} />}
-                {copy.luckyDraw.shareWhatsApp}
+            <div className="ld-done-row">
+              <button className="btn" type="button" disabled={sharing} onClick={() => void onShare()}>
+                <Share2 size={16} /> {copy.luckyDraw.shareWhatsApp}
               </button>
-              <button className="btn ghost" type="button" onClick={() => nav(`/chits/${chit.id}`)}>
+              <button className="btn ghost" type="button" onClick={startChange}>
+                {copy.luckyDraw.changeWinner}
+              </button>
+              <Link className="btn ghost" to={`/chits/${chit.id}`}>
                 {copy.luckyDraw.done}
-              </button>
+              </Link>
             </div>
           </div>
         )}

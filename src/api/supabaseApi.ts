@@ -339,6 +339,32 @@ export const supabaseApi = {
     return mapAuction(data as Record<string, unknown>);
   },
 
+  async replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+    const chit = await loadChit(chitId);
+    const cycle = chit.currentCycle;
+    const old = chit.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
+    const { sb } = await requireUser();
+    if (old) {
+      const { error: delErr } = await sb
+        .from("auctions")
+        .delete()
+        .eq("chit_id", chitId)
+        .eq("cycle", cycle)
+        .neq("method", "settlement");
+      throwIf(delErr);
+      let q = sb
+        .from("chit_members")
+        .update({ prized_cycle: null })
+        .eq("chit_id", chitId)
+        .eq("customer_id", old.winnerId)
+        .eq("prized_cycle", cycle);
+      if (old.winnerSlot != null) q = q.eq("slot", old.winnerSlot);
+      const { error: memErr } = await q;
+      throwIf(memErr);
+    }
+    return this.settlePayout(chitId, winnerId, bid, method, winnerSlot);
+  },
+
   async luckyDraw(chitId: string) {
     const chit = await loadChit(chitId);
     const pool = chit.members.filter((m) => !m.prizedCycle);

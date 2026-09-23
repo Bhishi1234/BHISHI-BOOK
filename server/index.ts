@@ -529,6 +529,54 @@ app.post("/api/v1/chits/:id/settle", async (c) => {
   }
 });
 
+app.post("/api/v1/chits/:id/replace-award", async (c) => {
+  try {
+    const sb = asUser(bearer(c));
+    const chitId = c.req.param("id");
+    const body = await c.req.json();
+    const { data: chitRow, error: chitErr } = await sb.from("chits").select("current_cycle").eq("id", chitId).single();
+    if (chitErr) return c.json({ error: chitErr.message }, 400);
+    const cycle = chitRow.current_cycle as number;
+    const { data: oldRows } = await sb
+      .from("auctions")
+      .select("winner_id, winner_slot")
+      .eq("chit_id", chitId)
+      .eq("cycle", cycle)
+      .neq("method", "settlement");
+    const old = oldRows?.[0];
+    if (old) {
+      const { error: delErr } = await sb
+        .from("auctions")
+        .delete()
+        .eq("chit_id", chitId)
+        .eq("cycle", cycle)
+        .neq("method", "settlement");
+      if (delErr) return c.json({ error: delErr.message }, 400);
+      let memQ = sb
+        .from("chit_members")
+        .update({ prized_cycle: null })
+        .eq("chit_id", chitId)
+        .eq("customer_id", old.winner_id)
+        .eq("prized_cycle", cycle);
+      if (old.winner_slot != null) memQ = memQ.eq("slot", old.winner_slot);
+      const { error: memErr } = await memQ;
+      if (memErr) return c.json({ error: memErr.message }, 400);
+    }
+    const { data, error } = await sb.rpc("settle_payout", {
+      p_chit_id: chitId,
+      p_winner_id: body.winnerId,
+      p_bid: body.bid,
+      p_method: body.method,
+      p_winner_slot: body.winnerSlot ?? null,
+    });
+    if (error) return c.json({ error: rpcError(error) }, 400);
+    return c.json(data);
+  } catch (e) {
+    const { error, status } = fail(e);
+    return c.json({ error }, status);
+  }
+});
+
 app.post("/api/v1/chits/:id/lucky-draw", async (c) => {
   try {
     const sb = asUser(bearer(c));

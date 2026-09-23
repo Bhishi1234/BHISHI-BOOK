@@ -49,8 +49,17 @@ export function appliedDividend(chit: Chit, cycle: number) {
   return prev ? dividendFromAuction(chit, prev) : 0;
 }
 
+/** Auction-only: peer settle winning bid ÷ N (subset of award-first). */
 export function isAuctionFirst(chit: Chit) {
   return chit.type === "auction" && chit.auctionStyle === "auction_first";
+}
+
+/**
+ * Hapta order: award / auction / loan first, then collect, then close.
+ * Stored in auction_style for every bhishi type (collect_first | auction_first).
+ */
+export function isAwardFirst(chit: Chit) {
+  return chit.auctionStyle === "auction_first";
 }
 
 /** Winning auction / lucky-draw row for a cycle, if any. */
@@ -981,12 +990,13 @@ export function settleWinner(
     (a) => a.cycle === chit.currentCycle && a.method === "fixed",
   );
   const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
-  const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
+  const auctionPeer = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
+  const awardFirst = isAwardFirst(chit);
   const handSacrifice = isHandSacrifice(chit) && (method === "fixed" || method === "lucky_draw");
   const lastHand = handSacrifice && isLastHandSacrificeAward(chit);
-  // Auction-first: members settle the bid peer-to-peer (bid ÷ N each). No foreman cut from the till.
+  // Auction peer-settlement: no foreman cut from the till. Other award-first types still take commission.
   const commission =
-    method === "settlement" || lastAuction || auctionFirst
+    method === "settlement" || lastAuction || auctionPeer
       ? 0
       : method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle
         ? 0
@@ -1001,8 +1011,12 @@ export function settleWinner(
     // Last remaining hand takes the full pot (no dividend pool).
     discount = lastHand ? 0 : handSacrificeAmount(chit);
     const facePrize = Math.max(0, chit.pot - discount - commission);
-    const maxPayout = Math.max(0, treasuryOf(chit) - commission - discount);
-    safeBid = Math.min(facePrize, maxPayout);
+    if (awardFirst) {
+      safeBid = facePrize;
+    } else {
+      const maxPayout = Math.max(0, treasuryOf(chit) - commission - discount);
+      safeBid = Math.min(facePrize, maxPayout);
+    }
     const winSlot =
       winnerSlot
       ?? chit.members.find((m) => m.customerId === winnerId && !m.prizedCycle)?.slot
@@ -1012,13 +1026,13 @@ export function settleWinner(
       return !m.prizedCycle;
     }).length;
     dividend = remaining > 0 && discount > 0 ? Math.floor(discount / remaining) : 0;
-  } else if (lastAuction && auctionFirst) {
+  } else if (lastAuction && auctionPeer) {
     safeBid = Math.max(0, chit.pot);
   } else if (lastAuction) {
-    safeBid = Math.max(0, treasuryOf(chit));
+    safeBid = awardFirst ? Math.max(0, chit.pot - commission) : Math.max(0, treasuryOf(chit));
   } else if (method === "auction") {
     safeBid = Math.min(chit.pot, Math.max(0, bid));
-    if (!auctionFirst) {
+    if (!auctionPeer) {
       // Collect-first: winner is paid from the till — never more than cash after commission.
       const maxPayout = Math.max(0, treasuryOf(chit) - commission);
       safeBid = Math.min(safeBid, maxPayout);
@@ -1027,7 +1041,7 @@ export function settleWinner(
     }
   } else if (method === "lucky_draw") {
     safeBid = Math.max(0, chit.pot - commission);
-    if (!auctionFirst) {
+    if (!awardFirst) {
       const maxPayout = Math.max(0, treasuryOf(chit) - commission);
       safeBid = Math.min(safeBid, maxPayout);
     }
@@ -1035,21 +1049,28 @@ export function settleWinner(
     // Face principal; one month’s interest is cut from the amount handed over and stays in the pot.
     safeBid = Math.max(0, Number(bid) || 0);
     discount = loanMonthlyInterest(chit, safeBid);
-  } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw")) {
-    const maxPayout = Math.max(0, treasuryOf(chit) - commission);
-    safeBid = Math.min(Math.max(0, Number(bid) || 0), maxPayout);
+  } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice")) {
+    const requested = Math.max(0, Number(bid) || chit.pot);
+    if (awardFirst) {
+      // Award from organiser float — pot (minus commission when awarding the full face).
+      safeBid = Math.min(requested, chit.pot);
+      if (safeBid >= chit.pot && commission > 0) safeBid = Math.max(0, chit.pot - commission);
+    } else {
+      const maxPayout = Math.max(0, treasuryOf(chit) - commission);
+      safeBid = Math.min(requested, maxPayout);
+    }
   } else {
     safeBid = Math.max(0, Number(bid) || 0);
   }
-  // Auction-first: full bid is what the winner gets; peers settle bid ÷ N separately.
-  const arrearsWithheld = method === "settlement" || auctionFirst
+  // Auction peer: full bid is what the winner gets; peers settle bid ÷ N separately.
+  const arrearsWithheld = method === "settlement" || auctionPeer
     ? 0
     : memberBalance(chit, winnerId, winnerSlot).outstanding;
   let payout = Math.max(0, safeBid - arrearsWithheld);
   if (method === "fixed" && chit.type === "loan") {
     payout = Math.max(0, safeBid - discount - arrearsWithheld);
   }
-  if (method === "fixed" && chit.type === "loan") {
+  if (method === "fixed" && chit.type === "loan" && !awardFirst) {
     const maxNet = Math.max(0, treasuryOf(chit) - commission);
     if (payout > maxNet) payout = maxNet;
   }
@@ -1083,10 +1104,10 @@ export function collectedCount(chit: Chit) {
   return chit.members.filter((m) => paymentStatus(chit, m.customerId, cyc, m.slot) !== "due").length;
 }
 
-/** Auction unlocked: collect-first needs receipts; auction-first can bid immediately. */
+/** Auction unlocked: collect-first needs receipts; award-first can award immediately. */
 export function canSettleCycle(chit: Chit) {
   if (!chit.members.length) return false;
-  if (isAuctionFirst(chit)) return true;
+  if (isAwardFirst(chit)) return true;
   return collectedThisCycle(chit) > 0;
 }
 
@@ -1100,7 +1121,7 @@ export function assertCanSettlePayout(
   if (method === "fixed" && chit.type === "loan" && !canGiveLoan(chit)) {
     throw new Error("No new loans on the last month — collect dues and settle leftover cash instead");
   }
-  const auctionFirst = isAuctionFirst(chit) && (method === "auction" || method === "lucky_draw");
+  const awardFirst = isAwardFirst(chit);
   if (method !== "settlement" && !canSettleCycle(chit)) {
     throw new Error("Record this month's collections before the auction");
   }
@@ -1109,7 +1130,7 @@ export function assertCanSettlePayout(
     throw new Error("Enter an amount greater than zero");
   }
   const rec = settleWinner(chit, winnerId, bid, method, winnerSlot);
-  if (!auctionFirst) {
+  if (!awardFirst) {
     const available = treasuryOf(chit);
     const need = rec.payout + rec.commission + (isHandSacrifice(chit) ? rec.discount : 0);
     if (need > Math.max(0, available) + 0.001) {

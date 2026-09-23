@@ -183,6 +183,13 @@ export type Messages = {
     auction_first: string;
     auction_first_body: string;
   };
+  settlementStyle: {
+    title: string;
+    collect_first: string;
+    collect_first_body: string;
+    award_first: string;
+    award_first_body: string;
+  };
   fixedStyle: {
     fixed_order: string;
     fixed_order_body: string;
@@ -304,6 +311,7 @@ export type Messages = {
     restOfChit: string;
     commissionPerHapta: string;
     recordAll: string;
+    markAllUnpaid: string;
     recording: string;
     noCollections: string;
     receiptsFrom: string;
@@ -413,6 +421,10 @@ export type Messages = {
   luckyDraw: {
     title: string;
     spin: string;
+    pickWinner: string;
+    confirmWinner: string;
+    changeWinner: string;
+    awardLast: string;
     winner: string;
     drawing: string;
     verified: string;
@@ -423,6 +435,8 @@ export type Messages = {
     done: string;
     tryAgain: string;
     chitthi: string;
+    spinOrPick: string;
+    pendingHint: string;
   };
   customersPage: {
     subtitle: string;
@@ -586,6 +600,7 @@ export type Messages = {
     pageSubtitle: string;
     createStepsAria: string;
     fillSlotsAlert: string;
+    haptasMustMatchHands: string;
     confirmAlert: string;
     confirmCheckbox: string;
     commissionAuctionFirstPeer: string;

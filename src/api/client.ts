@@ -34,6 +34,7 @@ type Backend = {
   recordPayment: (chitId: string, memberId: string, amount: number, kind?: PaymentKind, mode?: PayMode, slot?: number) => Promise<Chit>;
   undoPayment: (chitId: string, paymentId: string) => Promise<Chit>;
   settlePayout: (chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) => Promise<AuctionRecord>;
+  replaceCycleAward: (chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) => Promise<AuctionRecord>;
   luckyDraw: (chitId: string) => Promise<AuctionRecord>;
   tickets: () => Promise<unknown>;
   addTicket: (subject: string, message: string) => Promise<unknown>;
@@ -68,6 +69,8 @@ const mockApi: Backend = {
   undoPayment: (chitId, paymentId) => delay(mockServer.collections.undo(chitId, paymentId)),
   settlePayout: (chitId, winnerId, bid, method, winnerSlot) =>
     delay(mockServer.auctions.create(chitId, winnerId, bid, method, winnerSlot)),
+  replaceCycleAward: (chitId, winnerId, bid, method, winnerSlot) =>
+    delay(mockServer.auctions.replaceCycleAward(chitId, winnerId, bid, method, winnerSlot)),
   luckyDraw: (chitId) => delay(mockServer.auctions.draw(chitId)),
   tickets: () => delay(mockServer.support.list()),
   addTicket: (subject, message) => delay(mockServer.support.create(subject, message)),

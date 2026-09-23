@@ -192,6 +192,13 @@ export const restApi = {
     }));
   },
 
+  async replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+    return mapAuction(await request(`/api/v1/chits/${chitId}/replace-award`, {
+      method: "POST",
+      body: JSON.stringify({ winnerId, bid, method, winnerSlot }),
+    }));
+  },
+
   async luckyDraw(chitId: string) {
     return mapAuction(await request(`/api/v1/chits/${chitId}/lucky-draw`, { method: "POST" }));
   },

@@ -550,6 +550,31 @@ export const mockServer = {
       if (!record) throw new Error("Could not settle this cycle");
       return record;
     },
+    replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+      const db = read();
+      needUser(db);
+      db.chits = db.chits.map((c) => {
+        if (c.id !== chitId) return c;
+        if (c.status !== "running") throw new Error("Chit is not running");
+        const cycle = c.currentCycle;
+        const old = c.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
+        let members = c.members;
+        let auctions = c.auctions;
+        if (old) {
+          auctions = c.auctions.filter((a) => !(a.cycle === cycle && a.method !== "settlement"));
+          members = c.members.map((m) => {
+            const same =
+              m.customerId === old.winnerId &&
+              (old.winnerSlot == null || m.slot === old.winnerSlot);
+            if (same && m.prizedCycle === cycle) return { ...m, prizedCycle: undefined };
+            return m;
+          });
+        }
+        return { ...c, members, auctions };
+      });
+      write(db);
+      return this.create(chitId, winnerId, bid, method, winnerSlot);
+    },
     draw(chitId: string) {
       const chit = mockServer.chits.get(chitId);
       const pool = chit.members.filter((m) => !m.prizedCycle);

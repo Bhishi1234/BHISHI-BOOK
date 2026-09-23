@@ -97,7 +97,7 @@ export type Chit = {
   commissionKind?: "amount" | "percent";
   commissionValue?: number;
   adjustmentStyle?: "every_month" | "at_end";
-  /** Auction only: collect_first (default) or auction_first. */
+  /** Hapta order for every type: collect_first (default) or auction_first (award/loan first). */
   auctionStyle?: AuctionStyle;
   /** Fixed family: fixed_order (default) or lucky_draw — mirrors chit type for lucky_draw. */
   fixedStyle?: FixedStyle;

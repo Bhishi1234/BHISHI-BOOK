@@ -182,6 +182,15 @@ export const en: Messages = {
     auction_first_body:
       "Run the auction first. Everyone then pays (winning bid ÷ hands). Face bhishi amount stays the full pot each round.",
   },
+  settlementStyle: {
+    title: "Hapta order",
+    collect_first: "Collect hapta first, then award",
+    collect_first_body:
+      "Record this round’s payments into cash on hand, then award the pot (or give the loan). Award stays locked until there is money in the till.",
+    award_first: "Award first, then collect hapta",
+    award_first_body:
+      "Award the pot (or give the loan) first, then record hapta payments, then close the month. Same Hapta tab order as auction-first.",
+  },
   fixedStyle: {
     fixed_order: "Fixed order",
     fixed_order_body: "Payout follows the hand list you set (hand 1, then 2, and so on). Same hapta for everyone.",
@@ -196,7 +205,7 @@ export const en: Messages = {
     daily: "Daily hapta",
     weekly: "Weekly hapta",
     biweekly: "Every 15 days",
-    monthly: "Monthly hapta",
+    monthly: "Every 30 days",
     quarterly: "Every 3 months",
     halfyearly: "Every 6 months",
     yearly: "Yearly hapta",
@@ -204,8 +213,8 @@ export const en: Messages = {
   freqHint: {
     daily: "Members pay once every day",
     weekly: "Members pay once every week",
-    biweekly: "Members pay once every fortnight",
-    monthly: "Members pay once every month — the most common bhishi rhythm",
+    biweekly: "Members pay once every 15 days",
+    monthly: "Members pay once every 30 days",
     quarterly: "Members pay once every three months",
     halfyearly: "Members pay once every six months",
     yearly: "Members pay once every year",
@@ -305,6 +314,7 @@ export const en: Messages = {
     restOfChit: "Rest of bhishi",
     commissionPerHapta: "Commission / hapta",
     recordAll: "Record all payments",
+    markAllUnpaid: "Mark all unpaid",
     recording: "Recording…",
     noCollections: "No collections in this range.",
     receiptsFrom: "{receipts} receipts from {people} members",
@@ -413,6 +423,10 @@ export const en: Messages = {
   luckyDraw: {
     title: "Lucky Draw",
     spin: "Spin the wheel",
+    pickWinner: "Pick winner directly",
+    confirmWinner: "Confirm winner",
+    changeWinner: "Change winner",
+    awardLast: "Award last member",
     winner: "Winner",
     drawing: "Drawing among {n}…",
     verified: "Verified random draw · Bhishi Circle",
@@ -423,6 +437,8 @@ export const en: Messages = {
     done: "Done",
     tryAgain: "Try again",
     chitthi: "chitthi",
+    spinOrPick: "Spin the wheel, or pick a winner yourself. You can still change the winner before you close this hapta.",
+    pendingHint: "Spin result is not saved yet — change the winner if needed, then confirm.",
   },
   customersPage: {
     subtitle: "One record per person — add someone once, then map them into as many chits as you like.",
@@ -586,6 +602,7 @@ export const en: Messages = {
     pageSubtitle: "One step at a time — then create your bhishi.",
     createStepsAria: "Create steps",
     fillSlotsAlert: "Fill all {n} slots before creating this chit (currently {filled}). Use + Hand for each seat.",
+    haptasMustMatchHands: "Number of haptas must equal number of hands ({hands}). Set haptas to {hands}.",
     confirmAlert: "Confirm that you understand the terms.",
     confirmCheckbox: "I understand how this chit works and the details above are correct.",
     commissionAuctionFirstPeer: "Auction-first settles the winning bid peer-to-peer (bid ÷ members). Foreman commission is not taken from this till.",

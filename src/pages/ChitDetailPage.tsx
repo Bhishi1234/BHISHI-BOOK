@@ -40,6 +40,7 @@ import {
   isHandSacrifice,
   handSacrificeAmount,
   isAuctionFirst,
+  isAwardFirst,
   isLastAuctionCycle,
   loanDetailRows,
   loanEffectiveTenure,
@@ -126,7 +127,7 @@ export function ChitDetailPage() {
     if (tab !== "monthly" || !chit) return;
     const cyc = displayCycle(chit);
     const lw = chit.auctions.find((a) => a.cycle === cyc && a.method !== "settlement");
-    const af = isAuctionFirst(chit);
+    const af = isAwardFirst(chit);
     const dueLeft = chit.members.filter((m) => {
       const due = cycleDue(chit, m.customerId, cyc, m.slot);
       return due - paidInCycle(chit, m.customerId, cyc, m.slot) > 0;
@@ -213,11 +214,12 @@ export function ChitDetailPage() {
   const lastAuctionMonth = data.type === "auction" && isLastAuctionCycle(data);
   const lastMember = lastAuctionMonth ? unprized[0] : undefined;
   const auctionFirst = isAuctionFirst(data);
+  const awardFirst = isAwardFirst(data);
   const shareHint = lastWin && auctionFirst
     ? auctionFirstShare(data, cycle)
     : null;
 
-  const styleLabel = auctionFirst
+  const styleLabel = auctionFirst || (awardFirst && data.type !== "auction")
     ? copy.auctionStyle.auction_first
     : data.type === "auction"
       ? copy.auctionStyle.collect_first
@@ -232,7 +234,7 @@ export function ChitDetailPage() {
     ? inr(data.commissionValue)
     : `${data.commissionPct}%`;
   const tabItems = (
-    ["overview", "collections", "monthly", "cycles", "members", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const
+    ["overview", "monthly", "collections", "cycles", "members", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const
   );
 
   function scrollTabs(dir: -1 | 1) {
@@ -240,14 +242,14 @@ export function ChitDetailPage() {
   }
 
   function goAfterCollect() {
-    setMonthSub(auctionFirst ? "close" : "award");
+    setMonthSub(awardFirst ? "close" : "award");
   }
   function goAfterAward() {
-    setMonthSub(auctionFirst ? "collect" : "close");
+    setMonthSub(awardFirst ? "collect" : "close");
   }
   function goAfterClose() {
     setUnpaidNoted(false);
-    setMonthSub(auctionFirst ? "award" : "collect");
+    setMonthSub(awardFirst ? "award" : "collect");
   }
 
   function loanSharePayload(rec: AuctionRecord) {
@@ -727,17 +729,6 @@ export function ChitDetailPage() {
                 <div className="muted">{copy.terms.collected}</div>
                 <div className="hero-figure">{inr(total)}</div>
                 <p className="muted">{tx(copy.chit.receiptsFrom, { receipts: receipts.length, people })}</p>
-                <button
-                  className="btn"
-                  style={{ marginTop: 12 }}
-                  disabled={!remainDue || busyAll}
-                  onClick={() => {
-                    setBusyAll(true);
-                    void recordAllPayments(data.id).finally(() => setBusyAll(false));
-                  }}
-                >
-                  {busyAll ? copy.chit.recording : copy.chit.recordAll}
-                </button>
               </div>
               {cycles.map((cyc) => {
                 const rows = byCycle.get(cyc) || [];
@@ -796,7 +787,7 @@ export function ChitDetailPage() {
         {tab === "monthly" && (
           <div className="stack">
             {(() => {
-              const awardLabel = auctionFirst
+              const awardLabel = awardFirst
                 ? copy.chit.award
                 : data.type === "loan"
                   ? (loanAllowed ? copy.chit.award : copy.chit.closeStep)
@@ -805,7 +796,7 @@ export function ChitDetailPage() {
                     : fixedLike
                       ? copy.chit.award
                       : copy.chit.award;
-              const subs = auctionFirst
+              const subs = awardFirst
                 ? [
                     { id: "award" as const, label: `1. ${awardLabel}` },
                     { id: "collect" as const, label: `2. ${copy.chit.collect}` },
@@ -817,7 +808,7 @@ export function ChitDetailPage() {
                     { id: "close" as const, label: `3. ${copy.chit.closeStep}` },
                   ];
               const awardDone = Boolean(lastWin) || (data.type === "loan" && !loanAllowed);
-              const collectDone = auctionFirst
+              const collectDone = awardFirst
                 ? Boolean(lastWin) && remainDue === 0
                 : collectedThisCycle(data) > 0 || unpaidNoted;
               return (
@@ -865,7 +856,7 @@ export function ChitDetailPage() {
                 <div className="seg">
                   <button
                     className="btn"
-                    disabled={!isRunning || !remainDue || busyAll || (auctionFirst && !lastWin)}
+                    disabled={!isRunning || !remainDue || busyAll || (awardFirst && !lastWin)}
                     onClick={() => {
                       setBusyAll(true);
                       void recordAllPayments(data.id).finally(() => {
@@ -876,34 +867,38 @@ export function ChitDetailPage() {
                   >
                     {busyAll ? copy.chit.recording : copy.chit.recordAll}
                   </button>
-                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (auctionFirst && !lastWin)} onClick={() => {
+                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (awardFirst && !lastWin)} onClick={() => {
                     setUnpaidNoted(true);
                     goAfterCollect();
                   }}>
-                    Mark all unpaid
+                    {copy.chit.markAllUnpaid}
                   </button>
                 </div>
               </div>
-              {auctionFirst && !lastWin && (
-                <p className="month-hint">Record the auction first (Award tab). Then each member owes winning bid ÷ members — the winner’s share counts as paid-in (self-contribution), so cash on hand stays ₹0.</p>
+              {awardFirst && !lastWin && (
+                <p className="month-hint">
+                  {auctionFirst
+                    ? "Record the auction first (Award tab). Then each member owes winning bid ÷ members — the winner’s share counts as paid-in (self-contribution), so cash on hand stays ₹0."
+                    : "Award the pot first (Award tab), then record hapta payments for this month."}
+                </p>
               )}
               {auctionFirst && lastWin && shareHint != null && (
                 <p className="month-hint">
                   Winning bid {inr(lastWin.bid)} ÷ {data.members.length} = {inr(shareHint)} due from each member (winner’s share is booked as paid-in). Face value stays {inr(data.pot)}. Till stays ₹0 once settled.
                 </p>
               )}
-              {!auctionFirst && !canSettleCycle(data) && !lastWin && (
+              {!awardFirst && !canSettleCycle(data) && !lastWin && (
                 <p className="month-hint">Record collections first — individually or with {copy.chit.recordAll}. Auction stays locked so cash on hand cannot go negative.</p>
               )}
-              {!auctionFirst && lastWin && (
+              {!awardFirst && lastWin && (
                 <p className="month-hint">
                   Cash left after payout and commission stays in the till as next month’s dividend credit (members pay less next cycle). It is not a separate cash payout.
                 </p>
               )}
               {unpaidNoted && remainDue > 0 && (
-                <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button{auctionFirst ? "." : "; auction still needs at least one receipt."}</p>
+                <p className="month-hint">Remaining members stay unpaid for this month. Collect later from the Record button{awardFirst ? "." : "; auction still needs at least one receipt."}</p>
               )}
-              {!auctionFirst || lastWin ? (
+              {!awardFirst || lastWin ? (
               <div className="table-wrap">
                 <table className="table month-table">
                   <thead>
@@ -949,7 +944,7 @@ export function ChitDetailPage() {
                           <td><span className={`pill ${status}`}>{label}</span></td>
                           <td>
                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            {isRunning && !(auctionFirst && !lastWin) && (status === "due" || status === "partial") ? (
+                            {isRunning && !(awardFirst && !lastWin) && (status === "due" || status === "partial") ? (
                               <button className="btn ghost btn-sm" onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}>{copy.chit.record}</button>
                             ) : (
                               <span className="muted">—</span>
@@ -1058,7 +1053,7 @@ export function ChitDetailPage() {
                   )}
                   <p className="muted" style={{ marginTop: 12 }}>Already recorded for this month. Use Close month when you are ready.</p>
                 </div>
-              ) : !auctionFirst && !canSettleCycle(data) ? (
+              ) : !awardFirst && !canSettleCycle(data) ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
                   Collect at least one payment this month before {data.type === "loan" ? "giving a loan" : fixedLike ? "awarding the pot" : "recording the auction"}.
                 </p>
@@ -1303,27 +1298,76 @@ export function ChitDetailPage() {
                       {luckyDrawChit ? (
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
-                            Collect dues first, then roll the lucky draw among unprized members. Everyone pays the same instalment every month.
+                            {unprized.length <= 1
+                              ? "Only one member left — award the last pot directly (no wheel)."
+                              : awardFirst
+                                ? "Award the pot first among unprized members (spin or pick). Then record hapta payments and close the month."
+                                : "Collect dues first, then spin or pick among unprized members. Everyone pays the same instalment every month."}
                           </p>
-                          <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr" }}>
-                            <button
-                              className="btn"
-                              disabled={!canSettleCycle(data) || unprized.length === 0}
-                              onClick={() => nav(`/chits/${data.id}/lucky-draw`)}
-                            >
-                              {tx(copy.chit.rollLuckyDraw, { n: unprized.length })}
-                            </button>
-                          </div>
-                          {unprized.length > 0 && (
-                            <p className="muted" style={{ marginTop: 10 }}>
-                              In the pot: {unprized.map((m) => names[m.customerId]).join(", ")}
-                            </p>
+                          {unprized.length <= 1 ? (
+                            <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
+                              <select className="field" value={handSelectValue || (unprized[0] ? `${unprized[0].customerId}::${unprized[0].slot}` : "")} onChange={(e) => pickHand(e.target.value)}>
+                                <option value="">Award last pot to</option>
+                                {unprized.map((m) => (
+                                  <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
+                                    Slot {m.slot} · {names[m.customerId]}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                className="btn"
+                                disabled={!canSettleCycle(data) || !(winnerId || unprized[0])}
+                                onClick={() => {
+                                  const who = winnerId || unprized[0]?.customerId || "";
+                                  const slot = winnerSlot ?? unprized[0]?.slot;
+                                  void recordAuction(data.id, who, data.pot, "lucky_draw", slot).then(() => goAfterAward());
+                                }}
+                              >
+                                Award last pot
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr" }}>
+                                <button
+                                  className="btn"
+                                  disabled={!canSettleCycle(data) || unprized.length === 0}
+                                  onClick={() => nav(`/chits/${data.id}/lucky-draw`)}
+                                >
+                                  {tx(copy.chit.rollLuckyDraw, { n: unprized.length })}
+                                </button>
+                              </div>
+                              <div className="month-auction" style={{ padding: 0, marginTop: 10, gridTemplateColumns: "1fr auto" }}>
+                                <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
+                                  <option value="">Or pick winner</option>
+                                  {unprized.map((m) => (
+                                    <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
+                                      Slot {m.slot} · {names[m.customerId]}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  className="btn ghost"
+                                  disabled={!canSettleCycle(data) || !winnerId}
+                                  onClick={() => void recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot).then(() => goAfterAward())}
+                                >
+                                  Award pot
+                                </button>
+                              </div>
+                              {unprized.length > 0 && (
+                                <p className="muted" style={{ marginTop: 10 }}>
+                                  In the pot: {unprized.map((m) => names[m.customerId]).join(", ")}
+                                </p>
+                              )}
+                            </>
                           )}
                         </>
                       ) : handSacrifice ? (
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
-                            Collect first. Early winners leave one full instalment ({inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.
+                            {awardFirst
+                              ? `Award first. Early winners leave one full instalment (${inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. Then collect hapta.`
+                              : `Collect first. Early winners leave one full instalment (${inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.`}
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
@@ -1372,7 +1416,9 @@ export function ChitDetailPage() {
                       ) : (
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
-                            Payout order follows member slots. You can override and award a different unprized member. Same dues every month.
+                            {awardFirst
+                              ? "Award the pot first (payout order follows slots — you can override). Then record hapta payments and close the month."
+                              : "Payout order follows member slots. You can override and award a different unprized member. Same dues every month."}
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
