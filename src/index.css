@@ -1221,9 +1221,9 @@ body.native-app {
     padding: 8px 12px;
     background: var(--blue);
     border-bottom: 0;
-    position: sticky;
-    top: 0;
-    z-index: 20;
+    /* Sit at page top only — scroll away; do not stick/follow */
+    position: relative;
+    z-index: 2;
     min-height: 0;
   }
   .mobile-brand {

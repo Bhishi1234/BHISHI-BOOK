@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { StoreProvider } from "./store";
 import { initNativeShell } from "./lib/native";
+import { ScrollToTop } from "./layout/ScrollToTop";
 import "./index.css";
 
 function NativeShellBoot() {
@@ -28,6 +29,7 @@ root.render(
     <StoreProvider>
       <BrowserRouter>
         <NativeShellBoot />
+        <ScrollToTop />
         <App />
       </BrowserRouter>
     </StoreProvider>

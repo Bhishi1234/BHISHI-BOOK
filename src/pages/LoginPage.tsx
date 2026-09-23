@@ -119,7 +119,7 @@ export function LoginPage() {
         <div style={{ width: "min(420px, 100%)" }}>
           <img
             className="login-logo"
-            src="/brand/bhishi-circle-logo.png"
+            src="/brand/bhishi-circle-logo.png?v=3"
             alt={m.brand}
             width={220}
             height={164}
@@ -145,7 +145,7 @@ export function LoginPage() {
       <div style={{ width: "min(420px, 100%)" }}>
         <img
           className="login-logo"
-          src="/brand/bhishi-circle-logo.png"
+          src="/brand/bhishi-circle-logo.png?v=3"
           alt={m.brand}
           width={220}
           height={164}

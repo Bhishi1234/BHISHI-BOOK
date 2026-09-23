@@ -101,7 +101,7 @@ export function AppShell({
   const side = (
     <>
       <NavLink to="/" className="logo">
-        <img className="logo-mark" src="/brand/bhishi-mark.png" alt="" width={28} height={28} decoding="async" />
+        <img className="logo-mark" src="/brand/bhishi-mark.png?v=3" alt="" width={28} height={28} decoding="async" />
         <span>{m.brand}</span>
       </NavLink>
       {NAV.map((n) => (
@@ -191,7 +191,7 @@ export function AppShell({
           <Link to="/" className="mobile-brand" aria-label={m.brand}>
             <img
               className="mobile-brand-mark"
-              src="/brand/bhishi-mark-white.png"
+              src="/brand/bhishi-mark-white.png?v=3"
               alt=""
               width={36}
               height={36}
