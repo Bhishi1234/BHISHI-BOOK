@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n";
 import type { Lang } from "../i18n/types";
 import { useStore } from "../store";
@@ -143,14 +143,16 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <div style={{ width: "min(420px, 100%)" }}>
-        <img
-          className="login-logo"
-          src="/brand/bhishi-circle-logo.png?v=3"
-          alt={m.brand}
-          width={148}
-          height={110}
-          decoding="async"
-        />
+        <Link to="/welcome" style={{ display: "block", textAlign: "center" }}>
+          <img
+            className="login-logo"
+            src="/brand/bhishi-circle-logo.png?v=3"
+            alt={m.brand}
+            width={148}
+            height={110}
+            decoding="async"
+          />
+        </Link>
         <div className="login-card">
           {step === "form" && (
             <div className="seg" style={{ marginBottom: 14 }}>

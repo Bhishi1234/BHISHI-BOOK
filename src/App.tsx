@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useStore } from "./store";
+import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ChitsPage, CustomersPage } from "./pages/ChitsCustomers";
@@ -19,6 +20,12 @@ import {
 } from "./pages/MorePages";
 import { BillingFailedPage, BillingSuccessPage } from "./pages/BillingPages";
 
+function Boot({ children }: { children: ReactNode }) {
+  const { ready } = useStore();
+  if (!ready) return <div className="login-wrap">Loading…</div>;
+  return children;
+}
+
 function Guard({ children }: { children: ReactNode }) {
   const { user, ready } = useStore();
   if (!ready) return <div className="login-wrap">Loading…</div>;
@@ -26,11 +33,19 @@ function Guard({ children }: { children: ReactNode }) {
   return children;
 }
 
+function RootEntry() {
+  const { user, ready } = useStore();
+  if (!ready) return <div className="login-wrap">Loading…</div>;
+  if (user) return <DashboardPage />;
+  return <LandingPage />;
+}
+
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<RootEntry />} />
+      <Route path="/welcome" element={<Boot><LandingPage /></Boot>} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<Guard><DashboardPage /></Guard>} />
       <Route path="/chits" element={<Guard><ChitsPage /></Guard>} />
       <Route path="/chits/new" element={<Guard><NewChitPage /></Guard>} />
       <Route path="/chits/:id" element={<Guard><ChitDetailPage /></Guard>} />
