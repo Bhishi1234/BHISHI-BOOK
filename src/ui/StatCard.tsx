@@ -41,9 +41,11 @@ export function StatCard({
           <span className="stat-dot" aria-hidden />
         )}
         <span className="stat-label">{label}</span>
-        <span className="go-btn" aria-hidden>
-          <ArrowUpRight size={14} strokeWidth={2.4} />
-        </span>
+        {onClick ? (
+          <span className="go-btn" aria-hidden>
+            <ArrowUpRight size={14} strokeWidth={2.4} />
+          </span>
+        ) : null}
       </div>
       <strong>
         {typeof value === "string" || typeof value === "number"

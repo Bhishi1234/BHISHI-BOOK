@@ -1,14 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookUser, Plus, Trash2, UserPlus } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
+import { scrollPageToTop } from "../layout/ScrollToTop";
 import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
 import { PromptBox } from "../components/PromptBox";
 import type { AuctionStyle, ChitType, FixedStyle, Frequency } from "../types";
 import { inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
-import { pickContactsFromBook, contactsPickerAvailable } from "../lib/contacts";
+import { pickContactsFromBook } from "../lib/contacts";
 import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
 import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { useStore } from "../store";
@@ -27,7 +28,6 @@ export function NewChitPage() {
   const { customers, addCustomer, addChit, error, user } = useStore();
   const { m, tx, freqLabel, freqHint, typeLabel } = useI18n();
   const nav = useNavigate();
-  const canPickContacts = contactsPickerAvailable();
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ChitType>("auction");
   const [auctionStyle, setAuctionStyle] = useState<AuctionStyle>("collect_first");
@@ -50,7 +50,9 @@ export function NewChitPage() {
   const [picked, setPicked] = useState<string[]>([]);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [manualHands, setManualHands] = useState(1);
   const [existingPick, setExistingPick] = useState("");
+  const [existingHands, setExistingHands] = useState(1);
   const [saving, setSaving] = useState(false);
   const [pickingContacts, setPickingContacts] = useState(false);
 
@@ -101,6 +103,13 @@ export function NewChitPage() {
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
   const tenureN = Number(tenure) || 0;
   const slotsFull = !!n && picked.length >= n;
+  const slotsLeft = n > 0 ? Math.max(0, n - picked.length) : 99;
+  const maxHandsPick = Math.max(1, slotsLeft || 1);
+
+  useEffect(() => {
+    setManualHands((v) => Math.min(Math.max(1, v), maxHandsPick));
+    setExistingHands((v) => Math.min(Math.max(1, v), maxHandsPick));
+  }, [maxHandsPick]);
 
   async function addFromContacts() {
     setPickingContacts(true);
@@ -109,13 +118,12 @@ export function NewChitPage() {
       for (const row of rows) {
         const phone = tryPhone10(row.phone);
         if (!phone) continue;
-        const existing = customers.find((c) => c.phone === phone);
-        if (existing) {
-          setPicked((p) => (slotsFull || (!!n && p.length >= n) ? p : [...p, existing.id]));
-          continue;
+        let customerId = customers.find((c) => c.phone === phone)?.id;
+        if (!customerId) {
+          const created = await addCustomer(row.name.trim() || m.common.member, phone);
+          customerId = created.id;
         }
-        const created = await addCustomer(row.name.trim() || m.common.member, phone);
-        setPicked((p) => ((!!n && p.length >= n) ? p : [...p, created.id]));
+        setPicked((p) => (n > 0 && p.length >= n ? p : [...p, customerId!]));
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : m.chit.couldNotOpenContacts;
@@ -177,16 +185,27 @@ export function NewChitPage() {
   const stepper = phases.map(phaseLabel);
 
   function goToTab(i: number) {
-    if (i <= step) setStep(i);
+    if (i <= step) {
+      setStep(i);
+      scrollPageToTop();
+    }
   }
 
   function goBack() {
     setStep((s) => Math.max(0, s - 1));
+    scrollPageToTop();
   }
 
   function goNext() {
     setStep((s) => Math.min(phases.length - 1, s + 1));
+    scrollPageToTop();
   }
+
+  useEffect(() => {
+    scrollPageToTop();
+    const t = window.setTimeout(scrollPageToTop, 80);
+    return () => window.clearTimeout(t);
+  }, [step, phase]);
 
   async function create() {
     if (!n || n < 1) {
@@ -264,16 +283,35 @@ export function NewChitPage() {
 
   async function addManualMember() {
     if (!newName.trim() || slotsFull) return;
+    const hands = Math.min(Math.max(1, manualHands), slotsLeft);
     const c = await addCustomer(newName.trim(), newPhone.trim());
-    setPicked((p) => [...p, c.id]);
+    setPicked((p) => [...p, ...Array.from({ length: hands }, () => c.id)]);
     setNewName("");
     setNewPhone("");
+    setManualHands(1);
   }
 
   function addExistingMember() {
     if (!existingPick || slotsFull) return;
-    setPicked((p) => [...p, existingPick]);
+    const hands = Math.min(Math.max(1, existingHands), slotsLeft);
+    setPicked((p) => [...p, ...Array.from({ length: hands }, () => existingPick)]);
     setExistingPick("");
+    setExistingHands(1);
+  }
+
+  function bumpHands(kind: "manual" | "existing", delta: number) {
+    const setter = kind === "manual" ? setManualHands : setExistingHands;
+    setter((v) => Math.min(maxHandsPick, Math.max(1, v + delta)));
+  }
+
+  function setHands(kind: "manual" | "existing", raw: string) {
+    const setter = kind === "manual" ? setManualHands : setExistingHands;
+    const num = Math.floor(Number(raw) || 0);
+    if (!num) {
+      setter(1);
+      return;
+    }
+    setter(Math.min(maxHandsPick, Math.max(1, num)));
   }
 
   const showPayoutOrder = type === "fixed" && (fixedStyle === "fixed_order" || fixedStyle === "hand_sacrifice");
@@ -619,6 +657,37 @@ export function NewChitPage() {
                 <input className="field" placeholder={m.profile.name} value={newName} onChange={(e) => setNewName(e.target.value)} />
                 <input className="field" placeholder={m.profile.phone} value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
               </div>
+              <div className="hands-stepper">
+                <span className="hands-stepper-label">{m.newChitExtra.noOfHands}</span>
+                <div className="hands-stepper-controls">
+                  <button
+                    type="button"
+                    className="btn ghost hands-stepper-btn"
+                    disabled={slotsFull || manualHands <= 1}
+                    onClick={() => bumpHands("manual", -1)}
+                    aria-label="−"
+                  >
+                    −
+                  </button>
+                  <input
+                    className="field hands-stepper-input"
+                    inputMode="numeric"
+                    value={manualHands}
+                    disabled={slotsFull}
+                    onChange={(e) => setHands("manual", e.target.value)}
+                    aria-label={m.newChitExtra.noOfHands}
+                  />
+                  <button
+                    type="button"
+                    className="btn ghost hands-stepper-btn"
+                    disabled={slotsFull || manualHands >= maxHandsPick}
+                    onClick={() => bumpHands("manual", 1)}
+                    aria-label="+"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
               <button
                 className="btn wide"
                 type="button"
@@ -632,7 +701,7 @@ export function NewChitPage() {
             <div className="member-add-row">
               <div className="member-add-block">
                 <label className="label">{m.newChitExtra.addFromExisting}</label>
-                <div className="member-add-inline">
+                <div className="member-add-stack">
                   <select
                     className="field"
                     value={existingPick}
@@ -646,9 +715,40 @@ export function NewChitPage() {
                       </option>
                     ))}
                   </select>
+                  <div className="hands-stepper">
+                    <span className="hands-stepper-label">{m.newChitExtra.noOfHands}</span>
+                    <div className="hands-stepper-controls">
+                      <button
+                        type="button"
+                        className="btn ghost hands-stepper-btn"
+                        disabled={slotsFull || existingHands <= 1}
+                        onClick={() => bumpHands("existing", -1)}
+                        aria-label="−"
+                      >
+                        −
+                      </button>
+                      <input
+                        className="field hands-stepper-input"
+                        inputMode="numeric"
+                        value={existingHands}
+                        disabled={slotsFull}
+                        onChange={(e) => setHands("existing", e.target.value)}
+                        aria-label={m.newChitExtra.noOfHands}
+                      />
+                      <button
+                        type="button"
+                        className="btn ghost hands-stepper-btn"
+                        disabled={slotsFull || existingHands >= maxHandsPick}
+                        onClick={() => bumpHands("existing", 1)}
+                        aria-label="+"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    className="btn ghost"
+                    className="btn ghost wide"
                     disabled={!existingPick || slotsFull}
                     onClick={addExistingMember}
                   >
@@ -657,19 +757,20 @@ export function NewChitPage() {
                 </div>
               </div>
 
-              {canPickContacts && (
-                <div className="member-add-block">
-                  <label className="label">{m.newChitExtra.fromPhonebook}</label>
-                  <button
-                    className="btn ghost wide"
-                    type="button"
-                    disabled={pickingContacts || slotsFull}
-                    onClick={() => void addFromContacts()}
-                  >
-                    <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromPhonebook}
-                  </button>
-                </div>
-              )}
+              <div className="member-add-block">
+                <label className="label">{m.newChitExtra.fromPhonebook}</label>
+                <button
+                  className="btn ghost wide"
+                  type="button"
+                  disabled={pickingContacts || slotsFull}
+                  onClick={() => void addFromContacts()}
+                >
+                  <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromPhonebook}
+                </button>
+                <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
+                  {m.newChitExtra.fromContacts}
+                </p>
+              </div>
             </div>
 
             <div className="wizard-actions">

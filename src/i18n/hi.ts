@@ -899,5 +899,6 @@ export const hi: Messages = {
     slotN: "स्लॉट {n}",
     monthsCount: "{n} महीने",
     monthsZero: "0 महीने",
+    noOfHands: "हाथ की संख्या",
   },
 };

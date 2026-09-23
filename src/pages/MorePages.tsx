@@ -273,6 +273,7 @@ export function ProfilePage() {
 export function SearchPage() {
   const { chits, customers } = useStore();
   const { m, typeLabel } = useI18n();
+  const nav = useNavigate();
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const names = Object.fromEntries(customers.map((c) => [c.id, c.name]));
@@ -300,12 +301,22 @@ export function SearchPage() {
       .map((p) => ({ ...p, chitId: c.id, chitName: c.name, path: chitPath(c) })),
   ).slice(0, 20);
 
+  function closeSearch() {
+    if (window.history.length > 1) nav(-1);
+    else nav("/");
+  }
+
   return (
     <AppShell crumb={m.nav.search}>
       <div className="page">
         <div className="modal-back" style={{ position: "relative", background: "transparent", padding: 0, display: "block" }}>
           <div className="search-pop" style={{ margin: "0 auto" }}>
-            <h2>{m.nav.search}</h2>
+            <div className="row-head" style={{ marginBottom: 8 }}>
+              <h2 style={{ margin: 0 }}>{m.nav.search}</h2>
+              <button type="button" className="btn ghost" onClick={closeSearch}>
+                {m.common.cancel}
+              </button>
+            </div>
             <p className="muted">{m.searchPlaceholder}</p>
             <input className="field" autoFocus placeholder={m.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
 

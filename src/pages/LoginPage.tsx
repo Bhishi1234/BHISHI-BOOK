@@ -121,8 +121,8 @@ export function LoginPage() {
             className="login-logo"
             src="/brand/bhishi-circle-logo.png?v=3"
             alt={m.brand}
-            width={220}
-            height={164}
+            width={148}
+            height={110}
             decoding="async"
           />
           <p className="sub" style={{ marginTop: 4 }}>{m.login.signedIn}</p>
@@ -147,8 +147,8 @@ export function LoginPage() {
           className="login-logo"
           src="/brand/bhishi-circle-logo.png?v=3"
           alt={m.brand}
-          width={220}
-          height={164}
+          width={148}
+          height={110}
           decoding="async"
         />
         <div className="login-card">

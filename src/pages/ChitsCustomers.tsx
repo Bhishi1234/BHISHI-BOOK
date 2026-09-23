@@ -1,10 +1,11 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
-import { AlertCircle, ArrowUpRight, BookUser, PiggyBank, Plus, UserRound, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, BookUser, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
+import { scrollPageToTop } from "../layout/ScrollToTop";
 import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
 import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
 import { chitPath, initials, inr } from "../lib/format";
@@ -19,6 +20,11 @@ export function ChitsPage() {
   const { m, typeLabel, statusLabel, tx } = useI18n();
   const nav = useNavigate();
   const [tab, setTab] = useState<"active" | "completed">("active");
+
+  useEffect(() => {
+    scrollPageToTop();
+  }, [tab]);
+
   const pool = chits.filter((c) => (tab === "active" ? c.status === "running" : c.status !== "running"));
   const managed = pool.filter((c) => c.mode === "organise" && c.viewerRole !== "member");
   const tracking = pool.filter((c) => c.mode === "tracking" && c.viewerRole !== "member");
@@ -259,8 +265,6 @@ export function CustomersPage() {
   });
 
   const inActive = customers.filter((c) => chits.some((ch) => ch.status === "running" && ch.members.some((mem) => mem.customerId === c.id))).length;
-  const collected = chits.reduce((s, c) => s + c.payments.reduce((a, p) => a + p.amount, 0), 0);
-  const outstanding = rows.reduce((s, r) => s + r.outstanding, 0);
 
   return (
     <AppShell crumb={m.nav.customers}>
@@ -281,11 +285,9 @@ export function CustomersPage() {
             </button>
           )}
         </form>
-        <div className="stats four">
+        <div className="stats two">
           <StatCard label={m.customersPage.people} value={customers.length} hint={m.customersPage.inDirectory} tone="blue" icon={UserRound} />
           <StatCard label={m.customersPage.inActiveChit} value={inActive} hint={tx(m.customersPage.notMappedYet, { n: customers.length - inActive })} tone="green" icon={Users} />
-          <StatCard label={m.customersPage.collectedFromAll} value={inr(collected)} hint={m.customersPage.lifetime} tone="teal" icon={PiggyBank} />
-          <StatCard label={m.terms.outstanding} value={inr(outstanding)} hint={m.customersPage.stillDue} tone="rose" icon={AlertCircle} />
         </div>
         <div className="toolbar">
           <input className="field" placeholder={m.customersPage.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} style={{ margin: 0, maxWidth: 360 }} />
@@ -324,7 +326,9 @@ export function CustomersPage() {
                       </div>
                     </div>
                   </td>
-                  <td>{r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : m.customersPage.notInAny}</td>
+                  <td className="people-chits-cell">
+                    {r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : m.customersPage.notInAny}
+                  </td>
                   <td>{r.contributed ? inr(r.contributed) : "—"}</td>
                   <td>{r.outstanding ? inr(r.outstanding) : "—"}</td>
                 </tr>

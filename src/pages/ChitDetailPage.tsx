@@ -19,6 +19,7 @@ import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
 import { PromptBox } from "../components/PromptBox";
 import { ReasonModal } from "../components/ReasonModal";
 import { AppShell } from "../layout/AppShell";
+import { scrollPageToTop } from "../layout/ScrollToTop";
 import { buildActivityLog, formatActivityAt } from "../lib/activityLog";
 import { StatCard } from "../ui/StatCard";
 import { useI18n } from "../i18n";
@@ -80,7 +81,7 @@ import {
   downloadMonthDuesPdf,
   downloadReceiptPdf,
 } from "../lib/reportsPdf";
-import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
+import { pickContactsFromBook } from "../lib/contacts";
 import {
   canMessagePhone,
   dueReminderWhatsAppMessage,
@@ -107,6 +108,12 @@ export function ChitDetailPage() {
   const chit = chits.find((c) => c.id === id);
   const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "activity" | "settlement" | "settings">("overview");
   const [monthSub, setMonthSub] = useState<"collect" | "award" | "close">("collect");
+
+  useEffect(() => {
+    scrollPageToTop();
+    const t = window.setTimeout(scrollPageToTop, 80);
+    return () => window.clearTimeout(t);
+  }, [tab, monthSub, id]);
   const [payFor, setPayFor] = useState<{ customerId: string; slot: number } | null>(null);
   const [bid, setBid] = useState("");
   const [loanInterest, setLoanInterest] = useState("5");
@@ -1753,34 +1760,32 @@ export function ChitDetailPage() {
                   >
                     {data.members.some((m) => m.customerId === newMemberId) ? copy.chit.addHand : copy.chit.addMember}
                   </button>
-                  {contactsPickerAvailable() && (
-                    <button
-                      className="btn ghost"
-                      type="button"
-                      disabled={!isRunning || data.members.length >= data.membersCount}
-                      onClick={() => {
-                        void (async () => {
-                          try {
-                            const rows = await pickContactsFromBook({ multiple: true });
-                            for (const row of rows) {
-                              if (data.members.length >= data.membersCount) break;
-                              const phone = tryPhone10(row.phone);
-                              if (!phone) continue;
-                              let cust = customers.find((c) => c.phone === phone);
-                              if (!cust) cust = await addCustomer(row.name.trim() || "Member", phone);
-                              if (!data.members.some((m) => m.customerId === cust!.id) || data.members.length < data.membersCount) {
-                                await addMember(data.id, cust.id);
-                              }
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    disabled={!isRunning || data.members.length >= data.membersCount}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          const rows = await pickContactsFromBook({ multiple: true });
+                          for (const row of rows) {
+                            if (data.members.length >= data.membersCount) break;
+                            const phone = tryPhone10(row.phone);
+                            if (!phone) continue;
+                            let cust = customers.find((c) => c.phone === phone);
+                            if (!cust) cust = await addCustomer(row.name.trim() || "Member", phone);
+                            if (!data.members.some((m) => m.customerId === cust!.id) || data.members.length < data.membersCount) {
+                              await addMember(data.id, cust.id);
                             }
-                          } catch (e) {
-                            window.alert(e instanceof Error ? e.message : copy.chit.couldNotOpenContacts);
                           }
-                        })();
-                      }}
-                    >
-                      <BookUser size={15} /> {copy.chit.fromContacts}
-                    </button>
-                  )}
+                        } catch (e) {
+                          window.alert(e instanceof Error ? e.message : copy.chit.couldNotOpenContacts);
+                        }
+                      })();
+                    }}
+                  >
+                    <BookUser size={15} /> {copy.chit.fromContacts}
+                  </button>
                 </div>
                 <div className="toolbar" style={{ marginTop: 8 }}>
                   <input

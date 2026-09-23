@@ -897,5 +897,6 @@ export type Messages = {
     slotN: string;
     monthsCount: string;
     monthsZero: string;
+    noOfHands: string;
   };
 };

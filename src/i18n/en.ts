@@ -887,7 +887,7 @@ export const en: Messages = {
     memberHelpFixedOrder: "Order matters — slot 1 is first to receive the pot, then slot 2, and so on. Use the arrows to rearrange. Add another hand for someone who plays twice.",
     memberHelpLuckyDraw: "Members who have not won yet stay in the draw each month. One person can play multiple hands.",
     memberHelpDefault: "Add people before you start. The same person can take more than one hand — each hand fills one slot and pays its own instalment.",
-    useHandBelow: "Use + Hand below or add someone new above.",
+    useHandBelow: "Set No. of hands, then add someone new or from your list.",
     allSlotsReady: "All slots filled — ready to create.",
     addFromExisting: "Add from existing database",
     chooseExisting: "Choose a member…",
@@ -899,5 +899,6 @@ export const en: Messages = {
     slotN: "Slot {n}",
     monthsCount: "{n} months",
     monthsZero: "0 months",
+    noOfHands: "No. of hands",
   },
 };

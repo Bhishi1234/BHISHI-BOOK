@@ -899,5 +899,6 @@ export const mr: Messages = {
     slotN: "स्लॉट {n}",
     monthsCount: "{n} महिने",
     monthsZero: "० महिने",
+    noOfHands: "हातांची संख्या",
   },
 };
