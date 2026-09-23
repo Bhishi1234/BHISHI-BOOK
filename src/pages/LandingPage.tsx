@@ -27,15 +27,131 @@ const SHOTS = {
   fixed: "/landing/shot-type-fixed.jpg",
   loan: "/landing/shot-type-loan.jpg",
   sacrifice: "/landing/shot-type-sacrifice.jpg",
-  lucky: "/landing/shot-type-lucky.jpg",
-  luckyMembers: "/landing/shot-type-lucky-members.jpg",
   wheel: "/landing/shot-lucky-wheel.jpg",
-  spinning: "/landing/shot-lucky-spinning.jpg",
 } as const;
 
-const HERO_CYCLE = [SHOTS.home, SHOTS.detail, SHOTS.collect, SHOTS.wheel] as const;
-const FLOW_SHOTS = [SHOTS.create, SHOTS.collect, SHOTS.detail] as const;
-const TYPE_SHOTS = [SHOTS.auction, SHOTS.fixed, SHOTS.wheel, SHOTS.sacrifice, SHOTS.loan] as const;
+const HERO_FRAMES = [SHOTS.home, SHOTS.detail, SHOTS.collect] as const;
+const TYPE_FRAMES = [SHOTS.auction, SHOTS.fixed, SHOTS.wheel, SHOTS.sacrifice, SHOTS.loan] as const;
+const WHEEL_NAMES = ["Anita", "Ravi", "Sneha", "Priya", "Karan"] as const;
+const WHEEL_COLORS = ["#2f6fed", "#0f9f6e", "#0d9488", "#4f46e5", "#0284c8"] as const;
+
+function Media({
+  frames,
+  active,
+  className = "",
+  alt = "",
+}: {
+  frames: readonly string[];
+  active: number;
+  className?: string;
+  alt?: string;
+}) {
+  return (
+    <div className={`lp-media ${className}`.trim()}>
+      {frames.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt={i === active ? alt : ""}
+          className={i === active ? "on" : ""}
+          loading={i === 0 ? "eager" : "lazy"}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Phone({
+  frames,
+  active,
+  size = "md",
+  alt = "",
+  className = "",
+}: {
+  frames: readonly string[];
+  active: number;
+  size?: "sm" | "md" | "lg";
+  alt?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`lp-phone lp-phone-${size} ${className}`.trim()}>
+      <div className="lp-phone-speaker" aria-hidden />
+      <Media frames={frames} active={active} alt={alt} />
+    </div>
+  );
+}
+
+function LuckyWheel({ winnerLabel }: { winnerLabel: string }) {
+  const [phase, setPhase] = useState<"idle" | "spin" | "win">("idle");
+  const [rotation, setRotation] = useState(0);
+  const [winner, setWinner] = useState(0);
+
+  useEffect(() => {
+    let spinTimer: number;
+    let winTimer: number;
+    let resetTimer: number;
+
+    const loop = () => {
+      setPhase("idle");
+      setWinner(0);
+      winTimer = window.setTimeout(() => {
+        const idx = Math.floor(Math.random() * WHEEL_NAMES.length);
+        const seg = 360 / WHEEL_NAMES.length;
+        const land = 360 * 5 + (360 - (idx + 0.5) * seg);
+        setWinner(idx);
+        setPhase("spin");
+        setRotation((r) => r + land);
+        spinTimer = window.setTimeout(() => {
+          setPhase("win");
+          resetTimer = window.setTimeout(loop, 3200);
+        }, 4200);
+      }, 900);
+    };
+    loop();
+    return () => {
+      window.clearTimeout(spinTimer);
+      window.clearTimeout(winTimer);
+      window.clearTimeout(resetTimer);
+    };
+  }, []);
+
+  const conic = WHEEL_COLORS.map((c, i) => {
+    const a = 360 / WHEEL_COLORS.length;
+    return `${c} ${i * a}deg ${(i + 1) * a}deg`;
+  }).join(", ");
+
+  return (
+    <div className="lp-wheel-wrap">
+      <div className="lp-wheel-pointer" aria-hidden />
+      <div
+        className={`lp-wheel${phase === "spin" ? " spinning" : ""}`}
+        style={{
+          background: `conic-gradient(from 0deg, ${conic})`,
+          transform: `rotate(${rotation}deg)`,
+        }}
+      >
+        {WHEEL_NAMES.map((name, i) => {
+          const a = 360 / WHEEL_NAMES.length;
+          return (
+            <span
+              key={name}
+              className="lp-wheel-label"
+              style={{ transform: `rotate(${i * a + a / 2}deg) translateY(-78px)` }}
+            >
+              {name}
+            </span>
+          );
+        })}
+        <div className="lp-wheel-hub">BC</div>
+      </div>
+      <div className={`lp-wheel-result${phase === "win" ? " show" : ""}`}>
+        <em>{winnerLabel}</em>
+        <strong>{WHEEL_NAMES[winner]}</strong>
+      </div>
+    </div>
+  );
+}
 
 export function LandingPage() {
   const { user } = useStore();
@@ -46,49 +162,23 @@ export function LandingPage() {
   const [heroIdx, setHeroIdx] = useState(0);
   const [flowIdx, setFlowIdx] = useState(0);
   const [typeIdx, setTypeIdx] = useState(0);
-  const [wheelPulse, setWheelPulse] = useState(false);
   const t = useMemo(() => landingCopy(lang), [lang]);
 
   useEffect(() => {
     document.title = t.metaTitle;
-    const desc = document.querySelector('meta[name="description"]');
-    if (desc) desc.setAttribute("content", t.metaDescription);
+    document.querySelector('meta[name="description"]')?.setAttribute("content", t.metaDescription);
     document.documentElement.lang = lang === "en" ? "en" : lang;
-    let ld = document.getElementById("lp-jsonld");
-    if (!ld) {
-      ld = document.createElement("script");
-      ld.id = "lp-jsonld";
-      (ld as HTMLScriptElement).type = "application/ld+json";
-      document.head.appendChild(ld);
-    }
-    ld.textContent = JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "Bhishi Circle",
-      applicationCategory: "FinanceApplication",
-      operatingSystem: "Web, Android",
-      description: t.metaDescription,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
-      inLanguage: ["en", "hi", "mr"],
-    });
   }, [t, lang]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setHeroIdx((i) => (i + 1) % HERO_CYCLE.length), 3200);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setFlowIdx((i) => (i + 1) % FLOW_SHOTS.length), 4000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setTypeIdx((i) => (i + 1) % TYPE_SHOTS.length);
-      setWheelPulse((p) => !p);
-    }, 3800);
-    return () => window.clearInterval(id);
+    const a = window.setInterval(() => setHeroIdx((i) => (i + 1) % HERO_FRAMES.length), 4000);
+    const b = window.setInterval(() => setFlowIdx((i) => (i + 1) % 3), 4800);
+    const c = window.setInterval(() => setTypeIdx((i) => (i + 1) % TYPE_FRAMES.length), 4200);
+    return () => {
+      window.clearInterval(a);
+      window.clearInterval(b);
+      window.clearInterval(c);
+    };
   }, []);
 
   function applyLang(next: GuestLang) {
@@ -101,242 +191,224 @@ export function LandingPage() {
     nav(user ? "/" : "/login");
   }
 
-  const heroLabels = [t.demoCreate, t.demoAward, t.demoCollect, t.types[2]!.title];
+  const flowShots = [
+    [SHOTS.create, SHOTS.createTerms],
+    [SHOTS.collect, SHOTS.people],
+    [SHOTS.detail, SHOTS.home],
+  ] as const;
 
   return (
-    <div className="fx">
+    <div className="lp">
       {langOpen && (
-        <div className="fx-lang-back" role="dialog" aria-modal="true" aria-labelledby="fx-lang-title">
-          <div className="fx-lang-modal">
+        <div className="lp-lang-back" role="dialog" aria-modal="true" aria-labelledby="lp-lang-title">
+          <div className="lp-lang-modal">
             <img src="/brand/bhishi-circle-logo.png?v=3" alt="Bhishi Circle" width={120} height={90} />
-            <h2 id="fx-lang-title">{t.langTitle}</h2>
+            <h2 id="lp-lang-title">{t.langTitle}</h2>
             <p>{t.langHint}</p>
-            <div className="fx-lang-opts">
+            <div className="lp-lang-opts">
               {([["en", t.langEn], ["hi", t.langHi], ["mr", t.langMr]] as const).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
-                  className={`fx-lang-opt${pendingLang === id ? " on" : ""}`}
+                  className={`lp-lang-opt${pendingLang === id ? " on" : ""}`}
                   onClick={() => setPendingLang(id)}
                 >
                   <Languages size={18} /> {label}
                 </button>
               ))}
             </div>
-            <button type="button" className="fx-btn fx-btn-primary fx-btn-wide" onClick={() => applyLang(pendingLang)}>
+            <button type="button" className="lp-btn lp-btn-primary lp-btn-wide" onClick={() => applyLang(pendingLang)}>
               {t.langContinue}
             </button>
           </div>
         </div>
       )}
 
-      <header className="fx-nav">
-        <a className="fx-brand" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-          <img src="/brand/bhishi-mark.png?v=3" alt="" width={30} height={30} />
+      <header className="lp-nav">
+        <a className="lp-brand" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+          <img src="/brand/bhishi-mark.png?v=3" alt="" width={28} height={28} />
           <strong>BhishiCircle</strong>
         </a>
-        <nav className="fx-nav-links" aria-label="Primary">
-          <a href="#demo">{t.navHow}</a>
+        <nav className="lp-nav-links">
+          <a href="#product">{t.navHow}</a>
           <a href="#types">{t.navTypes}</a>
           <a href="#features">{t.navFeatures}</a>
         </nav>
-        <div className="fx-nav-actions">
-          <button type="button" className="fx-lang-chip" onClick={() => { setPendingLang(lang); setLangOpen(true); }}>
+        <div className="lp-nav-actions">
+          <button type="button" className="lp-lang-chip" onClick={() => { setPendingLang(lang); setLangOpen(true); }}>
             <Languages size={14} />
             {lang === "hi" ? "हि" : lang === "mr" ? "मर" : "EN"}
           </button>
           {user ? (
-            <Link className="fx-btn fx-btn-primary" to="/">{t.navOpenApp}</Link>
+            <Link className="lp-btn lp-btn-primary" to="/">{t.navOpenApp}</Link>
           ) : (
             <>
-              <Link className="fx-btn fx-btn-ghost" to="/login">{t.navLogin}</Link>
-              <Link className="fx-btn fx-btn-primary" to="/login">{t.navStart}</Link>
+              <Link className="lp-btn lp-btn-ghost" to="/login">{t.navLogin}</Link>
+              <Link className="lp-btn lp-btn-primary" to="/login">{t.navStart}</Link>
             </>
           )}
         </div>
       </header>
 
       <main id="top">
-        {/* HERO — Flexfye-style full-bleed */}
-        <section className="fx-hero">
-          <div className="fx-hero-glow" aria-hidden />
-          <div className="fx-hero-inner">
-            <div className="fx-hero-copy">
-              <p className="fx-pill">{t.heroEyebrow}</p>
+        {/* HERO */}
+        <section className="lp-hero">
+          <div className="lp-hero-grid">
+            <div className="lp-hero-copy">
+              <p className="lp-kicker">{t.heroEyebrow}</p>
               <h1>
-                {t.heroTitle} <span>{t.heroTitleAccent}</span>
+                {t.heroTitle} <em>{t.heroTitleAccent}</em>
               </h1>
-              <p className="fx-lead">{t.heroSub}</p>
-              <div className="fx-cta-row">
-                <button type="button" className="fx-btn fx-btn-primary fx-btn-lg" onClick={goAuth}>
+              <p className="lp-lead">{t.heroSub}</p>
+              <div className="lp-actions">
+                <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={goAuth}>
                   {t.heroCta} <ArrowRight size={18} />
                 </button>
-                <a className="fx-btn fx-btn-ghost fx-btn-lg" href="#demo">{t.heroSecondary}</a>
+                <a className="lp-btn lp-btn-outline lp-btn-lg" href="#product">{t.heroSecondary}</a>
               </div>
-              <p className="fx-trust-line">{t.heroTrust}</p>
+              <p className="lp-meta">{t.heroTrust}</p>
             </div>
-            <div className="fx-hero-stage">
-              <div className="fx-phone fx-phone-float">
-                <div className="fx-phone-bezel">
-                  <img key={HERO_CYCLE[heroIdx]} src={HERO_CYCLE[heroIdx]} alt="" className="fx-phone-img fx-fade" />
-                </div>
-                <div className="fx-phone-tabs" aria-hidden>
-                  {heroLabels.map((lab, i) => (
-                    <span key={lab} className={i === heroIdx ? "on" : ""}>{lab}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="fx-float-card fx-float-a" aria-hidden>
-                <Wallet size={16} /> {t.demoCollect}
-              </div>
-              <div className="fx-float-card fx-float-b" aria-hidden>
-                <FileText size={16} /> PDF
-              </div>
+            <div className="lp-hero-visual">
+              <Phone frames={HERO_FRAMES} active={heroIdx} size="lg" alt="Bhishi Circle home" className="lp-phone-main" />
+              <div className="lp-chip lp-chip-a"><Wallet size={14} /> {t.demoCollect}</div>
+              <div className="lp-chip lp-chip-b"><FileText size={14} /> PDF</div>
             </div>
           </div>
+          <div className="lp-hero-wash" aria-hidden />
         </section>
 
-        <section className="fx-trust">
+        <section className="lp-strip">
           <p>{t.trustLabel}</p>
-          <div className="fx-trust-stats">
+          <div className="lp-strip-grid">
             {t.stats.map((s) => (
               <div key={s.label}><strong>{s.value}</strong><span>{s.label}</span></div>
             ))}
           </div>
         </section>
 
-        {/* PRODUCT DEMO */}
-        <section className="fx-section" id="demo">
-          <p className="fx-eyebrow">{t.demoEyebrow}</p>
-          <h2 className="fx-h2">{t.demoTitle}</h2>
-          <p className="fx-sub">{t.demoSub}</p>
-          <div className="fx-demo-grid">
-            <div className="fx-demo-main">
-              <img src={SHOTS.home} alt="Bhishi Circle home" />
-            </div>
-            <div className="fx-demo-side">
-              {t.demoCards.map((c, i) => (
-                <article key={c.title} className="fx-card fx-card-rise" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <span className="fx-card-ico"><Sparkles size={16} /></span>
-                  <h3>{c.title}</h3>
-                  <p>{c.body}</p>
-                </article>
-              ))}
-            </div>
+        {/* PRODUCT — clean media panels, no phone-in-card */}
+        <section className="lp-block" id="product">
+          <div className="lp-block-head">
+            <p className="lp-kicker lp-kicker-blue">{t.demoEyebrow}</p>
+            <h2>{t.demoTitle}</h2>
+            <p>{t.demoSub}</p>
+          </div>
+          <div className="lp-showcase">
+            <figure className="lp-shot lp-shot-tall">
+              <Media frames={[SHOTS.home, SHOTS.detail]} active={heroIdx % 2} alt="Dashboard" />
+            </figure>
+            <figure className="lp-shot">
+              <Media frames={[SHOTS.collect]} active={0} alt="Collections" />
+              <figcaption>
+                <strong>{t.demoCards[1]!.title}</strong>
+                <span>{t.demoCards[1]!.body}</span>
+              </figcaption>
+            </figure>
+            <figure className="lp-shot">
+              <Media frames={[SHOTS.people, SHOTS.create]} active={flowIdx % 2} alt="People" />
+              <figcaption>
+                <strong>{t.demoCards[2]!.title}</strong>
+                <span>{t.demoCards[2]!.body}</span>
+              </figcaption>
+            </figure>
           </div>
         </section>
 
-        {/* WORKFLOW — matched screenshots */}
-        <section className="fx-band" id="flow">
-          <div className="fx-band-inner">
-            <p className="fx-eyebrow fx-eyebrow-light">{t.flowEyebrow}</p>
-            <h2 className="fx-h2 fx-h2-light">{t.flowTitle}</h2>
-            <p className="fx-sub fx-sub-light">{t.flowSub}</p>
-            <div className="fx-flow">
-              <div className="fx-flow-list">
-                {t.flowItems.map((item, i) => (
-                  <button
-                    key={item.title}
-                    type="button"
-                    className={`fx-flow-item${flowIdx === i ? " on" : ""}`}
-                    onClick={() => setFlowIdx(i)}
-                  >
-                    <span>{String(i + 1).padStart(2, "0")}</span>
-                    <div>
-                      <strong>{item.title}</strong>
-                      {flowIdx === i && (
-                        <>
-                          <p>{item.body}</p>
-                          <ul>
-                            {item.points.map((p) => (
-                              <li key={p}><Check size={14} /> {p}</li>
-                            ))}
-                          </ul>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                ))}
+        {/* WORKFLOW — phone free, no glass card */}
+        <section className="lp-workflow" id="flow">
+          {t.flowItems.map((item, i) => (
+            <div key={item.title} className={`lp-workflow-row${i % 2 ? " flip" : ""}`}>
+              <div className="lp-workflow-copy">
+                <span className="lp-step">{String(i + 1).padStart(2, "0")}</span>
+                <h2>{item.title}</h2>
+                <p>{item.body}</p>
+                <ul>
+                  {item.points.map((p) => (
+                    <li key={p}><Check size={15} /> {p}</li>
+                  ))}
+                </ul>
               </div>
-              <div className="fx-phone fx-phone-static">
-                <div className="fx-phone-bezel">
-                  <img key={FLOW_SHOTS[flowIdx]} src={FLOW_SHOTS[flowIdx]} alt="" className="fx-phone-img fx-fade" />
-                </div>
+              <div className="lp-workflow-media">
+                <Phone
+                  frames={flowShots[i]!}
+                  active={flowIdx % 2}
+                  size="md"
+                  alt={item.title}
+                  className={i === flowIdx ? "lp-phone-active" : ""}
+                />
               </div>
             </div>
-          </div>
+          ))}
         </section>
 
-        {/* BHISHI TYPES */}
-        <section className="fx-section" id="types">
-          <p className="fx-eyebrow">{t.typesEyebrow}</p>
-          <h2 className="fx-h2">{t.typesTitle}</h2>
-          <p className="fx-sub">{t.typesSub}</p>
-          <div className="fx-types-layout">
-            <div className="fx-types-list">
+        {/* TYPES */}
+        <section className="lp-block" id="types">
+          <div className="lp-block-head">
+            <p className="lp-kicker lp-kicker-blue">{t.typesEyebrow}</p>
+            <h2>{t.typesTitle}</h2>
+            <p>{t.typesSub}</p>
+          </div>
+          <div className="lp-types">
+            <div className="lp-types-nav" role="tablist">
               {t.types.map((ty, i) => (
                 <button
                   key={ty.title}
                   type="button"
-                  className={`fx-type-row${typeIdx === i ? " on" : ""}`}
+                  role="tab"
+                  aria-selected={typeIdx === i}
+                  className={typeIdx === i ? "on" : ""}
                   onClick={() => setTypeIdx(i)}
                 >
-                  <strong>{ty.title}</strong>
-                  {typeIdx === i && (
-                    <>
-                      <p>{ty.body}</p>
-                      <ul>
-                        {ty.points.map((p) => (
-                          <li key={p}><Check size={13} /> {p}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
+                  {ty.title}
                 </button>
               ))}
             </div>
-            <div className="fx-type-visual">
-              <div className="fx-phone fx-phone-static">
-                <div className="fx-phone-bezel">
-                  <img key={TYPE_SHOTS[typeIdx]} src={TYPE_SHOTS[typeIdx]} alt="" className="fx-phone-img fx-fade" />
-                </div>
+            <div className="lp-types-panel">
+              <div className="lp-types-copy">
+                <h3>{t.types[typeIdx]!.title}</h3>
+                <p>{t.types[typeIdx]!.body}</p>
+                <ul>
+                  {t.types[typeIdx]!.points.map((p) => (
+                    <li key={p}><Check size={14} /> {p}</li>
+                  ))}
+                </ul>
               </div>
+              <Phone frames={TYPE_FRAMES} active={typeIdx} size="md" alt={t.types[typeIdx]!.title} />
             </div>
           </div>
         </section>
 
-        {/* LUCKY DRAW SPOTLIGHT */}
-        <section className="fx-lucky" id="lucky">
-          <div className="fx-lucky-copy">
-            <p className="fx-eyebrow">{t.luckyEyebrow}</p>
-            <h2 className="fx-h2">{t.luckyTitle}</h2>
-            <p className="fx-sub">{t.luckySub}</p>
-            <ul className="fx-check">
+        {/* LUCKY DRAW — live wheel */}
+        <section className="lp-lucky" id="lucky">
+          <div className="lp-lucky-copy">
+            <p className="lp-kicker lp-kicker-blue">{t.luckyEyebrow}</p>
+            <h2>{t.luckyTitle}</h2>
+            <p>{t.luckySub}</p>
+            <ul>
               {t.luckyPoints.map((p) => (
-                <li key={p}><Check size={16} /> {p}</li>
+                <li key={p}><Check size={15} /> {p}</li>
               ))}
             </ul>
-            <button type="button" className="fx-btn fx-btn-primary fx-btn-lg" onClick={goAuth}>
-              {t.luckyCta} <ArrowRight size={18} />
+            <button type="button" className="lp-btn lp-btn-primary" onClick={goAuth}>
+              {t.luckyCta} <ArrowRight size={16} />
             </button>
           </div>
-          <div className={`fx-lucky-frame${wheelPulse ? " pulse" : ""}`}>
-            <img src={SHOTS.wheel} alt="Bhishi Circle lucky draw wheel" />
-            <img className="fx-lucky-spin" src={SHOTS.spinning} alt="" aria-hidden />
-          </div>
+          <LuckyWheel winnerLabel={lang === "hi" ? "विजेता" : lang === "mr" ? "विजेता" : "Winner"} />
         </section>
 
-        {/* FEATURES GRID */}
-        <section className="fx-section" id="features">
-          <p className="fx-eyebrow">{t.toolsEyebrow}</p>
-          <h2 className="fx-h2">{t.toolsTitle}</h2>
-          <p className="fx-sub">{t.toolsSub}</p>
-          <div className="fx-tools">
+        {/* FEATURES */}
+        <section className="lp-block" id="features">
+          <div className="lp-block-head">
+            <p className="lp-kicker lp-kicker-blue">{t.toolsEyebrow}</p>
+            <h2>{t.toolsTitle}</h2>
+            <p>{t.toolsSub}</p>
+          </div>
+          <div className="lp-feats">
             {t.tools.map((f, i) => {
               const Icon = [Wallet, MessageCircle, FileText, Languages, Users, Shield][i] || Sparkles;
               return (
-                <article key={f.title} className="fx-tool">
-                  <span className="fx-tool-ico"><Icon size={18} /></span>
+                <article key={f.title}>
+                  <span><Icon size={18} /></span>
                   <h3>{f.title}</h3>
                   <p>{f.body}</p>
                 </article>
@@ -345,34 +417,19 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* STATS */}
-        <section className="fx-stats">
-          <p className="fx-eyebrow fx-eyebrow-light">{t.statsEyebrow}</p>
-          <h2 className="fx-h2 fx-h2-light">{t.statsTitle}</h2>
-          <p className="fx-sub fx-sub-light">{t.statsSub}</p>
-          <div className="fx-stats-grid">
-            {t.stats.map((s) => (
-              <div key={s.label} className="fx-stat">
-                <strong>{s.value}</strong>
-                <span>{s.label}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="fx-final">
-          <img src="/brand/bhishi-mark-white.png?v=3" alt="" width={52} height={52} />
+        <section className="lp-cta">
+          <img src="/brand/bhishi-mark-white.png?v=3" alt="" width={44} height={44} />
           <h2>{t.finalTitle}</h2>
           <p>{t.finalSub}</p>
-          <button type="button" className="fx-btn fx-btn-yellow fx-btn-lg" onClick={goAuth}>
+          <button type="button" className="lp-btn lp-btn-yellow lp-btn-lg" onClick={goAuth}>
             {t.finalCta} <ArrowRight size={18} />
           </button>
         </section>
       </main>
 
-      <footer className="fx-footer">
-        <div className="fx-footer-brand">
-          <img src="/brand/bhishi-mark.png?v=3" alt="" width={28} height={28} />
+      <footer className="lp-foot">
+        <div>
+          <img src="/brand/bhishi-mark.png?v=3" alt="" width={26} height={26} />
           <div>
             <strong>Bhishi Circle</strong>
             <span>{t.footerTagline}</span>
