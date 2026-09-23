@@ -808,6 +808,29 @@ export function expectedThisCycle(chit: Chit) {
   return chit.members.reduce((s, m) => s + rawCycleDue(chit, m.customerId, cyc, m.slot), 0);
 }
 
+/** Amount still unpaid for the current hapta (cycle dues − paid). */
+export function remainingCollectionsThisCycle(chit: Chit) {
+  const cyc = displayCycle(chit);
+  return chit.members.reduce((s, m) => {
+    const due = cycleDue(chit, m.customerId, cyc, m.slot);
+    const paid = paidInCycle(chit, m.customerId, cyc, m.slot);
+    return s + Math.max(0, due - paid);
+  }, 0);
+}
+
+/**
+ * Max funds available to give as a loan: cash on hand + still expected this month.
+ * Allows award-first (loan before collect) without going beyond what the month will bring in.
+ */
+export function loanFundingCapacity(chit: Chit) {
+  return Math.max(0, treasuryOf(chit)) + remainingCollectionsThisCycle(chit);
+}
+
+/** Max face loan amount that may be sanctioned (never above funding capacity). */
+export function loanMaxFaceAmount(chit: Chit) {
+  return Math.max(0, Math.floor(loanFundingCapacity(chit)));
+}
+
 export function commissionEarned(chit: Chit) {
   return chit.auctions.reduce((s, a) => s + (a.commission || 0), 0);
 }
@@ -1090,8 +1113,9 @@ export function settleWinner(
       safeBid = Math.min(safeBid, maxPayout);
     }
   } else if (method === "fixed" && chit.type === "loan") {
-    // Face principal; optional one month’s interest cut stays in the pot (loanInterestUpfront).
-    safeBid = Math.max(0, Number(bid) || 0);
+    // Face principal; clamp to cash on hand + still expected this month.
+    const maxFace = loanMaxFaceAmount(chit);
+    safeBid = Math.min(Math.max(0, Number(bid) || 0), maxFace);
     discount = loanCutsInterestUpfront(chit) ? loanMonthlyInterest(chit, safeBid) : 0;
   } else if (method === "fixed" && (chit.type === "fixed" || chit.type === "base_premium" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice")) {
     const requested = Math.max(0, Number(bid) || chit.pot);
@@ -1113,9 +1137,9 @@ export function settleWinner(
   let payout = Math.max(0, safeBid - arrearsWithheld);
   if (method === "fixed" && chit.type === "loan") {
     payout = Math.max(0, safeBid - discount - arrearsWithheld);
-  }
-  if (method === "fixed" && chit.type === "loan" && !awardFirst) {
-    const maxNet = Math.max(0, treasuryOf(chit) - commission);
+    // Cash leaving (payout + commission) must not exceed funding capacity.
+    const capacity = loanFundingCapacity(chit);
+    const maxNet = Math.max(0, capacity - commission);
     if (payout > maxNet) payout = maxNet;
   }
   return {
@@ -1174,7 +1198,21 @@ export function assertCanSettlePayout(
     throw new Error("Enter an amount greater than zero");
   }
   const rec = settleWinner(chit, winnerId, bid, method, winnerSlot);
-  if (!awardFirst) {
+  if (method === "fixed" && chit.type === "loan") {
+    const capacity = loanFundingCapacity(chit);
+    const maxFace = loanMaxFaceAmount(chit);
+    if (bid > maxFace + 0.001) {
+      throw new Error(
+        `Loan amount (₹${bid}) cannot exceed cash on hand plus this month’s expected collections (₹${maxFace}).`,
+      );
+    }
+    const need = rec.payout + rec.commission;
+    if (need > capacity + 0.001) {
+      throw new Error(
+        `Loan payout plus commission (₹${need}) is more than cash on hand plus this month’s expected collections (₹${capacity}).`,
+      );
+    }
+  } else if (!awardFirst) {
     const available = treasuryOf(chit);
     const need = rec.payout + rec.commission + (isHandSacrifice(chit) ? rec.discount : 0);
     if (need > Math.max(0, available) + 0.001) {

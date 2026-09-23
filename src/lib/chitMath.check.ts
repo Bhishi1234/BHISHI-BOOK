@@ -12,6 +12,8 @@ import {
   isLastAuctionCycle,
   loanContributionPaid,
   loanCycleDue,
+  loanFundingCapacity,
+  loanMaxFaceAmount,
   loanPrincipalDueInCycle,
   loanPrincipalOf,
   loanPrincipalRepaid,
@@ -256,9 +258,10 @@ const loan = chit({
 });
 collectAll(loan, 20000);
 const lg = settleWinner(loan, "m1", 200000, "fixed");
-assert(lg.discount === 10000, `loan upfront interest ${lg.discount}`);
-// Only ₹1L cash on hand → net payout capped after commission
-assert(lg.payout === 99900, `loan payout capped ${lg.payout}`);
+// Face clamped to cash + remaining expected (all collected → cash 1L only)
+assert(lg.bid === 100000, `loan face clamped ${lg.bid}`);
+assert(lg.discount === 5000, `loan upfront interest ${lg.discount}`);
+assert(lg.payout === 95000, `loan payout ${lg.payout}`);
 loan.payments = [];
 collectAll(loan, 20000);
 const lg2 = settleWinner(loan, "m1", 100000, "fixed");
@@ -599,5 +602,37 @@ assert(
   loanCycleDue({ ...deferred, auctions: [dg] }, "d1", 2, 1) === 10000 + 1000,
   `deferred first repay includes interest`,
 );
+
+// Max face = cash + still expected this month (award-first, nothing collected yet)
+const fund = chit({
+  members: [
+    { customerId: "f1", slot: 1 },
+    { customerId: "f2", slot: 2 },
+  ],
+  type: "loan",
+  pot: 100000,
+  instalment: 50000,
+  duration: 4,
+  interestRate: 0,
+  auctionStyle: "auction_first",
+  commissionKind: "amount",
+  commissionValue: 0,
+  // Prior month cash sitting in till
+  payments: [
+    { id: "p1", memberId: "f1", cycle: 1, amount: 50000, kind: "full", date: "2026-01-01", mode: "cash" },
+    { id: "p2", memberId: "f2", cycle: 1, amount: 50000, kind: "full", date: "2026-01-01", mode: "cash" },
+  ],
+  currentCycle: 2,
+});
+assert(treasuryOf(fund) === 100000, `fund cash ${treasuryOf(fund)}`);
+// Month 2 expected remaining 1L → max face 2L
+assert(loanFundingCapacity(fund) === 200000, `fund capacity ${loanFundingCapacity(fund)}`);
+assert(loanMaxFaceAmount(fund) === 200000, `fund max face ${loanMaxFaceAmount(fund)}`);
+const over = settleWinner(fund, "f1", 300000, "fixed");
+assert(over.bid === 200000, `over-request clamped ${over.bid}`);
+const ok = settleWinner(fund, "f1", 200000, "fixed");
+assert(ok.bid === 200000, `max loan face ${ok.bid}`);
+// Month-2 dues unpaid → arrears withheld from payout
+assert(ok.payout === 150000, `max loan payout after arrears ${ok.payout}`);
 
 console.log("chit math ok");

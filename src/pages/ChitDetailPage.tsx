@@ -45,6 +45,8 @@ import {
   loanDetailRows,
   loanEffectiveTenure,
   loanFaceAmount,
+  loanFundingCapacity,
+  loanMaxFaceAmount,
   loanMonthlyInterest,
   loanPrincipalOf,
   loanSettlementPlan,
@@ -201,6 +203,8 @@ export function ChitDetailPage() {
   const lastWin = data.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
   const monthLoans = loansThisCycle(data);
   const cashOnHand = treasuryOf(data);
+  const loanMaxFace = data.type === "loan" ? loanMaxFaceAmount(data) : 0;
+  const loanCapacity = data.type === "loan" ? loanFundingCapacity(data) : 0;
   const showSettlement = data.type === "loan";
   const monthDate = new Date(data.startDate);
   monthDate.setMonth(monthDate.getMonth() + cycle - 1);
@@ -1244,7 +1248,8 @@ export function ChitDetailPage() {
                       ) : (
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
-                            Pick the hand (slot) that is borrowing. A loan on one hand never applies to another hand of the same person. One month’s interest is cut from the face amount and stays in the pot.
+                            Pick the hand (slot) that is borrowing. A loan on one hand never applies to another hand of the same person.
+                            Max face this month: {inr(loanMaxFace)} (cash {inr(Math.max(0, cashOnHand))} + still expected {inr(Math.max(0, loanCapacity - Math.max(0, cashOnHand)))}).
                           </p>
                           <div className="month-auction" style={{ padding: 0 }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
@@ -1273,12 +1278,13 @@ export function ChitDetailPage() {
                                 !winnerId
                                 || winnerSlot == null
                                 || !Number(bid)
-                                || (!awardFirst && Number(bid) > cashOnHand)
+                                || Number(bid) > loanMaxFace
+                                || loanMaxFace <= 0
                               }
                               onClick={() => {
                                 const amount = Number(bid);
                                 void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot).then((rec) => {
-                                  setBid(String(data.pot));
+                                  setBid(String(Math.min(data.pot, loanMaxFace)));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
                                   setLoanSkipped(false);
@@ -1291,18 +1297,26 @@ export function ChitDetailPage() {
                             </button>
                           </div>
                           <div className="quick" style={{ marginTop: 8 }}>
-                            {[data.pot, data.pot * 2, data.pot * 3, cashOnHand].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).map((v) => (
+                            {[data.pot, data.pot * 2, data.pot * 3, loanMaxFace]
+                              .filter((v, i, arr) => v > 0 && v <= loanMaxFace && arr.indexOf(v) === i)
+                              .map((v) => (
                               <button key={v} type="button" className={`chip ${bid === String(v) ? "on" : ""}`} onClick={() => setBid(String(v))}>
-                                {inr(v)}{v === cashOnHand ? " · all cash" : ""}
+                                {inr(v)}{v === loanMaxFace ? " · max" : ""}
                               </button>
                             ))}
                           </div>
+                          {Number(bid) > loanMaxFace && (
+                            <p className="due" style={{ marginTop: 8 }}>
+                              Loan cannot exceed {inr(loanMaxFace)} (cash on hand + this month’s expected collections).
+                            </p>
+                          )}
                           {winnerId && winnerSlot != null && Number(bid) > 0 && (() => {
-                            const preview = settleWinner(data, winnerId, Number(bid), "fixed", winnerSlot);
+                            const faceReq = Number(bid);
+                            const preview = settleWinner(data, winnerId, faceReq, "fixed", winnerSlot);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             const start = cycle;
                             const tenure = loanEffectiveTenure(data, start);
-                            const face = Number(bid);
+                            const face = preview.bid;
                             const share = (data.loanPrincipalMode || "emi") === "end"
                               ? face
                               : Math.ceil(face / tenure);
@@ -1311,7 +1325,7 @@ export function ChitDetailPage() {
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.hand}</span><strong>Slot {winnerSlot}</strong></div>
-                                <div className="kv"><span>Face loan</span><strong>{inr(face)}</strong></div>
+                                <div className="kv"><span>Face loan</span><strong>{inr(face)}{faceReq > face ? ` (capped from ${inr(faceReq)})` : ""}</strong></div>
                                 <div className="kv">
                                   <span>{preview.discount > 0 ? "Interest cut now (stays in pot)" : "Interest cut now"}</span>
                                   <strong>{inr(preview.discount)}{preview.discount === 0 ? " (none — from next month)" : ""}</strong>
@@ -1332,7 +1346,12 @@ export function ChitDetailPage() {
                                   </strong>
                                 </div>
                                 <div className="kv"><span>Cash on hand after</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
-                                {cashAfter < 0 && !awardFirst && <p className="due">Not enough cash on hand for this loan.</p>}
+                                {cashAfter < 0 && (
+                                  <p className="muted" style={{ margin: "6px 0 0" }}>
+                                    Temporarily below zero until this month’s remaining collections ({inr(Math.max(0, loanCapacity - Math.max(0, cashOnHand)))}) come in.
+                                  </p>
+                                )}
+                                {faceReq > loanMaxFace && <p className="due">Not enough funding for this loan face amount.</p>}
                               </div>
                             );
                           })()}
