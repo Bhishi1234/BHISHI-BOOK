@@ -163,6 +163,20 @@ assert(rawCycleDue(af, "m2", 1) === 19000, `af share ${rawCycleDue(af, "m2", 1)}
 assert(paidInCycle(af, "m1", 1) === 19000, `af winner paid-in ${paidInCycle(af, "m1", 1)}`);
 assert(canSettleCycle(af) === true, "af can auction without collections");
 assert(treasuryOf(af) === 0, `af cash after auction ${treasuryOf(af)}`);
+
+// Auction-first with foreman commission still recorded on the award.
+const afComm = chit({
+  members: members(5),
+  auctionStyle: "auction_first",
+  commissionPct: 0,
+  commissionKind: "amount",
+  commissionValue: 2000,
+});
+const afCommRec = settleWinner(afComm, "m1", 95000, "auction");
+assert(afCommRec.commission === 2000, `af peer commission ${afCommRec.commission}`);
+assert(afCommRec.bid === 95000, `af peer bid unchanged ${afCommRec.bid}`);
+assert(afCommRec.payout === 95000, `af peer payout ${afCommRec.payout}`);
+assert(treasuryOf({ ...afComm, auctions: [afCommRec] }) === 0, "af till still zero with commission");
 for (const m of af.members) {
   if (m.customerId === "m1") continue;
   af.payments.push({

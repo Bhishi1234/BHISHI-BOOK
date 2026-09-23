@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { en } from "./en";
 import { hi } from "./hi";
 import { mr } from "./mr";
 import type { Lang, Messages } from "./types";
+import { getGuestLang, setGuestLang } from "../lib/uiLang";
+import type { GuestLang } from "../lib/uiLang";
 
 export type { Lang, Messages } from "./types";
 
@@ -34,12 +36,18 @@ export function fill(template: string, vars: Record<string, string | number>) {
 
 export function useI18n() {
   const { user } = useStore();
-  const lang = normalizeLang(user?.language);
+  const [guestLang, setGuestLangState] = useState<Lang>(() => getGuestLang() as Lang);
+  const lang = user?.language ? normalizeLang(user.language) : guestLang;
 
   useEffect(() => {
     document.documentElement.lang = lang === "en" ? "en" : lang;
     document.documentElement.dataset.lang = lang;
   }, [lang]);
+
+  function setUiLang(next: Lang) {
+    setGuestLang(next as GuestLang);
+    setGuestLangState(next);
+  }
 
   return useMemo(() => {
     const m = messagesFor(lang);
@@ -70,6 +78,7 @@ export function useI18n() {
 
     return {
       lang,
+      setUiLang,
       m,
       tx,
       typeLabel,

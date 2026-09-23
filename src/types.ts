@@ -126,6 +126,10 @@ export type Chit = {
   /** @deprecated */
   winningMonthPolicy?: "nothing" | "normal" | "premium";
   /** owner = you organise this chit; member = shared via phone + member visibility. */
+  /**
+   * Reasons selected when the organiser cancelled this chit (multiselect).
+   */
+  cancelReasons?: string[];
   viewerRole?: "owner" | "member";
 };
 

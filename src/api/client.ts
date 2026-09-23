@@ -9,20 +9,29 @@ type Backend = {
   authHint: () => string;
   onAuthChange: (cb: () => void) => () => void;
   sendOtp: (phone: string, name?: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
-  verifyOtp: (phone: string, otp: string, name?: string) => Promise<unknown>;
+  beginSignup: (input: {
+    name: string;
+    phone: string;
+    password: string;
+    language?: string;
+  }) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
+  loginWithPassword: (phone: string, password: string) => Promise<unknown>;
+  verifyOtp: (phone: string, otp: string, name?: string, opts?: { password?: string; language?: string }) => Promise<unknown>;
   logout: () => Promise<unknown>;
   profile: () => Promise<User>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
   setPlan: (plan: PlanId) => Promise<User>;
-  deactivateAccount: () => Promise<unknown>;
+  deactivateAccount: (reasons?: string[], note?: string) => Promise<unknown>;
   types: () => Promise<readonly { id: string; label: string }[]>;
   frequencies: () => Promise<readonly { id: string; label: string }[]>;
   customers: () => Promise<unknown>;
   addCustomer: (name: string, phone: string) => Promise<unknown>;
+  updateCustomer: (id: string, patch: { name?: string; phone?: string }) => Promise<unknown>;
   chits: () => Promise<Chit[]>;
   chit: (id: string) => Promise<Chit>;
   createChit: (input: Omit<Chit, "id" | "payments" | "status">) => Promise<Chit>;
-  cancelChit: (id: string) => Promise<Chit>;
+  cancelChit: (id: string, reasons?: string[]) => Promise<Chit>;
+  exitChitAsMember: (id: string) => Promise<void>;
   addMember: (chitId: string, customerId: string) => Promise<Chit>;
   removeMember: (chitId: string, slot: number) => Promise<Chit>;
   swapMember: (chitId: string, slot: number, newCustomerId: string) => Promise<Chit>;
@@ -49,20 +58,24 @@ const mockApi: Backend = {
   authHint: () => "Demo login: any 6-digit OTP works until Supabase phone auth is connected.",
   onAuthChange: () => () => undefined,
   sendOtp: (phone, name) => delay(mockServer.auth.sendOtp(phone, name)),
+  beginSignup: (input) => delay(mockServer.auth.beginSignup(input)),
+  loginWithPassword: (phone, password) => delay(mockServer.auth.loginWithPassword(phone, password)),
   verifyOtp: (phone, otp, name) => delay(mockServer.auth.verifyOtp(phone, otp, name)),
   logout: () => delay(mockServer.auth.logout()),
   profile: () => delay(mockServer.auth.profile()),
   updateProfile: (patch) => delay(mockServer.auth.updateProfile(patch)),
   setPlan: (plan) => delay(mockServer.auth.setPlan(plan)),
-  deactivateAccount: () => delay(mockServer.auth.deactivate()),
+  deactivateAccount: (reasons, note) => delay(mockServer.auth.deactivate(reasons, note)),
   types: () => delay([...META_TYPES]),
   frequencies: () => delay([...META_FREQUENCIES]),
   customers: () => delay(mockServer.customers.list()),
   addCustomer: (name, phone) => delay(mockServer.customers.create(name, phone)),
+  updateCustomer: (id, patch) => delay(mockServer.customers.update(id, patch)),
   chits: () => delay(mockServer.chits.list()),
   chit: (id) => delay(mockServer.chits.get(id)),
   createChit: (input) => delay(mockServer.chits.create(input)),
-  cancelChit: (id) => delay(mockServer.chits.cancel(id)),
+  cancelChit: (id, reasons) => delay(mockServer.chits.cancel(id, reasons)),
+  exitChitAsMember: (id) => delay(mockServer.chits.exitAsMember(id)),
   addMember: (chitId, customerId) => delay(mockServer.chits.addMember(chitId, customerId)),
   removeMember: (chitId, slot) => delay(mockServer.chits.removeMember(chitId, slot)),
   swapMember: (chitId, slot, newCustomerId) => delay(mockServer.chits.swapMember(chitId, slot, newCustomerId)),

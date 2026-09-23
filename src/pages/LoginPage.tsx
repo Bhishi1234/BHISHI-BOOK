@@ -1,48 +1,102 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n";
+import type { Lang } from "../i18n/types";
 import { useStore } from "../store";
 
+type Mode = "login" | "signup";
+type Step = "form" | "otp";
+
 export function LoginPage() {
-  const { sendOtp, verifyOtp, logout, user, authHint, error } = useStore();
-  const { m, tx } = useI18n();
+  const { beginSignup, loginWithPassword, verifyOtp, logout, user, authHint, error } = useStore();
+  const { m, tx, lang, setUiLang } = useI18n();
   const nav = useNavigate();
+  const [mode, setMode] = useState<Mode>("login");
+  const [step, setStep] = useState<Step>("form");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const refs = useRef<Array<HTMLInputElement | null>>([]);
 
   const digits = phone.replace(/\D/g, "").slice(0, 10);
   const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-  const canSend = digits.length === 10 && firstName.trim().length >= 1 && lastName.trim().length >= 1;
+  const canLogin = digits.length === 10 && password.length >= 6;
+  const canSignup =
+    digits.length === 10
+    && firstName.trim().length >= 1
+    && lastName.trim().length >= 1
+    && password.length >= 6
+    && confirm === password;
 
-  async function send() {
-    if (!canSend) return;
-    setSending(true);
+  function switchMode(next: Mode) {
+    setMode(next);
+    setStep("form");
+    setLocalError(null);
+    setDevOtp(null);
+    setOtp(["", "", "", "", "", ""]);
+  }
+
+  async function doLogin() {
+    if (!canLogin) return;
+    setBusy(true);
+    setLocalError(null);
     try {
-      const sent = await sendOtp(digits, fullName);
+      await loginWithPassword(digits, password);
+      nav("/");
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : m.login.wrongPassword);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doSignupSend() {
+    if (password.length < 6) {
+      setLocalError(m.login.passwordShort);
+      return;
+    }
+    if (password !== confirm) {
+      setLocalError(m.login.passwordMismatch);
+      return;
+    }
+    if (!canSignup) return;
+    setBusy(true);
+    setLocalError(null);
+    try {
+      const sent = await beginSignup({
+        name: fullName,
+        phone: digits,
+        password,
+        language: lang,
+      });
       setDevOtp(sent.devOtp || null);
       setOtp(["", "", "", "", "", ""]);
       setStep("otp");
       setTimeout(() => refs.current[0]?.focus(), 50);
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : "Signup failed");
     } finally {
-      setSending(false);
+      setBusy(false);
     }
   }
 
   async function submitOtp(code: string) {
-    if (code.length !== 6 || verifying) return;
-    setVerifying(true);
+    if (code.length !== 6 || busy) return;
+    setBusy(true);
+    setLocalError(null);
     try {
-      await verifyOtp(digits, code, fullName);
+      await verifyOtp(digits, code, fullName, { password, language: lang });
       nav("/");
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : "Invalid OTP");
     } finally {
-      setVerifying(false);
+      setBusy(false);
     }
   }
 
@@ -87,32 +141,20 @@ export function LoginPage() {
         <h1>{m.brand}</h1>
         <p className="sub">{m.login.tagline}</p>
         <div className="login-card">
-          {step === "phone" ? (
+          {step === "form" && (
+            <div className="seg" style={{ marginBottom: 14 }}>
+              <button type="button" className={`chip ${mode === "login" ? "on" : ""}`} onClick={() => switchMode("login")}>
+                {m.login.tabLogin}
+              </button>
+              <button type="button" className={`chip ${mode === "signup" ? "on" : ""}`} onClick={() => switchMode("signup")}>
+                {m.login.tabSignup}
+              </button>
+            </div>
+          )}
+
+          {step === "form" && mode === "login" && (
             <>
-              <div className="grid-2" style={{ gap: 10, marginBottom: 0 }}>
-                <div>
-                  <label className="label" htmlFor="firstName">{m.login.firstName}</label>
-                  <input
-                    id="firstName"
-                    className="field"
-                    autoComplete="given-name"
-                    placeholder="Ramesh"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="label" htmlFor="lastName">{m.login.lastName}</label>
-                  <input
-                    id="lastName"
-                    className="field"
-                    autoComplete="family-name"
-                    placeholder="Kumar"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                  />
-                </div>
-              </div>
+              <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>{m.login.loginTitle}</h2>
               <label className="label" htmlFor="phone">{m.login.phone}</label>
               <div className="phone-row">
                 <span>+91</span>
@@ -123,20 +165,122 @@ export function LoginPage() {
                   placeholder="98765 43210"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") void doLogin(); }}
                 />
               </div>
-              <p className="hint">{m.loginExtra.otpHint}</p>
-              {error && <p className="due">{error}</p>}
-              <button className="btn wide" disabled={sending || !canSend} onClick={() => void send()}>
-                {sending ? m.common.loading : m.login.sendOtp}
+              <label className="label" htmlFor="password">{m.login.password}</label>
+              <input
+                id="password"
+                className="field"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void doLogin(); }}
+              />
+              <p className="hint">{m.loginExtra.loginPasswordHint}</p>
+              {(localError || error) && <p className="due">{localError || error}</p>}
+              <button className="btn wide" disabled={busy || !canLogin} onClick={() => void doLogin()}>
+                {busy ? m.login.loggingIn : m.login.loginCta}
               </button>
+              <p className="fine" style={{ marginTop: 12 }}>
+                <button type="button" className="link" onClick={() => switchMode("signup")}>{m.login.noAccount}</button>
+              </p>
             </>
-          ) : (
+          )}
+
+          {step === "form" && mode === "signup" && (
+            <>
+              <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>{m.login.signupTitle}</h2>
+              <label className="label">{m.login.language}</label>
+              <div className="seg" style={{ marginBottom: 6 }}>
+                {([
+                  ["en", "English"],
+                  ["hi", "हिन्दी"],
+                  ["mr", "मराठी"],
+                ] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`chip ${lang === id ? "on" : ""}`}
+                    onClick={() => setUiLang(id as Lang)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="hint">{m.login.languageHint}</p>
+              <div className="grid-2" style={{ gap: 10, marginBottom: 0 }}>
+                <div>
+                  <label className="label" htmlFor="firstName">{m.login.firstName}</label>
+                  <input
+                    id="firstName"
+                    className="field"
+                    autoComplete="given-name"
+                    placeholder={m.login.firstNamePh}
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="lastName">{m.login.lastName}</label>
+                  <input
+                    id="lastName"
+                    className="field"
+                    autoComplete="family-name"
+                    placeholder={m.login.lastNamePh}
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <label className="label" htmlFor="signupPhone">{m.login.phone}</label>
+              <div className="phone-row">
+                <span>+91</span>
+                <input
+                  id="signupPhone"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="98765 43210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                />
+              </div>
+              <label className="label" htmlFor="signupPassword">{m.login.password}</label>
+              <input
+                id="signupPassword"
+                className="field"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <label className="label" htmlFor="confirmPassword">{m.login.confirmPassword}</label>
+              <input
+                id="confirmPassword"
+                className="field"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+              <p className="hint">{m.login.passwordHint}</p>
+              {(localError || error) && <p className="due">{localError || error}</p>}
+              <button className="btn wide" disabled={busy || !canSignup} onClick={() => void doSignupSend()}>
+                {busy ? m.login.creatingAccount : m.login.signupCta}
+              </button>
+              <p className="fine" style={{ marginTop: 12 }}>
+                <button type="button" className="link" onClick={() => switchMode("login")}>{m.login.haveAccount}</button>
+              </p>
+            </>
+          )}
+
+          {step === "otp" && (
             <>
               <p className="sub" style={{ marginBottom: 12, textAlign: "left" }}>
                 {tx(m.loginExtra.otpGreeting, { name: firstName.trim(), phone: digits })}
               </p>
+              <p className="hint">{m.loginExtra.signupOtpHint}</p>
               <div className="otp-boxes">
                 {otp.map((n, i) => (
                   <input
@@ -151,21 +295,21 @@ export function LoginPage() {
                   />
                 ))}
               </div>
-              {error && <p className="due">{error}</p>}
-              {devOtp && <p className="fine">Dev OTP: {devOtp}</p>}
+              {(localError || error) && <p className="due">{localError || error}</p>}
+              {devOtp && <p className="fine">{tx(m.loginExtra.devOtp, { code: devOtp })}</p>}
               <button
                 className="btn wide"
-                disabled={verifying || otp.join("").length !== 6}
+                disabled={busy || otp.join("").length !== 6}
                 onClick={() => void submitOtp(otp.join(""))}
               >
-                {verifying ? m.loginExtra.verifying : m.login.verify}
+                {busy ? m.loginExtra.verifying : m.login.verify}
               </button>
               <p className="fine">
                 {authHint}{" "}
                 <button
                   type="button"
                   className="link"
-                  onClick={() => { setStep("phone"); setDevOtp(null); setOtp(["", "", "", "", "", ""]); }}
+                  onClick={() => { setStep("form"); setDevOtp(null); setOtp(["", "", "", "", "", ""]); }}
                 >
                   {m.loginExtra.changeDetails}
                 </button>
@@ -173,10 +317,7 @@ export function LoginPage() {
             </>
           )}
         </div>
-        <p className="fine">
-          By continuing, you agree to our Terms and Privacy Policy. Bhishi Circle is a
-          record-keeping utility.
-        </p>
+        <p className="fine">{m.login.legal}</p>
       </div>
     </div>
   );

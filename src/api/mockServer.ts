@@ -14,13 +14,20 @@ import { uid } from "../lib/format";
 const KEY = "bhishi-book-api-v8";
 
 type Session = { token: string; user: User };
+type Account = { phone: string; password: string; name: string; language: string };
+type PendingSignup = { phone: string; name: string; password: string; language: string };
+
 type Db = {
   session: Session | null;
   pendingEmail: string | null;
   pendingPhone: string | null;
+  pendingSignup: PendingSignup | null;
+  accounts: Account[];
   customers: Customer[];
   chits: Chit[];
   tickets: Ticket[];
+  exitedSharedIds: string[];
+  deletionFeedback: { reasons: string[]; note?: string; at: string }[];
 };
 
 const demoUser: User = { name: "Organiser", email: "", phone: "", plan: "free" };
@@ -30,9 +37,13 @@ function blankDb(): Db {
     session: null,
     pendingEmail: null,
     pendingPhone: null,
+    pendingSignup: null,
+    accounts: [],
     tickets: [],
     customers: [],
     chits: [],
+    exitedSharedIds: [],
+    deletionFeedback: [],
   };
 }
 
@@ -42,7 +53,11 @@ function emptyDb(): Db {
     session: null,
     pendingEmail: null,
     pendingPhone: null,
+    pendingSignup: null,
+    accounts: [],
     tickets: [],
+    exitedSharedIds: [],
+    deletionFeedback: [],
     customers: [
       { id: "c1", name: "ANIKET", phone: "9000000001" },
       { id: "c2", name: "Akadhs", phone: "9000000002" },
@@ -159,7 +174,12 @@ function read(): Db {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyDb();
-    return JSON.parse(raw) as Db;
+    const db = JSON.parse(raw) as Db;
+    if (!Array.isArray(db.exitedSharedIds)) db.exitedSharedIds = [];
+    if (!Array.isArray(db.deletionFeedback)) db.deletionFeedback = [];
+    if (!Array.isArray(db.accounts)) db.accounts = [];
+    if (db.pendingSignup === undefined) db.pendingSignup = null;
+    return db;
   } catch {
     return emptyDb();
   }
@@ -180,9 +200,9 @@ function annotateViewerRole(chit: Chit, _user: User, _db: Db): Chit {
   return { ...chit, viewerRole: chit.viewerRole || "owner" };
 }
 
-function sharedDemoChits(user: User): Chit[] {
+function sharedDemoChits(user: User, exited: string[] = []): Chit[] {
   if (user.phone !== "9000000001") return [];
-  return [
+  const rows: Chit[] = [
     {
       ...chitSeed("ch_shared_demo", "Neighbour Auction", "auction", 100000, 20000, "organise", 2),
       duration: 5,
@@ -216,6 +236,7 @@ function sharedDemoChits(user: User): Chit[] {
       ],
     },
   ];
+  return rows.filter((c) => !exited.includes(c.id));
 }
 
 export const mockServer = {
@@ -249,17 +270,65 @@ export const mockServer = {
       write(db);
       return { ok: true as const, provider: "MOCK", devOtp: "123456" };
     },
+    /** Start signup: stash password until OTP verifies. */
+    beginSignup(input: { name: string; phone: string; password: string; language?: string }) {
+      const digits = input.phone.replace(/\D/g, "").slice(-10);
+      if (digits.length !== 10) throw new Error("phone must be 10 digits");
+      if ((input.password || "").length < 6) throw new Error("Password must be at least 6 characters");
+      const db = read();
+      if (db.accounts.some((a) => a.phone === digits)) {
+        throw new Error("Account already exists — log in instead");
+      }
+      db.pendingSignup = {
+        phone: digits,
+        name: (input.name || "").trim() || "Organiser",
+        password: input.password,
+        language: input.language || "en",
+      };
+      db.pendingPhone = digits;
+      write(db);
+      return { ok: true as const, provider: "MOCK", devOtp: "123456" };
+    },
+    loginWithPassword(phone: string, password: string) {
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      const db = read();
+      const acc = db.accounts.find((a) => a.phone === digits);
+      if (!acc || acc.password !== password) {
+        throw new Error("Wrong phone or password");
+      }
+      db.session = {
+        token: uid("tok"),
+        user: {
+          ...demoUser,
+          phone: digits,
+          name: acc.name,
+          language: acc.language,
+        },
+      };
+      write(db);
+      return db.session;
+    },
     verifyOtp(phone: string, otp: string, name?: string) {
       const digits = phone.replace(/\D/g, "").slice(-10);
       if (otp.replace(/\D/g, "").length !== 6) throw new Error("otp must be 6 digits");
       const db = read();
-      const display = (name || "").trim() || db.session?.user.name || "Organiser";
+      const pending = db.pendingSignup && db.pendingSignup.phone === digits ? db.pendingSignup : null;
+      const display = (pending?.name || name || "").trim() || db.session?.user.name || "Organiser";
+      const language = pending?.language || "en";
+      if (pending) {
+        db.accounts = [
+          ...db.accounts.filter((a) => a.phone !== digits),
+          { phone: digits, password: pending.password, name: display, language },
+        ];
+        db.pendingSignup = null;
+      }
       db.session = {
         token: uid("tok"),
         user: {
           ...demoUser,
           phone: digits,
           name: display,
+          language,
         },
       };
       db.pendingPhone = null;
@@ -285,14 +354,26 @@ export const mockServer = {
         next.phone = digits || "";
       }
       db.session = { ...db.session!, user: next };
+      if (next.phone && (patch.language != null || patch.name != null || patch.phone !== undefined)) {
+        db.accounts = db.accounts.map((a) =>
+          a.phone === next.phone
+            ? { ...a, name: next.name, language: next.language || a.language }
+            : a,
+        );
+      }
       write(db);
       return db.session.user;
     },
     setPlan(plan: PlanId) {
       return this.updateProfile({ plan, billingMode: "subscription" });
     },
-    deactivate() {
+    deactivate(reasons?: string[], note?: string) {
       const db = read();
+      db.deletionFeedback.push({
+        reasons: reasons || [],
+        note: note || undefined,
+        at: new Date().toISOString(),
+      });
       db.session = null;
       write(db);
       return { ok: true };
@@ -307,10 +388,31 @@ export const mockServer = {
     create(name: string, phone: string) {
       const db = read();
       needUser(db);
-      const c: Customer = { id: uid("c"), name, phone };
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      if (digits.length !== 10) throw new Error("Phone must be 10 digits");
+      const c: Customer = { id: uid("c"), name, phone: digits };
       db.customers.push(c);
       write(db);
       return c;
+    },
+    update(id: string, patch: { name?: string; phone?: string }) {
+      const db = read();
+      needUser(db);
+      const i = db.customers.findIndex((c) => c.id === id);
+      if (i < 0) throw new Error("Customer not found");
+      let phone = db.customers[i].phone;
+      if (patch.phone !== undefined) {
+        const digits = String(patch.phone || "").replace(/\D/g, "").slice(-10);
+        if (digits.length !== 10) throw new Error("Phone must be 10 digits");
+        phone = digits;
+      }
+      db.customers[i] = {
+        ...db.customers[i],
+        name: patch.name?.trim() || db.customers[i].name,
+        phone,
+      };
+      write(db);
+      return db.customers[i];
     },
   },
 
@@ -320,13 +422,13 @@ export const mockServer = {
       const user = needUser(db);
       return [
         ...db.chits.map((c) => annotateViewerRole(c, user, db)),
-        ...sharedDemoChits(user),
+        ...sharedDemoChits(user, db.exitedSharedIds || []),
       ];
     },
     get(id: string) {
       const db = read();
       const user = needUser(db);
-      const shared = sharedDemoChits(user).find((c) => c.id === id);
+      const shared = sharedDemoChits(user, db.exitedSharedIds || []).find((c) => c.id === id);
       if (shared) return shared;
       const chit = db.chits.find((c) => c.id === id);
       if (!chit) throw new Error("Not found");
@@ -359,12 +461,42 @@ export const mockServer = {
       write(db);
       return chit;
     },
-    cancel(id: string) {
+    cancel(id: string, reasons?: string[]) {
       const db = read();
       needUser(db);
-      db.chits = db.chits.map((c) => (c.id === id ? { ...c, status: "cancelled" } : c));
+      db.chits = db.chits.map((c) =>
+        c.id === id ? { ...c, status: "cancelled", cancelReasons: reasons || [] } : c,
+      );
       write(db);
       return this.get(id);
+    },
+    exitAsMember(id: string) {
+      const db = read();
+      const user = needUser(db);
+      if (!user.phone || user.phone.length < 10) {
+        throw new Error("Add your phone on Profile before leaving a group");
+      }
+      const shared = sharedDemoChits(user, db.exitedSharedIds || []).find((c) => c.id === id);
+      if (shared) {
+        db.exitedSharedIds = [...(db.exitedSharedIds || []), id];
+        write(db);
+        return;
+      }
+      const chit = db.chits.find((c) => c.id === id);
+      if (!chit || !chit.memberVisible || chit.status !== "running") {
+        throw new Error("This group is not shared or is not running");
+      }
+      const matchIds = new Set(
+        db.customers
+          .filter((cu) => cu.phone === user.phone)
+          .map((cu) => cu.id),
+      );
+      const before = chit.members.length;
+      chit.members = chit.members.filter((m) => !matchIds.has(m.customerId));
+      if (chit.members.length === before) {
+        throw new Error("Could not match your phone to a member on this group");
+      }
+      write(db);
     },
     addMember(chitId: string, customerId: string) {
       const db = read();

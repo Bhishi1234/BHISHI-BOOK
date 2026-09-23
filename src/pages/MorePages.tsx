@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ReasonModal } from "../components/ReasonModal";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitPath, inr } from "../lib/format";
@@ -141,11 +142,14 @@ export function UpgradePage() {
 
 export function ProfilePage() {
   const { user, updateProfile, logout, deactivateAccount, error } = useStore();
-  const { m } = useI18n();
+  const { m, setUiLang } = useI18n();
+  const nav = useNavigate();
   const [name, setName] = useState(user?.name || "");
   const [lang, setLang] = useState(user?.language || "en");
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   useEffect(() => {
     setName(user?.name || "");
@@ -209,7 +213,7 @@ export function ProfilePage() {
               ["hi", "हिन्दी · Hindi"],
               ["mr", "मराठी · Marathi"],
             ].map(([id, label]) => (
-              <button key={id} className={`chip ${lang === id ? "on" : ""}`} onClick={() => { setLang(id); void updateProfile({ language: id }); }}>{label}</button>
+              <button key={id} className={`chip ${lang === id ? "on" : ""}`} onClick={() => { setLang(id); void updateProfile({ language: id }); setUiLang(id as "en" | "hi" | "mr"); }}>{label}</button>
             ))}
           </div>
         </div>
@@ -221,15 +225,47 @@ export function ProfilePage() {
         <div className="card">
           <h2>{m.profile.danger}</h2>
           <p className="muted">{m.profile.dangerHint}</p>
-          <button className="btn danger" onClick={() => {
-            if (window.confirm(m.profile.deleteConfirm)) {
-              void deactivateAccount();
-            }
-          }}>{m.profile.deleteAccount}</button>
+          <button className="btn danger" type="button" onClick={() => setDeleteOpen(true)}>
+            {m.profile.deleteAccount}
+          </button>
           <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => void logout()}>{m.nav.signOut}</button>
         </div>
         </div>
       </div>
+
+      <ReasonModal
+        open={deleteOpen}
+        title={m.profile.deleteReasonsTitle}
+        hint={`${m.profile.deleteConfirm} ${m.profile.deleteReasonsHint}`}
+        options={[
+          { id: "tooComplex", label: m.profile.deleteReasons.tooComplex },
+          { id: "notUsing", label: m.profile.deleteReasons.notUsing },
+          { id: "switchedApp", label: m.profile.deleteReasons.switchedApp },
+          { id: "privacy", label: m.profile.deleteReasons.privacy },
+          { id: "bugs", label: m.profile.deleteReasons.bugs },
+          { id: "other", label: m.profile.deleteReasons.other },
+        ]}
+        otherLabel={m.profile.deleteReasonOther}
+        otherPlaceholder={m.profile.deleteReasonOtherPlaceholder}
+        confirmLabel={m.profile.deleteSubmit}
+        cancelLabel={m.common.cancel}
+        multi
+        danger
+        busy={deleteBusy}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async (reasons, note) => {
+          setDeleteBusy(true);
+          try {
+            await deactivateAccount(reasons, note || undefined);
+            setDeleteOpen(false);
+            nav("/login");
+          } catch {
+            /* store sets error */
+          } finally {
+            setDeleteBusy(false);
+          }
+        }}
+      />
     </AppShell>
   );
 }

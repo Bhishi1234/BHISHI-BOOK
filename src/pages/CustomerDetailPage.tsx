@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertCircle, Layers, PiggyBank, Wallet } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useI18n } from "../i18n";
@@ -10,15 +11,18 @@ import { StatCard } from "../ui/StatCard";
 export function CustomerDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { customers, chits } = useStore();
+  const { customers, chits, updateCustomer, error } = useStore();
   const { m, tx, typeLabel, modeLabel } = useI18n();
   const customer = customers.find((c) => c.id === id);
+  const [editPhone, setEditPhone] = useState(false);
+  const [phoneVal, setPhoneVal] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
 
   if (!customer) {
     return (
       <AppShell crumb={m.nav.customers} crumb2="Not found">
         <div className="page">
-          <p>Customer not found.</p>
+          <p>{m.chit.customerNotFound}</p>
           <button className="btn ghost" onClick={() => nav("/customers")}>{m.common.cancel}</button>
         </div>
       </AppShell>
@@ -101,6 +105,45 @@ export function CustomerDetailPage() {
             <div>
               <h1>{customer.name}</h1>
               <p className="page-sub">{customer.phone || m.customersPage.noPhone} · {memberships.length} {memberships.length === 1 ? m.common.member : m.common.members}</p>
+              {editPhone ? (
+                <div className="phone-edit-row" style={{ marginTop: 8 }}>
+                  <input
+                    className="field"
+                    inputMode="tel"
+                    value={phoneVal}
+                    onChange={(e) => setPhoneVal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={savingPhone || phoneVal.length !== 10}
+                    onClick={() => {
+                      setSavingPhone(true);
+                      void updateCustomer(customer.id, { phone: phoneVal })
+                        .then(() => setEditPhone(false))
+                        .finally(() => setSavingPhone(false));
+                    }}
+                  >
+                    {m.chit.savePhone}
+                  </button>
+                  <button type="button" className="btn ghost btn-sm" onClick={() => setEditPhone(false)}>
+                    {m.common.cancel}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn ghost btn-sm"
+                  style={{ marginTop: 6 }}
+                  onClick={() => {
+                    setPhoneVal(customer.phone || "");
+                    setEditPhone(true);
+                  }}
+                >
+                  {m.chit.editPhone}
+                </button>
+              )}
+              {error && editPhone && <p className="due" style={{ marginTop: 6 }}>{error}</p>}
             </div>
           </div>
           <button className="btn ghost" onClick={() => nav("/customers")}>{m.customerDetail.allCustomers}</button>
@@ -108,7 +151,7 @@ export function CustomerDetailPage() {
 
         <div className="stats four">
           <StatCard label={m.customerDetail.contributed} value={inr(contributed)} hint={m.customersPage.lifetime} tone="teal" icon={PiggyBank} />
-          <StatCard label={m.customerDetail.received} value={inr(received)} hint="payouts & loans" tone="blue" icon={Wallet} />
+          <StatCard label={m.customerDetail.received} value={inr(received)} hint={m.chit.payoutsAndLoans} tone="blue" icon={Wallet} />
           <StatCard
             label={m.terms.outstanding}
             value={<span className={outstanding ? "neg" : undefined}>{inr(outstanding)}</span>}
@@ -116,19 +159,19 @@ export function CustomerDetailPage() {
             tone="rose"
             icon={AlertCircle}
           />
-          <StatCard label="Active chits" value={memberships.filter((mem) => mem.ch.status === "running").length} hint="running now" tone="green" icon={Layers} />
+          <StatCard label={m.chit.activeChits} value={memberships.filter((mem) => mem.ch.status === "running").length} hint={m.chit.runningNow} tone="green" icon={Layers} />
         </div>
 
         <div className="grid-2 block">
           <div className="card">
-            <h2>Details</h2>
+            <h2>{m.chit.details}</h2>
             <div className="kv"><span>Name</span><strong>{customer.name}</strong></div>
             <div className="kv"><span>Phone</span><strong>{customer.phone || "—"}</strong></div>
             <div className="kv"><span>Customer id</span><strong className="muted" style={{ fontSize: 12 }}>{customer.id}</strong></div>
           </div>
           <div className="card">
             <h2>Chits</h2>
-            {!memberships.length && <p className="muted">Not mapped into any chit yet.</p>}
+            {!memberships.length && <p className="muted">{m.chit.notMapped}</p>}
             {memberships.map(({ ch, bal, member, payouts }) => (
               <div key={ch.id} className="kv">
                 <span>
@@ -172,7 +215,7 @@ export function CustomerDetailPage() {
                   </tr>
                 ))}
                 {!ledger.length && (
-                  <tr><td colSpan={6}><p className="empty">No receipts or payouts yet for this customer.</p></td></tr>
+                  <tr><td colSpan={6}><p className="empty">{m.chit.ledgerEmpty}</p></td></tr>
                 )}
               </tbody>
             </table>

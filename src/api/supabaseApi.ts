@@ -102,11 +102,53 @@ export const supabaseApi = {
     throw new Error(error.message || invoked.data?.error || invoked.error?.message || "Could not send OTP");
   },
 
-  async verifyOtp(phone: string, otp: string, name?: string) {
+  async beginSignup(input: { name: string; phone: string; password: string; language?: string }) {
+    if ((input.password || "").length < 6) throw new Error("Password must be at least 6 characters");
+    // Stash password for verifyOtp — phone OTP creates the session first.
+    sessionStorage.setItem(
+      "bhishi_signup",
+      JSON.stringify({
+        password: input.password,
+        language: input.language || "en",
+        name: input.name.trim(),
+      }),
+    );
+    return this.sendOtp(input.phone, input.name);
+  },
+
+  async loginWithPassword(phone: string, password: string) {
+    const digits = phone10(phone);
+    const sb = getSupabase();
+    const { error } = await sb.auth.signInWithPassword({
+      phone: e164in(digits),
+      password,
+    });
+    if (error) throw new Error(error.message || "Wrong phone or password");
+    await syncProfilePhone(sb, digits);
+    await sb.rpc("reactivate_if_allowed");
+    return { ok: true };
+  },
+
+  async verifyOtp(
+    phone: string,
+    otp: string,
+    name?: string,
+    opts?: { password?: string; language?: string },
+  ) {
     const digits = phone10(phone);
     const code = otp.replace(/\D/g, "");
     if (code.length !== 6) throw new Error("otp must be 6 digits");
     const sb = getSupabase();
+
+    let stash: { password?: string; language?: string; name?: string } = {};
+    try {
+      stash = JSON.parse(sessionStorage.getItem("bhishi_signup") || "{}") as typeof stash;
+    } catch {
+      stash = {};
+    }
+    const password = opts?.password || stash.password;
+    const language = opts?.language || stash.language;
+    const displayName = name || stash.name;
 
     const { error } = await sb.auth.verifyOtp({
       phone: e164in(digits),
@@ -115,13 +157,24 @@ export const supabaseApi = {
     });
     if (!error) {
       await syncProfilePhone(sb, digits);
-      await syncProfileName(sb, name);
+      await syncProfileName(sb, displayName);
+      if (language) {
+        const { data: { user } } = await sb.auth.getUser();
+        if (user) {
+          await sb.from("profiles").update({ language }).eq("id", user.id);
+        }
+      }
+      if (password && password.length >= 6) {
+        const { error: pwErr } = await sb.auth.updateUser({ password });
+        if (pwErr) throw new Error(pwErr.message || "Could not set password");
+      }
+      sessionStorage.removeItem("bhishi_signup");
       await sb.rpc("reactivate_if_allowed");
       return { ok: true };
     }
 
     const invoked = await sb.functions.invoke("auth-otp-verify", {
-      body: { phone: digits, otp: code, name: (name || "").trim() || undefined },
+      body: { phone: digits, otp: code, name: (displayName || "").trim() || undefined },
     });
     if (!invoked.error && invoked.data?.session) {
       const { error: sessionError } = await sb.auth.setSession({
@@ -130,7 +183,18 @@ export const supabaseApi = {
       });
       throwIf(sessionError);
       await syncProfilePhone(sb, digits);
-      await syncProfileName(sb, name);
+      await syncProfileName(sb, displayName);
+      if (language) {
+        const { data: { user } } = await sb.auth.getUser();
+        if (user) {
+          await sb.from("profiles").update({ language }).eq("id", user.id);
+        }
+      }
+      if (password && password.length >= 6) {
+        const { error: pwErr } = await sb.auth.updateUser({ password });
+        if (pwErr) throw new Error(pwErr.message || "Could not set password");
+      }
+      sessionStorage.removeItem("bhishi_signup");
       await sb.rpc("reactivate_if_allowed");
       return { ok: true };
     }
@@ -208,9 +272,12 @@ export const supabaseApi = {
     return mapUser(data as Record<string, unknown>);
   },
 
-  async deactivateAccount() {
+  async deactivateAccount(reasons?: string[], note?: string) {
     const { sb } = await requireUser();
-    const { error } = await sb.rpc("deactivate_account");
+    const { error } = await sb.rpc("deactivate_account", {
+      p_reasons: reasons ?? [],
+      p_note: note ?? null,
+    });
     throwIf(error);
     await sb.auth.signOut();
     return { ok: true };
@@ -242,6 +309,17 @@ export const supabaseApi = {
     return mapCustomer(data as Record<string, unknown>);
   },
 
+  async updateCustomer(id: string, patch: { name?: string; phone?: string }) {
+    const { sb } = await requireUser();
+    const { data, error } = await sb.rpc("update_customer", {
+      p_customer_id: id,
+      p_name: patch.name ?? null,
+      p_phone: patch.phone ?? null,
+    });
+    throwIf(error);
+    return mapCustomer(data as Record<string, unknown>);
+  },
+
   async chits() {
     const { sb, user } = await requireUser();
     const { data, error } = await sb.from("chits").select(CHIT_SELECT).order("created_at", { ascending: false });
@@ -263,11 +341,20 @@ export const supabaseApi = {
     return loadChit(String((data as { id: string }).id));
   },
 
-  async cancelChit(id: string) {
+  async cancelChit(id: string, reasons?: string[]) {
     const { sb } = await requireUser();
-    const { error } = await sb.rpc("cancel_chit", { p_chit_id: id });
+    const { error } = await sb.rpc("cancel_chit", {
+      p_chit_id: id,
+      p_reasons: reasons ?? [],
+    });
     throwIf(error);
     return loadChit(id);
+  },
+
+  async exitChitAsMember(id: string) {
+    const { sb } = await requireUser();
+    const { error } = await sb.rpc("exit_chit_as_member", { p_chit_id: id });
+    throwIf(error);
   },
 
   async addMember(chitId: string, customerId: string) {

@@ -1,7 +1,8 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { AlertCircle, ArrowUpRight, BookUser, CircleX, PiggyBank, Plus, UserRound, Users } from "lucide-react";
+import { AlertCircle, ArrowUpRight, BookUser, PiggyBank, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { CancelChitButton } from "../components/CancelChitButton";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
@@ -14,8 +15,8 @@ import { useStore } from "../store";
 import { StatCard, toneAt } from "../ui/StatCard";
 
 export function ChitsPage() {
-  const { chits, cancelChit, user } = useStore();
-  const { m, typeLabel, statusLabel } = useI18n();
+  const { chits, user } = useStore();
+  const { m, typeLabel, statusLabel, tx } = useI18n();
   const nav = useNavigate();
   const [tab, setTab] = useState<"active" | "completed">("active");
   const pool = chits.filter((c) => (tab === "active" ? c.status === "running" : c.status !== "running"));
@@ -83,7 +84,7 @@ export function ChitsPage() {
           </div>
         )}
         {!managed.length && (
-          <p className="muted block">{tab === "active" ? "No active chits yet." : "No completed chits yet."}</p>
+          <p className="muted block">{tab === "active" ? m.chit.emptyActive : m.chit.emptyCompleted}</p>
         )}
 
         <div className="row-head" style={{ marginTop: managed.length ? 8 : 0 }}>
@@ -96,7 +97,7 @@ export function ChitsPage() {
         )}
         {user?.phone && !shared.length && (
           <p className="muted block">
-            No shared chits yet. Ask your organiser to turn on Member visibility for the group.
+            {m.chit.sharedEmpty}
           </p>
         )}
         {!!shared.length && (
@@ -164,22 +165,20 @@ export function ChitsPage() {
                       <div className={`dash-chit-avatar tone-${toneAt(i + 1)}`}>{initials(c.name)}</div>
                       <div className="dash-chit-heading">
                         <strong>{c.name}</strong>
-                        <span>Tracking · {inr(c.instalment)}/mo · {c.duration} months</span>
+                        <span>{tx(m.chit.trackingMeta, { instalment: inr(c.instalment), months: c.duration })}</span>
                       </div>
                       <div className="dash-chit-actions">
-                        <button
+                        <CancelChitButton
+                          chitId={c.id}
                           className="link"
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}
-                        >
-                          <CircleX size={14} /> Cancel
-                        </button>
+                          label={m.common.cancel}
+                        />
                         <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
                       </div>
                     </div>
                     <div className="dash-chit-divider" />
                     {pct === 0 ? (
-                      <div className="due" style={{ margin: "0 0 10px" }}>Payment due now</div>
+                      <div className="due" style={{ margin: "0 0 10px" }}>{m.chit.paymentDueNow}</div>
                     ) : (
                       <div className="dash-chit-meta">
                         <div>
@@ -187,7 +186,7 @@ export function ChitsPage() {
                           <strong>{c.payments.length} / {c.duration}</strong>
                         </div>
                         <div>
-                          <span>Progress</span>
+                          <span>{m.chit.progressLabel}</span>
                           <strong>{pct}%</strong>
                         </div>
                       </div>

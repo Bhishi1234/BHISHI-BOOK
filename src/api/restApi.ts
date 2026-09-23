@@ -55,13 +55,45 @@ export const restApi = {
     });
   },
 
-  async verifyOtp(phone: string, otp: string, name?: string) {
+  async beginSignup(input: { name: string; phone: string; password: string; language?: string }) {
+    return request("/api/v1/auth/sign-up", {
+      method: "POST",
+      body: JSON.stringify({
+        phone: phone10(input.phone),
+        name: input.name.trim(),
+        password: input.password,
+        language: input.language || "en",
+      }),
+    });
+  },
+
+  async loginWithPassword(phone: string, password: string) {
+    const data = await request("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ phone: phone10(phone), password }),
+    });
+    if (!data.session?.access_token) throw new Error("Could not start session");
+    writeSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+    return { ok: true };
+  },
+
+  async verifyOtp(
+    phone: string,
+    otp: string,
+    name?: string,
+    opts?: { password?: string; language?: string },
+  ) {
     const data = await request("/api/v1/auth/verify-otp", {
       method: "POST",
       body: JSON.stringify({
         phone: phone10(phone),
         otp,
         name: name?.trim() || undefined,
+        password: opts?.password,
+        language: opts?.language,
       }),
     });
     if (!data.session?.access_token) throw new Error("Could not start session");
@@ -93,8 +125,11 @@ export const restApi = {
     return mapUser(await request("/api/v1/me/plan", { method: "POST", body: JSON.stringify({ plan }) }));
   },
 
-  async deactivateAccount() {
-    await request("/api/v1/me/deactivate", { method: "POST" });
+  async deactivateAccount(reasons?: string[], note?: string) {
+    await request("/api/v1/me/deactivate", {
+      method: "POST",
+      body: JSON.stringify({ reasons: reasons ?? [], note: note ?? null }),
+    });
     writeSession(null);
     return { ok: true };
   },
@@ -116,6 +151,13 @@ export const restApi = {
     return mapCustomer(await request("/api/v1/customers", {
       method: "POST",
       body: JSON.stringify({ name, phone }),
+    }));
+  },
+
+  async updateCustomer(id: string, patch: { name?: string; phone?: string }) {
+    return mapCustomer(await request(`/api/v1/customers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
     }));
   },
 
@@ -141,9 +183,16 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${created.id}`));
   },
 
-  async cancelChit(id: string) {
-    await request(`/api/v1/chits/${id}/cancel`, { method: "POST" });
+  async cancelChit(id: string, reasons?: string[]) {
+    await request(`/api/v1/chits/${id}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reasons: reasons ?? [] }),
+    });
     return mapChit(await request(`/api/v1/chits/${id}`));
+  },
+
+  async exitChitAsMember(id: string) {
+    await request(`/api/v1/chits/${id}/exit`, { method: "POST" });
   },
 
   async addMember(chitId: string, customerId: string) {

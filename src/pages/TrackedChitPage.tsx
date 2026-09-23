@@ -8,6 +8,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { CancelChitButton } from "../components/CancelChitButton";
 import { AppShell } from "../layout/AppShell";
 import { baseInstalment, paidInCycle } from "../lib/chitMath";
 import { useI18n } from "../i18n";
@@ -20,7 +21,7 @@ import { StatCard } from "../ui/StatCard";
 export function TrackedChitPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { chits, customers, user, recordPayment, closeCycle, cancelChit, error } = useStore();
+  const { chits, customers, user, recordPayment, closeCycle, error } = useStore();
   const { m, tx, typeLabel, freqLabel, modeLabel, statusLabel, locale } = useI18n();
   const chit = chits.find((c) => c.id === id);
   const [logging, setLogging] = useState(false);
@@ -149,16 +150,12 @@ export function TrackedChitPage() {
         </section>
 
         <div className="row-head" style={{ marginBottom: 12 }}>
-          <button
+          <CancelChitButton
+            chitId={data.id}
             className="btn danger"
-            onClick={() => {
-              if (window.confirm(m.tracked.cancelConfirm)) {
-                void cancelChit(data.id).then(() => nav("/chits"));
-              }
-            }}
-          >
-            {m.tracked.cancelTracking}
-          </button>
+            label={m.tracked.cancelTracking}
+            onDone={() => nav("/chits")}
+          />
         </div>
 
         {error && <p className="due">{error}</p>}

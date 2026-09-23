@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertCircle,
   Calendar,
@@ -9,6 +9,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { PromptBox } from "../components/PromptBox";
 import { AppShell } from "../layout/AppShell";
 import {
   displayCycle,
@@ -26,9 +27,10 @@ import { StatCard } from "../ui/StatCard";
 export function MemberChitPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { chits, customers, user } = useStore();
+  const { chits, customers, user, exitChitAsMember, error } = useStore();
   const { m, tx, typeLabel, freqLabel, modeLabel, payStatusLabel, statusLabel, locale } = useI18n();
   const data = chits.find((c) => c.id === id);
+  const [exitBusy, setExitBusy] = useState(false);
 
   const selfId = useMemo(() => {
     if (!data || !user?.phone) return "";
@@ -132,15 +134,34 @@ export function MemberChitPage() {
 
         <div className="row-head" style={{ marginBottom: 12 }}>
           <Link className="btn ghost" to="/chits">{m.memberPassbook.allChits}</Link>
+          {isRunning && (
+            <button
+              type="button"
+              className="btn danger"
+              disabled={exitBusy}
+              onClick={() => {
+                if (!window.confirm(m.memberPassbook.exitConfirm)) return;
+                setExitBusy(true);
+                void exitChitAsMember(data.id)
+                  .then(() => nav("/chits"))
+                  .catch(() => undefined)
+                  .finally(() => setExitBusy(false));
+              }}
+            >
+              {exitBusy ? m.memberPassbook.exiting : m.memberPassbook.exitGroup}
+            </button>
+          )}
         </div>
 
+        {error && <p className="due">{error}</p>}
+
+        <PromptBox tone="blue">{m.memberPassbook.exitHint}</PromptBox>
+
         {!user?.phone && (
-          <p className="due block">
-            {m.memberPassbook.matchPhoneHint}
-          </p>
+          <PromptBox tone="rose">{m.memberPassbook.matchPhoneHint}</PromptBox>
         )}
         {user?.phone && !selfId && (
-          <p className="due block">{m.memberPassbook.phoneMatchFail}</p>
+          <PromptBox tone="rose">{m.memberPassbook.phoneMatchFail}</PromptBox>
         )}
 
         <div className="stats four">
@@ -158,9 +179,7 @@ export function MemberChitPage() {
               <div className="muted">{user?.phone || "—"} · {tx(m.memberPassbook.monthStatus, { status: payStatusLabel(monthStatus) })}</div>
             </div>
           </div>
-          <p className="muted">
-            {m.memberPassbook.organiserRecords}
-          </p>
+          <PromptBox tone="teal">{m.memberPassbook.organiserRecords}</PromptBox>
         </div>
 
         <div className="card flush block">

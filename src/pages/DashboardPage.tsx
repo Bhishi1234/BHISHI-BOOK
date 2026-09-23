@@ -1,5 +1,6 @@
-import { ArrowUpRight, CircleX, Layers, PiggyBank, Users, Wallet, AlertCircle, Route } from "lucide-react";
+import { ArrowUpRight, Layers, PiggyBank, Users, Wallet, AlertCircle, Route } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { CancelChitButton } from "../components/CancelChitButton";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitProgress, collectedThisCycle, displayCycle, outstandingOf } from "../lib/chitMath";
@@ -8,7 +9,7 @@ import { useStore } from "../store";
 import { StatCard, toneAt } from "../ui/StatCard";
 
 export function DashboardPage() {
-  const { user, chits, cancelChit } = useStore();
+  const { user, chits } = useStore();
   const { m, typeLabel, statusLabel, greetingNow, longDateNow } = useI18n();
   const nav = useNavigate();
   const active = chits.filter((c) => c.status === "running");
@@ -106,13 +107,11 @@ export function DashboardPage() {
                     <span>{m.chitsPage.tracking} · {inr(c.instalment)}/{m.terms.haptaShort} · {c.duration}</span>
                   </div>
                   <div className="dash-chit-actions">
-                    <button
+                    <CancelChitButton
+                      chitId={c.id}
                       className="link"
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); void cancelChit(c.id); }}
-                    >
-                      <CircleX size={14} /> {m.common.cancel}
-                    </button>
+                      label={m.common.cancel}
+                    />
                     <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
                   </div>
                 </div>

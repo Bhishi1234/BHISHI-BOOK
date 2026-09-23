@@ -123,6 +123,11 @@ export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerR
           : undefined) as Chit["fixedStyle"],
     remindDays: (row.remind_days as number[]) || (row.remindDays as number[]) || [],
     memberVisible: Boolean(row.member_visible ?? row.memberVisible),
+    cancelReasons: Array.isArray(row.cancel_reasons)
+      ? (row.cancel_reasons as string[])
+      : Array.isArray(row.cancelReasons)
+        ? (row.cancelReasons as string[])
+        : undefined,
     members: members
       .map((m) => ({
         id: m.id ? String(m.id) : undefined,

@@ -21,7 +21,7 @@ import { BillingFailedPage, BillingSuccessPage } from "./pages/BillingPages";
 
 function Guard({ children }: { children: ReactNode }) {
   const { user, ready } = useStore();
-  if (!ready) return <div className="login-wrap">Loading ledger…</div>;
+  if (!ready) return <div className="login-wrap">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }

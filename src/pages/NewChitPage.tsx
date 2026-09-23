@@ -4,6 +4,7 @@ import { BookUser } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
+import { PromptBox } from "../components/PromptBox";
 import type { AuctionStyle, ChitType, FixedStyle, Frequency } from "../types";
 import { inr } from "../lib/format";
 import { computeInstalment } from "../lib/chitMath";
@@ -470,7 +471,7 @@ export function NewChitPage() {
                   <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>{m.newChitExtra.percentKind}</button>
                 </div>
                 <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
-                <p className="hint">
+                <PromptBox tone="amber">
                   {type === "loan"
                     ? m.newChitExtra.commissionFromTill
                     : type === "auction" && auctionStyle === "auction_first"
@@ -478,10 +479,10 @@ export function NewChitPage() {
                       : type === "auction"
                         ? m.newChitExtra.commissionAuctionFirst
                         : m.newChitExtra.commissionCollectFirst}
-                </p>
+                </PromptBox>
                 {type === "loan" && (
                   <>
-                    <p className="hint">{m.newChitExtra.interestOnAwardHint}</p>
+                    <PromptBox tone="blue">{m.newChitExtra.interestOnAwardHint}</PromptBox>
                     <label className="label">{m.newChitExtra.interestCutLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
                       <button
@@ -499,14 +500,14 @@ export function NewChitPage() {
                         {m.newChitExtra.interestCutNextMonth}
                       </button>
                     </div>
-                    <p className="hint">
+                    <PromptBox tone="teal">
                       {loanInterestUpfront
                         ? m.newChitExtra.interestCutAtGiveHint
                         : m.newChitExtra.interestCutNextMonthHint}
-                    </p>
+                    </PromptBox>
                     <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
                     <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value)} />
-                    <p className="hint">{m.newChitExtra.repaymentCapHint}</p>
+                    <PromptBox tone="blue">{m.newChitExtra.repaymentCapHint}</PromptBox>
                     <label className="label">{m.newChitExtra.principalModeLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
                       <button
@@ -524,11 +525,11 @@ export function NewChitPage() {
                         {m.newChitExtra.principalAtEnd}
                       </button>
                     </div>
-                    <p className="hint">
+                    <PromptBox tone="amber">
                       {loanPrincipalMode === "end"
                         ? m.newChitExtra.principalAtEndHint
                         : m.newChitExtra.principalEmiHint}
-                    </p>
+                    </PromptBox>
                   </>
                 )}
                 {type === "auction" && auctionStyle === "collect_first" && (

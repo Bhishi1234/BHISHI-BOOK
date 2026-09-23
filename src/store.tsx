@@ -28,15 +28,24 @@ type Store = {
   tickets: Ticket[];
   authHint: string;
   sendOtp: (phone: string, name?: string) => Promise<{ devOtp?: string }>;
-  verifyOtp: (phone: string, otp: string, name?: string) => Promise<void>;
+  beginSignup: (input: {
+    name: string;
+    phone: string;
+    password: string;
+    language?: string;
+  }) => Promise<{ devOtp?: string }>;
+  loginWithPassword: (phone: string, password: string) => Promise<void>;
+  verifyOtp: (phone: string, otp: string, name?: string, opts?: { password?: string; language?: string }) => Promise<void>;
   logout: () => Promise<void>;
-  deactivateAccount: () => Promise<void>;
+  deactivateAccount: (reasons?: string[], note?: string) => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<void>;
   setPlan: (plan: PlanId) => Promise<void>;
   refresh: () => Promise<void>;
   addCustomer: (name: string, phone: string) => Promise<Customer>;
+  updateCustomer: (id: string, patch: { name?: string; phone?: string }) => Promise<Customer>;
   addChit: (chit: Omit<Chit, "id" | "payments" | "status">) => Promise<string>;
-  cancelChit: (id: string) => Promise<void>;
+  cancelChit: (id: string, reasons?: string[]) => Promise<void>;
+  exitChitAsMember: (id: string) => Promise<void>;
   addMember: (chitId: string, customerId: string) => Promise<void>;
   removeMember: (chitId: string, slot: number) => Promise<void>;
   swapMember: (chitId: string, slot: number, newCustomerId: string) => Promise<void>;
@@ -163,8 +172,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tickets,
       authHint: api.authHint(),
       sendOtp: (phone, name) => guarded(() => api.sendOtp(phone, name).then((r) => ({ devOtp: r.devOtp }))),
-      verifyOtp: async (phone, otp, name) => {
-        await guarded(() => api.verifyOtp(phone, otp, name));
+      beginSignup: (input) => guarded(() => api.beginSignup(input).then((r) => ({ devOtp: r.devOtp }))),
+      loginWithPassword: async (phone, password) => {
+        await guarded(() => api.loginWithPassword(phone, password));
+        await reload();
+      },
+      verifyOtp: async (phone, otp, name, opts) => {
+        await guarded(() => api.verifyOtp(phone, otp, name, opts));
         await reload();
       },
       logout: async () => {
@@ -174,8 +188,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setChits([]);
         setTickets([]);
       },
-      deactivateAccount: async () => {
-        await guarded(() => api.deactivateAccount());
+      deactivateAccount: async (reasons, note) => {
+        await guarded(() => api.deactivateAccount(reasons, note));
         setUser(null);
         setCustomers([]);
         setChits([]);
@@ -200,6 +214,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setCustomers((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)));
         return c;
       },
+      updateCustomer: async (id, patch) => {
+        const c = (await guarded(() => api.updateCustomer(id, patch))) as Customer;
+        setCustomers((prev) =>
+          prev.map((x) => (x.id === id ? c : x)).sort((a, b) => a.name.localeCompare(b.name)),
+        );
+        return c;
+      },
       addChit: async (chit) => {
         if (chit.mode === "organise") {
           if (!chit.members?.length) {
@@ -213,9 +234,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setChits((prev) => upsertChit(prev, created));
         return created.id;
       },
-      cancelChit: async (id) => {
-        const next = await guarded(() => api.cancelChit(id));
+      cancelChit: async (id, reasons) => {
+        const next = await guarded(() => api.cancelChit(id, reasons));
         setChits((prev) => upsertChit(prev, next));
+      },
+      exitChitAsMember: async (id) => {
+        await guarded(() => api.exitChitAsMember(id));
+        setChits((prev) => prev.filter((c) => c.id !== id));
       },
       addMember: async (chitId, customerId) => {
         const next = await guarded(() => api.addMember(chitId, customerId));

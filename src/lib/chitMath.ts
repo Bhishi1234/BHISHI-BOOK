@@ -1091,9 +1091,9 @@ export function settleWinner(
   const loanRate = method === "fixed" && chit.type === "loan"
     ? loanRateOf(chit, null, interestRate)
     : 0;
-  // Auction peer-settlement: no foreman cut from the till. Other award-first types still take commission.
+  // Foreman commission on every award type (incl. auction-first peer), except last cycle / settlement / extra loans same month.
   const commission =
-    method === "settlement" || lastAuction || auctionPeer
+    method === "settlement" || lastAuction
       ? 0
       : method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle
         ? 0

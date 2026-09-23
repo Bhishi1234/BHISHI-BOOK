@@ -1,5 +1,5 @@
 import { StrictMode, useEffect } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { StoreProvider } from "./store";
@@ -17,7 +17,13 @@ function NativeShellBoot() {
   return null;
 }
 
-createRoot(document.getElementById("root")!).render(
+const el = document.getElementById("root")!;
+// Reuse the root across Vite HMR so we don't remount and lose StoreProvider.
+const root: Root = ((globalThis as unknown as { __bhishiRoot?: Root }).__bhishiRoot
+  ??= createRoot(el));
+(globalThis as unknown as { __bhishiRoot?: Root }).__bhishiRoot = root;
+
+root.render(
   <StrictMode>
     <StoreProvider>
       <BrowserRouter>
