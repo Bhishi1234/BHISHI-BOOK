@@ -4,10 +4,22 @@ export type LuckyDrawSharePayload = {
   chitName: string;
   cycle: number;
   duration: number;
+  /** Person the wheel landed on (or the confirmed winner if no spin). */
   winnerName: string;
+  /** When admin overrides the spin result, the person who actually receives the pot. */
+  allottedName?: string;
   payout: number;
   entrants: string[];
   drawnAt?: Date;
+  labels?: {
+    brand?: string;
+    title?: string;
+    winner?: string;
+    allotted?: string;
+    adminAllotted?: string;
+    monthOf?: string;
+    verified?: string;
+  };
 };
 
 const WHEEL_PALETTE = [
@@ -46,6 +58,10 @@ function roundRect(
   ctx.closePath();
 }
 
+function clip(s: string, n: number) {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
 /** Build a WhatsApp-friendly result card (no DOM screenshot — lightweight canvas). */
 export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCanvasElement {
   const W = 1080;
@@ -54,6 +70,22 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
+  const L = payload.labels || {};
+  const brand = L.brand || "Bhishi Circle";
+  const title = L.title || "Lucky Draw Result";
+  const winnerLabel = L.winner || "WINNER";
+  const allottedLabel = L.allotted || "ALLOTTED TO";
+  const verified = L.verified || "Verified random draw · Bhishi Circle";
+  const monthOf = (L.monthOf || "Month {cycle} of {duration}")
+    .replace("{cycle}", String(payload.cycle))
+    .replace("{duration}", String(payload.duration));
+
+  const allotted =
+    payload.allottedName &&
+    payload.allottedName.trim() &&
+    payload.allottedName !== payload.winnerName
+      ? payload.allottedName
+      : "";
 
   // Soft page background
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -70,18 +102,18 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.fillStyle = "#fff";
   ctx.font = "700 34px 'Plus Jakarta Sans', system-ui, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("Bhishi Circle", W / 2, 104);
+  ctx.fillText(brand, W / 2, 104);
 
   // Title
   ctx.fillStyle = "#0f172a";
   ctx.font = "800 54px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText("Lucky Draw Result", W / 2, 200);
+  ctx.fillText(title, W / 2, 200);
   ctx.fillStyle = "#64748b";
   ctx.font = "500 28px 'Plus Jakarta Sans', system-ui, sans-serif";
   const sub = `${payload.chitName} — Round ${payload.cycle}`;
-  ctx.fillText(sub.length > 42 ? `${sub.slice(0, 40)}…` : sub, W / 2, 248);
+  ctx.fillText(clip(sub, 42), W / 2, 248);
 
-  // Wheel
+  // Wheel — point at the drawn winner (not the allottee)
   const cx = W / 2;
   const cy = 560;
   const R = 280;
@@ -91,7 +123,6 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
     0,
     payload.entrants.findIndex((e) => e === payload.winnerName),
   );
-  // Orient so winner sits under top pointer
   const start = -Math.PI / 2 - (winnerIdx + 0.5) * seg;
 
   for (let i = 0; i < n; i++) {
@@ -107,7 +138,6 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Label
     const mid = a0 + seg / 2;
     const labelR = R * 0.62;
     const lx = cx + Math.cos(mid) * labelR;
@@ -120,12 +150,10 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const label = payload.entrants[i] || `P${i + 1}`;
-    const short = label.length > (n > 8 ? 8 : 12) ? `${label.slice(0, n > 8 ? 7 : 11)}…` : label;
-    ctx.fillText(short, 0, 0);
+    ctx.fillText(clip(label, n > 8 ? 8 : 12), 0, 0);
     ctx.restore();
   }
 
-  // Outer ring
   ctx.beginPath();
   ctx.arc(cx, cy, R + 8, 0, Math.PI * 2);
   ctx.strokeStyle = "#fff";
@@ -137,7 +165,6 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  // Pointer — tip points down into the wheel
   ctx.fillStyle = "#e11d48";
   ctx.beginPath();
   ctx.moveTo(cx, cy - R + 10);
@@ -153,7 +180,6 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Hub
   ctx.beginPath();
   ctx.arc(cx, cy, 48, 0, Math.PI * 2);
   ctx.fillStyle = "#fff";
@@ -167,16 +193,16 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.textBaseline = "middle";
   ctx.fillText("BC", cx, cy + 2);
 
-  // Winner card
-  const cardY = 900;
-  roundRect(ctx, 80, cardY, W - 160, 280, 28);
+  // Result card — taller when admin allotted someone else
+  const cardH = allotted ? 340 : 280;
+  const cardY = allotted ? 880 : 900;
+  roundRect(ctx, 80, cardY, W - 160, cardH, 28);
   ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.strokeStyle = "rgba(47,111,237,0.12)";
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Blue accent strip
   ctx.fillStyle = "#2f6fed";
   roundRect(ctx, 80, cardY, W - 160, 10, 0);
   ctx.fill();
@@ -185,22 +211,43 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.font = "700 26px 'Plus Jakarta Sans', system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("WINNER", W / 2, cardY + 64);
+  ctx.fillText(winnerLabel.toUpperCase(), W / 2, cardY + 58);
 
   ctx.fillStyle = "#0f172a";
-  ctx.font = "800 56px 'Plus Jakarta Sans', system-ui, sans-serif";
-  const wName = payload.winnerName.length > 22 ? `${payload.winnerName.slice(0, 20)}…` : payload.winnerName;
-  ctx.fillText(wName, W / 2, cardY + 130);
+  ctx.font = "800 52px 'Plus Jakarta Sans', system-ui, sans-serif";
+  ctx.fillText(clip(payload.winnerName, 22), W / 2, cardY + 118);
 
-  ctx.fillStyle = "#0f9f6e";
-  ctx.font = "800 48px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText(money(payload.payout), W / 2, cardY + 200);
+  if (allotted) {
+    ctx.fillStyle = "#64748b";
+    ctx.font = "700 22px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(allottedLabel.toUpperCase(), W / 2, cardY + 168);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "800 36px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(clip(allotted, 24), W / 2, cardY + 214);
+    const note = (L.adminAllotted || "Admin allotted this pot to {name}").replace("{name}", allotted);
+    ctx.fillStyle = "#475569";
+    ctx.font = "500 22px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(clip(note, 48), W / 2, cardY + 256);
+    ctx.fillStyle = "#0f9f6e";
+    ctx.font = "800 40px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(money(payload.payout), W / 2, cardY + 308);
+  } else {
+    ctx.fillStyle = "#0f9f6e";
+    ctx.font = "800 48px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(money(payload.payout), W / 2, cardY + 190);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "500 24px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(monthOf, W / 2, cardY + 238);
+  }
 
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "500 24px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText(`Month ${payload.cycle} of ${payload.duration}`, W / 2, cardY + 248);
+  if (!allotted) {
+    /* month already drawn */
+  } else {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "500 22px 'Plus Jakarta Sans', system-ui, sans-serif";
+    ctx.fillText(monthOf, W / 2, cardY + cardH - 18);
+  }
 
-  // Timestamp + verified
   const when = payload.drawnAt || new Date();
   const stamp = when.toLocaleString("en-IN", {
     day: "2-digit",
@@ -208,7 +255,6 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    second: "2-digit",
     hour12: true,
   });
   ctx.fillStyle = "#64748b";
@@ -223,7 +269,7 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.stroke();
   ctx.fillStyle = "#047857";
   ctx.font = "700 26px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText("Verified random draw · Bhishi Circle", W / 2, 1322);
+  ctx.fillText(verified, W / 2, 1322);
 
   return canvas;
 }
@@ -254,12 +300,26 @@ export async function shareLuckyDrawResult(payload: LuckyDrawSharePayload) {
   const canvas = renderLuckyDrawShareCard(payload);
   const blob = await canvasToBlob(canvas);
   const fileName = `lucky-draw-${payload.chitName.replace(/[^\w\-]+/g, "_").slice(0, 40)}-r${payload.cycle}.jpg`;
-  const caption = [
-    `Lucky Draw Result — ${payload.chitName}`,
-    `Round ${payload.cycle}: *${payload.winnerName}* wins ${money(payload.payout)}`,
-    "",
-    "Verified random draw · Bhishi Circle",
-  ].join("\n");
+  const allotted =
+    payload.allottedName &&
+    payload.allottedName.trim() &&
+    payload.allottedName !== payload.winnerName
+      ? payload.allottedName
+      : "";
+  const caption = allotted
+    ? [
+        `Lucky Draw Result — ${payload.chitName}`,
+        `Round ${payload.cycle}: *${payload.winnerName}* won the draw`,
+        `Admin allotted this pot to *${allotted}* — ${money(payload.payout)}`,
+        "",
+        "Verified random draw · Bhishi Circle",
+      ].join("\n")
+    : [
+        `Lucky Draw Result — ${payload.chitName}`,
+        `Round ${payload.cycle}: *${payload.winnerName}* wins ${money(payload.payout)}`,
+        "",
+        "Verified random draw · Bhishi Circle",
+      ].join("\n");
 
   if (isNativeApp()) {
     try {
@@ -295,7 +355,6 @@ export async function shareLuckyDrawResult(payload: LuckyDrawSharePayload) {
     }
   }
 
-  // Fallback: download image
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

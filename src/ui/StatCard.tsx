@@ -45,7 +45,11 @@ export function StatCard({
           <ArrowUpRight size={14} strokeWidth={2.4} />
         </span>
       </div>
-      <strong>{value}</strong>
+      <strong>
+        {typeof value === "string" || typeof value === "number"
+          ? value
+          : <span className="stat-value">{value}</span>}
+      </strong>
       {hint != null && hint !== "" ? <em>{hint}</em> : null}
     </>
   );

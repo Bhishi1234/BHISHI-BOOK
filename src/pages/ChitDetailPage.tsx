@@ -19,7 +19,7 @@ import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
 import { PromptBox } from "../components/PromptBox";
 import { ReasonModal } from "../components/ReasonModal";
 import { AppShell } from "../layout/AppShell";
-import { buildActivityLog } from "../lib/activityLog";
+import { buildActivityLog, formatActivityAt } from "../lib/activityLog";
 import { StatCard } from "../ui/StatCard";
 import { useI18n } from "../i18n";
 import {
@@ -425,7 +425,7 @@ export function ChitDetailPage() {
           </div>
           {(data.type === "loan" && (data.repaymentTenure || data.loanPrincipalMode || data.loanInterestUpfront != null)) && (
             <p className="chit-hero-note">
-              {data.repaymentTenure ? `Repay ${data.repaymentTenure} mo` : ""}
+              {data.repaymentTenure ? tx(copy.chit.repayMonthsShort, { n: data.repaymentTenure }) : ""}
               {data.repaymentTenure ? " · " : ""}
               {data.loanPrincipalMode === "end" ? copy.chit.principalAtEndLabel : copy.chit.principalReducingLabel}
               {" · "}
@@ -727,7 +727,7 @@ export function ChitDetailPage() {
                 <div className="kv"><span>{copy.detail.type}</span><strong>{typeLabel(data.type).toUpperCase()}</strong></div>
                 <div className="kv"><span>{copy.detail.frequency}</span><strong>{freqLabel(data.frequency)}</strong></div>
                 <div className="kv"><span>{copy.chit.contribution}</span><strong>{inr(data.instalment)}</strong></div>
-                <div className="kv"><span>Duration</span><strong>{tx(copy.chit.durationMonths, { n: data.duration })}</strong></div>
+                <div className="kv"><span>{copy.chit.durationLabel}</span><strong>{tx(copy.chit.durationMonths, { n: data.duration })}</strong></div>
                 {data.type === "loan" && (
                   <>
                     <div className="kv"><span>{copy.chit.interest}</span><strong>{copy.chit.interestSetPerLoan}</strong></div>
@@ -735,7 +735,7 @@ export function ChitDetailPage() {
                   </>
                 )}
                 {fixedLike && data.premiumAmount != null && data.premiumAmount > 0 && (
-                  <div className="kv"><span>Premium after prized (legacy)</span><strong>{inr(data.premiumAmount)}</strong></div>
+                  <div className="kv"><span>{copy.chit.premiumLegacy}</span><strong>{inr(data.premiumAmount)}</strong></div>
                 )}
                 <div className="kv"><span>{copy.chit.commissionPerHapta}</span><strong>{
                   data.commissionKind === "amount" && data.commissionValue
@@ -973,7 +973,10 @@ export function ChitDetailPage() {
                       const last = [...data.payments].reverse().find(
                         (p) => p.memberId === m.customerId && p.cycle === cycle && (p.slot == null || p.slot === m.slot),
                       );
-                      const label = status === "due" && unpaidNoted ? "Unpaid" : status[0].toUpperCase() + status.slice(1);
+                      const label =
+                        status === "due" && unpaidNoted
+                          ? copy.payStatus.unpaid
+                          : copy.payStatus[status as keyof typeof copy.payStatus] || status;
                       const isWinner = lastWin?.winnerId === m.customerId
                         && (lastWin.winnerSlot == null || lastWin.winnerSlot === m.slot);
                       const hands = data.members.filter((x) => x.customerId === m.customerId).length;
@@ -983,8 +986,8 @@ export function ChitDetailPage() {
                             <div className="person">
                               <div className="avatar">{initials(names[m.customerId] || "?")}</div>
                               <span className="ellipsis">
-                                {handLabel(names[m.customerId] || "Member", m.slot, hands)}
-                                {isWinner ? <span className="muted"> · winner</span> : null}
+                                {handLabel(names[m.customerId] || copy.common.member, m.slot, hands)}
+                                {isWinner ? <span className="muted">{copy.chit.winnerSuffix}</span> : null}
                               </span>
                             </div>
                           </td>
@@ -1055,16 +1058,24 @@ export function ChitDetailPage() {
                       : fixedLike
                         ? luckyDrawChit
                           ? unprized.length
-                            ? `Roll among ${unprized.length} member${unprized.length === 1 ? "" : "s"} who have not won yet. Same dues every month.`
+                            ? tx(copy.chit.rollAmong, { n: unprized.length })
                             : copy.chit.awardAllPrized
                           : handSacrifice
                             ? unprized.length <= 1
                               ? copy.chit.awardLastMemberFull
                               : nextSlot
-                                ? `Next by slot: ${names[nextSlot.customerId]}. They take ${inr(data.pot - handSacrificeAmount(data))}; ${inr(handSacrificeAmount(data))} is paid as cash dividends to the ${unprized.length - 1} still playing.`
+                                ? tx(copy.chit.nextBySlotSacrifice, {
+                                    name: names[nextSlot.customerId],
+                                    payout: inr(data.pot - handSacrificeAmount(data)),
+                                    div: inr(handSacrificeAmount(data)),
+                                    n: unprized.length - 1,
+                                  })
                                 : copy.chit.awardAllSlots
                             : nextSlot
-                              ? `Next by slot order: ${names[nextSlot.customerId]} (slot ${nextSlot.slot}). Award after collections.`
+                              ? tx(copy.chit.nextBySlotOrder, {
+                                  name: names[nextSlot.customerId],
+                                  slot: nextSlot.slot,
+                                })
                               : copy.chit.awardAllSlots
                         : auctionFirst
                           ? copy.chit.awardAuctionFirstHint
@@ -1088,10 +1099,10 @@ export function ChitDetailPage() {
                     </span>
                     <strong>{names[lastWin.winnerId]}</strong>
                   </div>
-                  <div className="kv"><span>Payout</span><strong>{inr(lastWin.payout)}</strong></div>
+                  <div className="kv"><span>{copy.chit.payout}</span><strong>{inr(lastWin.payout)}</strong></div>
                   <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(lastWin.commission)}</strong></div>
                   {lastWin.dividend > 0 && (
-                    <div className="kv"><span>Dividend next month / member</span><strong>{inr(lastWin.dividend)}</strong></div>
+                    <div className="kv"><span>{copy.chit.dividendNextMonth}</span><strong>{inr(lastWin.dividend)}</strong></div>
                   )}
                   {lastWin.method === "lucky_draw" && (
                     <button
@@ -1103,11 +1114,15 @@ export function ChitDetailPage() {
                       {copy.chit.viewWheelShare}
                     </button>
                   )}
-                  <p className="muted" style={{ marginTop: 12 }}>Already recorded for this month. Use Close month when you are ready.</p>
+                  <p className="muted" style={{ marginTop: 12 }}>{copy.chit.alreadyRecordedClose}</p>
                 </div>
               ) : !awardFirst && !canSettleCycle(data) ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
-                  Collect at least one payment this month before {data.type === "loan" ? "giving a loan" : fixedLike ? "awarding the pot" : "recording the auction"}.
+                  {data.type === "loan"
+                    ? copy.chit.collectBeforeLoan
+                    : fixedLike
+                      ? copy.chit.collectBeforeAward
+                      : copy.chit.collectBeforeAuction}
                 </p>
               ) : (
                 <div style={{ padding: "16px 0 0" }}>
@@ -1117,8 +1132,11 @@ export function ChitDetailPage() {
                         <>
                           <p className="muted" style={{ marginBottom: 12 }}>
                             {auctionFirst
-                              ? `Last cycle — no bidding. The remaining member is awarded the full pot (${inr(data.pot)}); each member then pays ${inr(computeInstalment(data.pot, data.members.length || 1))} (winner’s share counts as paid-in).`
-                              : `Last cycle — no auction. The remaining member takes the full cash on hand (${inr(cashOnHand)}), then you can close the chit.`}
+                              ? tx(copy.chit.lastCycleAuctionFirst, {
+                                  pot: inr(data.pot),
+                                  share: inr(computeInstalment(data.pot, data.members.length || 1)),
+                                })
+                              : tx(copy.chit.lastCycleCollectFirst, { cash: inr(cashOnHand) })}
                           </p>
                           <div className="month-auction" style={{ padding: 0 }}>
                             <select
@@ -1126,10 +1144,10 @@ export function ChitDetailPage() {
                               value={handSelectValue || (lastMember ? `${lastMember.customerId}::${lastMember.slot}` : "")}
                               onChange={(e) => pickHand(e.target.value)}
                             >
-                              <option value="">Last member</option>
+                              <option value="">{copy.chit.lastMember}</option>
                               {unprized.map((m) => (
                                 <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                  Slot {m.slot} · {names[m.customerId]}
+                                  {tx(copy.chit.slotDotName, { n: m.slot, name: names[m.customerId] })}
                                 </option>
                               ))}
                             </select>
@@ -1143,7 +1161,7 @@ export function ChitDetailPage() {
                                   .then(() => goAfterAward());
                               }}
                             >
-                              Award full pot
+                              {copy.chit.awardFullPot}
                             </button>
                           </div>
                           {(winnerId || lastMember) && (() => {
@@ -1167,10 +1185,10 @@ export function ChitDetailPage() {
                         <>
                           <div className="month-auction" style={{ padding: 0 }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
-                              <option value="">Winner</option>
+                              <option value="">{copy.luckyDraw.winner}</option>
                               {unprized.map((m) => (
                                 <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                  Slot {m.slot} · {names[m.customerId]}
+                                  {tx(copy.chit.slotDotName, { n: m.slot, name: names[m.customerId] })}
                                 </option>
                               ))}
                             </select>
@@ -1180,7 +1198,7 @@ export function ChitDetailPage() {
                               disabled={!winnerId || !bid}
                               onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot).then(() => goAfterAward())}
                             >
-                              Record auction
+                              {copy.chit.recordAuctionBtn}
                             </button>
                           </div>
                           {winnerId && Number(bid) > 0 && (() => {
@@ -1197,14 +1215,14 @@ export function ChitDetailPage() {
                                   <div className="kv"><span>{copy.chit.eachMemberPays}</span><strong>{inr(nextShare || 0)}</strong></div>
                                 ) : (
                                   <>
-                                    <div className="kv"><span>Dividend / member next month</span><strong>{inr(preview.dividend)}</strong></div>
+                                    <div className="kv"><span>{copy.chit.dividendNextMonth}</span><strong>{inr(preview.dividend)}</strong></div>
                                     <div className="kv"><span>{copy.chit.cashOnHandAfter}</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
                                   </>
                                 )}
                               </div>
                             );
                           })()}
-                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => nav(`/chits/${data.id}/lucky-draw`)}>Lucky draw</button>
+                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => nav(`/chits/${data.id}/lucky-draw`)}>{copy.chit.luckyDrawBtn}</button>
                         </>
                       )}
                     </>
@@ -1219,13 +1237,13 @@ export function ChitDetailPage() {
                               <div className="kv">
                                 <span>
                                   {names[l.winnerId]}
-                                  {l.winnerSlot != null ? ` · Slot ${l.winnerSlot}` : ""}
+                                  {l.winnerSlot != null ? ` · ${tx(copy.chit.slot, { n: l.winnerSlot })}` : ""}
                                 </span>
-                                <strong>{inr(l.payout)}{l.commission ? ` · commission ${inr(l.commission)}` : ""}</strong>
+                                <strong>{inr(l.payout)}{l.commission ? tx(copy.chit.commissionAmount, { amount: inr(l.commission) }) : ""}</strong>
                               </div>
                               <div className="loan-share-row">
                                 <button type="button" className="btn ghost btn-sm" onClick={() => shareLoanPdf(l)}>
-                                  Loan PDF
+                                  {copy.chit.loanPdfShort}
                                 </button>
                                 <button type="button" className="btn ghost btn-sm" onClick={() => shareLoanToBorrower(l)}>
                                   {copy.chit.whatsappBorrower}
@@ -1240,59 +1258,40 @@ export function ChitDetailPage() {
                           <div className="kv"><span>{copy.chit.cashStillOnHand}</span><strong>{inr(cashOnHand)}</strong></div>
                         </div>
                       )}
-                      {loanShare && (
-                        <div className="card loan-share-banner" style={{ marginBottom: 12 }}>
-                          <strong>{copy.chit.loanShareTitle}</strong>
-                          <p className="muted" style={{ margin: "6px 0 10px" }}>
-                            {copy.chit.loanShareHint}
-                          </p>
-                          <div className="loan-share-row">
-                            <button type="button" className="btn" onClick={() => shareLoanPdf(loanShare)}>
-                              <Share2 size={15} /> {copy.chit.loanReportPdf}
-                            </button>
-                            <button type="button" className="btn ghost" onClick={() => shareLoanToBorrower(loanShare)}>
-                                  {copy.chit.whatsappBorrower}
-                            </button>
-                            <button type="button" className="btn ghost" onClick={() => void shareLoanToGroup(loanShare)}>
-                                  {copy.chit.shareToGroup}
-                            </button>
-                            <button type="button" className="btn ghost" onClick={() => setLoanShare(null)}>
-                              {copy.chit.dismiss}
-                            </button>
-                          </div>
-                        </div>
-                      )}
                       {!loanAllowed ? (
                         <p className="muted" style={{ marginBottom: 10 }}>
-                          Last month — no new loans. Collect dues, then open Settlement to return leftover cash and interest dividends.
+                          {copy.chit.lastMonthNoLoansDetail}
                         </p>
                       ) : (
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
-                            Pick the hand (slot) that is borrowing. A loan on one hand never applies to another hand of the same person.
-                            Max face this month: {inr(loanMaxFace)} (cash {inr(Math.max(0, cashOnHand))} + still expected {inr(Math.max(0, loanCapacity - Math.max(0, cashOnHand)))}).
+                            {tx(copy.chit.pickBorrowingHand, {
+                              max: inr(loanMaxFace),
+                              cash: inr(Math.max(0, cashOnHand)),
+                              expected: inr(Math.max(0, loanCapacity - Math.max(0, cashOnHand))),
+                            })}
                           </p>
                           <div className="month-auction" style={{ padding: 0 }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
-                              <option value="">Borrower hand</option>
+                              <option value="">{copy.chit.borrowerHand}</option>
                               {data.members.map((m) => {
                                 const hands = data.members.filter((x) => x.customerId === m.customerId).length;
                                 const borrowed = loanPrincipalOf(data, m.customerId, m.slot);
                                 return (
                                   <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                    {handLabel(names[m.customerId] || "Member", m.slot, hands)}
-                                    {borrowed ? ` · already ${inr(borrowed)}` : ""}
+                                    {handLabel(names[m.customerId] || copy.common.member, m.slot, hands)}
+                                    {borrowed ? tx(copy.chit.alreadyBorrowed, { amount: inr(borrowed) }) : ""}
                                   </option>
                                 );
                               })}
                             </select>
-                            <label className="label" style={{ marginTop: 8 }}>{copy.chit.interest} (% / month)</label>
+                            <label className="label" style={{ marginTop: 8 }}>{copy.chit.interest}</label>
                             <input
                               className="field"
                               inputMode="decimal"
                               value={loanInterest}
                               onChange={(e) => setLoanInterest(e.target.value.replace(/[^\d.]/g, ""))}
-                              placeholder="e.g. 5"
+                              placeholder={copy.chit.interestEg}
                             />
                             <div className="quick" style={{ marginBottom: 8 }}>
                               {[2, 3, 4, 5, 6, 8, 10].map((v) => (
@@ -1345,13 +1344,13 @@ export function ChitDetailPage() {
                               .filter((v, i, arr) => v > 0 && v <= loanMaxFace && arr.indexOf(v) === i)
                               .map((v) => (
                               <button key={v} type="button" className={`chip ${bid === String(v) ? "on" : ""}`} onClick={() => setBid(String(v))}>
-                                {inr(v)}{v === loanMaxFace ? " · max" : ""}
+                                {inr(v)}{v === loanMaxFace ? copy.chit.maxSuffix : ""}
                               </button>
                             ))}
                           </div>
                           {Number(bid) > loanMaxFace && (
                             <p className="due" style={{ marginTop: 8 }}>
-                              Loan cannot exceed {inr(loanMaxFace)} (cash on hand + this month’s expected collections).
+                              {tx(copy.chit.loanCannotExceed, { max: inr(loanMaxFace) })}
                             </p>
                           )}
                           {winnerId && winnerSlot != null && Number(bid) > 0 && (() => {
@@ -1369,35 +1368,37 @@ export function ChitDetailPage() {
                             const balloon = (data.loanPrincipalMode || "emi") === "end";
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                                <div className="kv"><span>{copy.chit.hand}</span><strong>Slot {winnerSlot}</strong></div>
-                                <div className="kv"><span>Face loan</span><strong>{inr(face)}{faceReq > face ? ` (capped from ${inr(faceReq)})` : ""}</strong></div>
-                                <div className="kv"><span>{copy.chit.interest}</span><strong>{rate}% / month</strong></div>
+                                <div className="kv"><span>{copy.chit.hand}</span><strong>{tx(copy.chit.slot, { n: winnerSlot })}</strong></div>
+                                <div className="kv"><span>{copy.chit.faceLoan}</span><strong>{inr(face)}{faceReq > face ? ` ${tx(copy.chit.cappedFrom, { amount: inr(faceReq) })}` : ""}</strong></div>
+                                <div className="kv"><span>{copy.chit.interest}</span><strong>{tx(copy.chit.interestPctMonth, { rate })}</strong></div>
                                 <div className="kv">
                                   <span>{preview.discount > 0 ? copy.chit.interestCutNow : copy.chit.interestCutAtGiveLabel}</span>
-                                  <strong>{inr(preview.discount)}{preview.discount === 0 ? " (none — from next month)" : ""}</strong>
+                                  <strong>{inr(preview.discount)}{preview.discount === 0 ? ` ${copy.chit.noneFromNextMonth}` : ""}</strong>
                                 </div>
                                 <div className="kv"><span>{copy.chit.borrowerReceives}</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(preview.commission)}</strong></div>
-                                <div className="kv"><span>{copy.chit.repaymentMonths}</span><strong>{tenure} (remaining of chit: {Math.max(0, data.duration - start)})</strong></div>
-                                <div className="kv"><span>From next month · deposit</span><strong>{inr(data.instalment)}</strong></div>
+                                <div className="kv"><span>{copy.chit.repaymentMonths}</span><strong>{tenure} {tx(copy.chit.remainingOfChit, { n: Math.max(0, data.duration - start) })}</strong></div>
+                                <div className="kv"><span>{copy.chit.fromNextMonthDeposit}</span><strong>{inr(data.instalment)}</strong></div>
                                 <div className="kv">
                                   <span>{balloon ? copy.chit.interestMonth : copy.chit.interestReducing}</span>
-                                  <strong>{inr(interest)} ({rate}%{balloon ? " of face" : " of outstanding"})</strong>
+                                  <strong>{inr(interest)} ({rate}%{balloon ? copy.chit.ofFace : copy.chit.ofOutstanding})</strong>
                                 </div>
                                 <div className="kv">
                                   <span>{balloon ? copy.chit.principalLastMonth : copy.chit.principalShareMonth}</span>
                                   <strong>
                                     {inr(share)}
-                                    {balloon ? " at end" : ` over ${tenure} mo`}
+                                    {balloon ? copy.chit.atEnd : tx(copy.chit.overMonths, { n: tenure })}
                                   </strong>
                                 </div>
                                 <div className="kv"><span>{copy.chit.cashOnHandAfter}</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
                                 {cashAfter < 0 && (
                                   <p className="muted" style={{ margin: "6px 0 0" }}>
-                                    Temporarily below zero until this month’s remaining collections ({inr(Math.max(0, loanCapacity - Math.max(0, cashOnHand)))}) come in.
+                                    {tx(copy.chit.temporarilyBelowZero, {
+                                      amount: inr(Math.max(0, loanCapacity - Math.max(0, cashOnHand))),
+                                    })}
                                   </p>
                                 )}
-                                {faceReq > loanMaxFace && <p className="due">Not enough funding for this loan face amount.</p>}
+                                {faceReq > loanMaxFace && <p className="due">{copy.chit.loanFundingShort}</p>}
                               </div>
                             );
                           })()}
@@ -1446,10 +1447,10 @@ export function ChitDetailPage() {
                           {unprized.length <= 1 ? (
                             <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                               <select className="field" value={handSelectValue || (unprized[0] ? `${unprized[0].customerId}::${unprized[0].slot}` : "")} onChange={(e) => pickHand(e.target.value)}>
-                                <option value="">Award last pot to</option>
+                                <option value="">{copy.chit.awardLastPotTo}</option>
                                 {unprized.map((m) => (
                                   <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                    Slot {m.slot} · {names[m.customerId]}
+                                    {tx(copy.chit.slotDotName, { n: m.slot, name: names[m.customerId] })}
                                   </option>
                                 ))}
                               </select>
@@ -1462,7 +1463,7 @@ export function ChitDetailPage() {
                                   void recordAuction(data.id, who, data.pot, "lucky_draw", slot).then(() => goAfterAward());
                                 }}
                               >
-                                Award last pot
+                                {copy.chit.awardLastPot}
                               </button>
                             </div>
                           ) : (
@@ -1478,10 +1479,10 @@ export function ChitDetailPage() {
                               </div>
                               <div className="month-auction" style={{ padding: 0, marginTop: 10, gridTemplateColumns: "1fr auto" }}>
                                 <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
-                                  <option value="">Or pick winner</option>
+                                  <option value="">{copy.chit.orPickWinner}</option>
                                   {unprized.map((m) => (
                                     <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                      Slot {m.slot} · {names[m.customerId]}
+                                      {tx(copy.chit.slotDotName, { n: m.slot, name: names[m.customerId] })}
                                     </option>
                                   ))}
                                 </select>
@@ -1490,12 +1491,12 @@ export function ChitDetailPage() {
                                   disabled={!canSettleCycle(data) || !winnerId}
                                   onClick={() => void recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot).then(() => goAfterAward())}
                                 >
-                                  Award pot
+                                  {copy.chit.awardPot}
                                 </button>
                               </div>
                               {unprized.length > 0 && (
                                 <p className="muted" style={{ marginTop: 10 }}>
-                                  In the pot: {unprized.map((m) => names[m.customerId]).join(", ")}
+                                  {tx(copy.chit.inThePot, { names: unprized.map((m) => names[m.customerId]).join(", ") })}
                                 </p>
                               )}
                             </>
@@ -1505,16 +1506,16 @@ export function ChitDetailPage() {
                         <>
                           <p className="muted" style={{ marginBottom: 10 }}>
                             {awardFirst
-                              ? `Award first. Early winners leave one full instalment (${inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. Then collect hapta.`
-                              : `Collect first. Early winners leave one full instalment (${inr(handSacrificeAmount(data))}) as cash dividends for members still playing. Last takes the full pot. If no one is taking, roll the lucky draw.`}
+                              ? tx(copy.chit.handSacrificeFirst, { amount: inr(handSacrificeAmount(data)) })
+                              : tx(copy.chit.handSacrificeCollect, { amount: inr(handSacrificeAmount(data)) })}
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
-                              <option value="">Award pot to</option>
+                              <option value="">{copy.chit.awardPotTo}</option>
                               {unprized.map((m) => (
                                 <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                  Slot {m.slot} · {names[m.customerId]}
-                                  {nextSlot?.customerId === m.customerId && nextSlot.slot === m.slot ? " · next" : ""}
+                                  {tx(copy.chit.slotDotName, { n: m.slot, name: names[m.customerId] })}
+                                  {nextSlot?.customerId === m.customerId && nextSlot.slot === m.slot ? copy.chit.nextHandSuffix : ""}
                                 </option>
                               ))}
                             </select>
@@ -1523,7 +1524,7 @@ export function ChitDetailPage() {
                               disabled={!winnerId || !canSettleCycle(data)}
                               onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then(() => goAfterAward())}
                             >
-                              Award pot
+                              {copy.chit.awardPot}
                             </button>
                           </div>
                           <button
@@ -1543,9 +1544,9 @@ export function ChitDetailPage() {
                                 <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(preview.commission)}</strong></div>
                                 <div className="kv"><span>{copy.chit.dividendPool}</span><strong>{inr(preview.discount)}</strong></div>
                                 {still > 0 && preview.discount > 0 ? (
-                                  <div className="kv"><span>Each of {still} still playing</span><strong>{inr(preview.dividend)}</strong></div>
+                                  <div className="kv"><span>{tx(copy.chit.eachOfStillPlaying, { n: still })}</span><strong>{inr(preview.dividend)}</strong></div>
                                 ) : (
-                                  <p className="muted" style={{ marginTop: 8 }}>Last member — full pot, no dividends.</p>
+                                  <p className="muted" style={{ marginTop: 8 }}>{copy.chit.lastMemberNoDividends}</p>
                                 )}
                                 <div className="kv"><span>{copy.chit.cashOnHandAfter}</span><strong>{inr(cashOnHand - preview.payout - preview.commission - preview.discount)}</strong></div>
                               </div>
@@ -1561,11 +1562,11 @@ export function ChitDetailPage() {
                           </p>
                           <div className="month-auction" style={{ padding: 0, gridTemplateColumns: "1fr auto" }}>
                             <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
-                              <option value="">Award pot to</option>
+                              <option value="">{copy.chit.awardPotTo}</option>
                               {unprized.map((m) => (
                                 <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
-                                  Slot {m.slot} · {names[m.customerId]}
-                                  {nextSlot?.customerId === m.customerId && nextSlot.slot === m.slot ? " · next" : ""}
+                                  {tx(copy.chit.slotDotName, { n: m.slot, name: names[m.customerId] })}
+                                  {nextSlot?.customerId === m.customerId && nextSlot.slot === m.slot ? copy.chit.nextHandSuffix : ""}
                                 </option>
                               ))}
                             </select>
@@ -1574,7 +1575,7 @@ export function ChitDetailPage() {
                               disabled={!winnerId || !canSettleCycle(data)}
                               onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then(() => goAfterAward())}
                             >
-                              Award pot
+                              {copy.chit.awardPot}
                             </button>
                           </div>
                           {winnerId && (() => {
@@ -1637,30 +1638,30 @@ export function ChitDetailPage() {
                 <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
               ) : (
                 <div style={{ marginTop: 12 }}>
-                  <div className="kv"><span>Collected this month</span><strong>{inr(collectedThisCycle(data))}</strong></div>
-                  <div className="kv"><span>Outstanding</span><strong>{inr(outstandingOf(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.collectedThisMonth}</span><strong>{inr(collectedThisCycle(data))}</strong></div>
+                  <div className="kv"><span>{copy.chit.outstandingLabel}</span><strong>{inr(outstandingOf(data))}</strong></div>
                   <div className="kv">
                     <span>{auctionFirst ? copy.chit.tillPeerShort : copy.chit.cashOnHand}</span>
                     <strong className={treasuryOf(data) < 0 ? "neg" : ""}>{inr(treasuryOf(data))}</strong>
                   </div>
                   {lastWin && data.type !== "loan" && (
                     <>
-                      <div className="kv"><span>Awarded to</span><strong>{names[lastWin.winnerId]}</strong></div>
-                      <div className="kv"><span>Payout</span><strong>{inr(lastWin.payout)}</strong></div>
+                      <div className="kv"><span>{copy.chit.awardedTo}</span><strong>{names[lastWin.winnerId]}</strong></div>
+                      <div className="kv"><span>{copy.chit.payout}</span><strong>{inr(lastWin.payout)}</strong></div>
                       <div className="kv"><span>{copy.terms.commission}</span><strong>{inr(lastWin.commission)}</strong></div>
                     </>
                   )}
                   {data.type === "loan" && !!monthLoans.length && (
                     <div className="kv">
-                      <span>Loans this month</span>
+                      <span>{copy.chit.loansThisMonth}</span>
                       <strong>{inr(monthLoans.reduce((s, l) => s + l.payout, 0))}</strong>
                     </div>
                   )}
                   {data.mode === "organise" && data.type === "auction" && !lastWin && (
-                    <p className="muted" style={{ marginTop: 12 }}>Record the auction before closing this month.</p>
+                    <p className="muted" style={{ marginTop: 12 }}>{copy.chit.recordAuctionBeforeClose}</p>
                   )}
                   {data.mode === "organise" && fixedLike && !lastWin && (
-                    <p className="muted" style={{ marginTop: 12 }}>Award the pot before closing this month.</p>
+                    <p className="muted" style={{ marginTop: 12 }}>{copy.chit.awardPotBeforeClose}</p>
                   )}
                 </div>
               )}
@@ -1942,7 +1943,7 @@ export function ChitDetailPage() {
                         ) : null}
                       </div>
                       <div className="muted">
-                        Slot {m.slot}{hands > 1 ? ` · hand of ${hands}` : ""}
+                        {tx(copy.chit.slot, { n: m.slot })}{hands > 1 ? ` · ${tx(copy.chit.handOf, { n: hands })}` : ""}
                         {cust?.phone ? ` · ${cust.phone}` :  ` · ${copy.chit.noPhoneMeta}`}
                         {` · paid ${inr(handPaid)}`}
                         {data.type === "auction" || handSacrifice ? ` · got ${inr(received)}` : ""}
@@ -2044,6 +2045,18 @@ export function ChitDetailPage() {
 
         {tab === "activity" && (() => {
           const feed = buildActivityLog(data, names);
+          const kindLabel = (k: string) => {
+            if (k === "payment") return copy.chit.activityKindPayment;
+            if (k === "award") return copy.chit.activityKindAward;
+            if (k === "loan") return copy.chit.activityKindLoan;
+            if (k === "settlement") return copy.chit.activityKindSettlement;
+            if (k === "lucky_draw") return copy.chit.activityKindLuckyDraw;
+            return k;
+          };
+          const whoTitle = (tpl: string, row: (typeof feed)[0]) =>
+            tx(tpl, {
+              who: `${row.memberName}${row.slot != null ? tx(copy.chit.activitySlot, { n: row.slot }) : ""}`,
+            });
           return (
             <div className="card flush">
               {feed.length === 0 ? (
@@ -2052,17 +2065,64 @@ export function ChitDetailPage() {
                 </div>
               ) : (
                 <div className="activity-list">
-                  {feed.map((row) => (
-                    <div key={row.id} className="activity-row">
-                      <div className="muted">{row.at}</div>
-                      <div>
-                        <span className={`activity-kind ${row.kind}`}>{row.kind.replace("_", " ")}</span>
-                        <strong style={{ display: "block" }}>{row.title}</strong>
-                        <div className="muted">{row.detail}</div>
+                  {feed.map((row) => {
+                    let title = "";
+                    let detail = "";
+                    if (row.kind === "payment") {
+                      title = whoTitle(copy.chit.activityCollection, row);
+                      const kind =
+                        copy.payKind[row.paymentKind as keyof typeof copy.payKind] || row.paymentKind || "";
+                      const mode = row.mode ? ` · ${modeLabel(row.mode) || row.mode}` : "";
+                      detail = tx(copy.chit.activityPayDetail, {
+                        kind,
+                        mode,
+                        cycle: row.cycle,
+                      });
+                    } else if (row.kind === "settlement") {
+                      title = whoTitle(copy.chit.activitySettlement, row);
+                      detail = tx(copy.chit.activitySettleDetail, { cycle: row.cycle });
+                    } else if (row.kind === "loan") {
+                      title = whoTitle(copy.chit.activityLoan, row);
+                      detail = tx(copy.chit.activityLoanDetail, {
+                        face: inr(row.bid || 0),
+                        rate: row.interestRate != null ? tx(copy.chit.activityRate, { rate: row.interestRate }) : "",
+                        cut: row.discount ? tx(copy.chit.activityInterestCut, { amount: inr(row.discount) }) : "",
+                        cycle: row.cycle,
+                      });
+                    } else if (row.kind === "lucky_draw") {
+                      title = whoTitle(copy.chit.activityLuckyDraw, row);
+                      detail = tx(copy.chit.activityLdDetail, {
+                        cycle: row.cycle,
+                        commission: row.commission
+                          ? tx(copy.chit.activityCommission, { amount: inr(row.commission) })
+                          : "",
+                      });
+                    } else {
+                      title = whoTitle(copy.chit.activityAward, row);
+                      const method =
+                        row.method === "auction"
+                          ? tx(copy.chit.activityBid, { amount: inr(row.bid || 0) })
+                          : copy.chit.activityFixedPot;
+                      detail = tx(copy.chit.activityAwardDetail, {
+                        method,
+                        commission: row.commission
+                          ? tx(copy.chit.activityCommission, { amount: inr(row.commission) })
+                          : "",
+                        cycle: row.cycle,
+                      });
+                    }
+                    return (
+                      <div key={row.id} className="activity-row">
+                        <div className="muted">{formatActivityAt(row.at, locale)}</div>
+                        <div>
+                          <span className={`activity-kind ${row.kind}`}>{kindLabel(row.kind)}</span>
+                          <strong style={{ display: "block" }}>{title}</strong>
+                          <div className="muted">{detail}</div>
+                        </div>
+                        <div className="num">{row.amount != null ? inr(row.amount) : ""}</div>
                       </div>
-                      <div className="num">{row.amount != null ? inr(row.amount) : ""}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2106,9 +2166,9 @@ export function ChitDetailPage() {
                 const equalOut = plan.reduce((s, p) => s + p.equalPart, 0);
                 return (
                   <>
-                    <div className="kv"><span>Cash available</span><strong>{inr(Math.max(0, cashOnHand))}</strong></div>
-                    <div className="kv"><span>Interest dividend pool</span><strong>{inr(interestOut)}</strong></div>
-                    <div className="kv"><span>Equal leftover share (all)</span><strong>{inr(equalOut)}</strong></div>
+                    <div className="kv"><span>{copy.chit.cashAvailable}</span><strong>{inr(Math.max(0, cashOnHand))}</strong></div>
+                    <div className="kv"><span>{copy.chit.interestDividendPool}</span><strong>{inr(interestOut)}</strong></div>
+                    <div className="kv"><span>{copy.chit.equalLeftover}</span><strong>{inr(equalOut)}</strong></div>
                   </>
                 );
               })()}
@@ -2130,8 +2190,8 @@ export function ChitDetailPage() {
                       <tr>
                         <th>{copy.common.member}</th>
                         <th>{copy.chit.interestDividend}</th>
-                        <th>Equal share</th>
-                        <th>Total</th>
+                        <th>{copy.chit.equalShare}</th>
+                        <th>{copy.chit.totalLabel}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2279,15 +2339,46 @@ export function ChitDetailPage() {
             }}
           >
             <h2>{copy.chit.editChit}</h2>
-            <label className="label">Name</label>
+            <label className="label">{copy.chit.editName}</label>
             <input className="field" value={editName} onChange={(e) => setEditName(e.target.value)} />
-            <label className="label">Title (optional)</label>
+            <label className="label">{copy.chit.titleOptional}</label>
             <input className="field" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
             <div className="toolbar" style={{ marginTop: 12 }}>
-              <button type="button" className="btn ghost" onClick={() => setEditOpen(false)}>Cancel</button>
-              <button className="btn" disabled={editSaving || !editName.trim()}>{editSaving ? "Saving…" : "Save"}</button>
+              <button type="button" className="btn ghost" onClick={() => setEditOpen(false)}>{copy.common.cancel}</button>
+              <button className="btn" disabled={editSaving || !editName.trim()}>{editSaving ? copy.chit.saving : copy.common.save}</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {loanShare && (
+        <div className="modal-back" onClick={() => setLoanShare(null)}>
+          <div
+            className="modal loan-share-banner"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="loan-share-title"
+          >
+            <h2 id="loan-share-title" style={{ margin: "0 0 6px" }}>{copy.chit.loanShareTitle}</h2>
+            <p className="muted" style={{ margin: "0 0 12px" }}>
+              {copy.chit.loanShareHint}
+            </p>
+            <div className="loan-share-row">
+              <button type="button" className="btn" onClick={() => shareLoanPdf(loanShare)}>
+                <Share2 size={15} /> {copy.chit.loanReportPdf}
+              </button>
+              <button type="button" className="btn ghost" onClick={() => shareLoanToBorrower(loanShare)}>
+                {copy.chit.whatsappBorrower}
+              </button>
+              <button type="button" className="btn ghost" onClick={() => void shareLoanToGroup(loanShare)}>
+                {copy.chit.shareToGroup}
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setLoanShare(null)}>
+                {copy.chit.dismiss}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

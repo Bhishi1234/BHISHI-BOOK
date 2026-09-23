@@ -258,6 +258,14 @@ button.stat {
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
 }
+.stat strong .stat-value,
+.stat strong .neg {
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  font-variant-numeric: inherit;
+}
 .stat em {
   display: block;
   font-style: normal;
@@ -1105,10 +1113,12 @@ body.native-app {
   }
   .stats.four .stat,
   .stats.six .stat { padding: 12px 14px; }
-  .stats.four .stat span,
-  .stats.six .stat span { font-size: 10px; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .stats.four .stat-label,
+  .stats.six .stat-label { font-size: 10px; letter-spacing: 0.04em; margin-bottom: 6px; }
   .stats.four .stat strong,
   .stats.six .stat strong { font-size: 18px; letter-spacing: -0.03em; }
+  .stats.four .stat strong .stat-value,
+  .stats.six .stat strong .stat-value { font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
   .stats.four .stat em,
   .stats.six .stat em { font-size: 11px; margin-top: 4px; }
   .shell { grid-template-columns: 1fr; }

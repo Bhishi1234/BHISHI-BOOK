@@ -8,7 +8,7 @@ import type {
   Ticket,
   User,
 } from "../types";
-import { assertCanSettlePayout, canCloseLastMonth, chitHasStarted, cycleDue, inferKind } from "../lib/chitMath";
+import { assertCanSettlePayout, canCloseLastMonth, chitHasStarted, computeInstalment, cycleDue, inferKind } from "../lib/chitMath";
 import { uid } from "../lib/format";
 
 const KEY = "bhishi-book-api-v8";
@@ -506,11 +506,16 @@ export const mockServer = {
         if (chitHasStarted(c)) {
           throw new Error("Cannot add members after the bhishi has started. Use Swap to replace a person on a seat.");
         }
-        if (c.members.length >= c.membersCount) throw new Error("All slots are filled");
         const slot = Math.max(0, ...c.members.map((m) => m.slot)) + 1;
+        const members = [...c.members, { customerId, slot }];
+        const n = members.length;
         return {
           ...c,
-          members: [...c.members, { customerId, slot }],
+          members,
+          membersCount: n,
+          duration: n,
+          instalment: computeInstalment(c.pot, n),
+          repaymentTenure: c.repaymentTenure != null ? Math.min(c.repaymentTenure, n) : c.repaymentTenure,
         };
       });
       write(db);
@@ -525,7 +530,17 @@ export const mockServer = {
           throw new Error("Cannot remove members after the bhishi has started. Use Swap instead.");
         }
         if (!c.members.some((m) => m.slot === slot)) throw new Error("Hand / slot not found");
-        return { ...c, members: c.members.filter((m) => m.slot !== slot) };
+        if (c.members.length <= 1) throw new Error("Keep at least one member in the group");
+        const members = c.members.filter((m) => m.slot !== slot);
+        const n = members.length;
+        return {
+          ...c,
+          members,
+          membersCount: n,
+          duration: n,
+          instalment: computeInstalment(c.pot, n),
+          repaymentTenure: c.repaymentTenure != null ? Math.min(c.repaymentTenure, n) : c.repaymentTenure,
+        };
       });
       write(db);
       return this.get(chitId);

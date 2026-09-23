@@ -80,6 +80,8 @@ export function LuckyDrawPage() {
   const [sharing, setSharing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [drawnAt, setDrawnAt] = useState<Date | null>(null);
+  /** Wheel land — kept when admin later allots to someone else. */
+  const [spinWinnerKey, setSpinWinnerKey] = useState<string | null>(null);
   /** Frozen list of hands on the wheel for this draw (survives store prize update). */
   const [pool, setPool] = useState<ChitMember[] | null>(null);
   const spunRef = useRef(false);
@@ -127,11 +129,26 @@ export function LuckyDrawPage() {
 
   const displayMembers = pool ?? eligible;
 
-  const winnerName = useMemo(() => {
+  const labelForKey = (key: string) => {
+    if (!chit) return "";
+    const [cid, slotStr] = key.split("::");
+    const slot = Number(slotStr) || 1;
+    const hands = chit.members.filter((x) => x.customerId === cid).length;
+    return handLabel(names[cid || ""] || copy.luckyDraw.winner, slot, hands);
+  };
+
+  const allottedName = useMemo(() => {
     if (!result || !chit) return "";
     const hands = chit.members.filter((x) => x.customerId === result.winnerId).length;
     return handLabel(names[result.winnerId] || copy.luckyDraw.winner, result.winnerSlot ?? 1, hands);
   }, [result, chit, names, copy.luckyDraw.winner]);
+
+  /** Drawn winner stays on share card; allotted is who actually received the pot. */
+  const drawnWinnerName = spinWinnerKey ? labelForKey(spinWinnerKey) : allottedName;
+  const shareAllottedName =
+    spinWinnerKey && result && `${result.winnerId}::${result.winnerSlot ?? 1}` !== spinWinnerKey
+      ? allottedName
+      : undefined;
 
   const pendingMember = pickList.find((m) => memberKey(m) === pendingKey) || pickList[0];
 
@@ -162,7 +179,9 @@ export function LuckyDrawPage() {
     setPool(snapshot);
     const idx = Math.floor(Math.random() * snapshot.length);
     const picked = snapshot[idx]!;
-    setPendingKey(memberKey(picked));
+    const key = memberKey(picked);
+    setPendingKey(key);
+    setSpinWinnerKey(key);
     setRotation((prev) => landRotation(idx, snapshot.length, prev));
 
     window.setTimeout(() => {
@@ -220,10 +239,20 @@ export function LuckyDrawPage() {
         chitName: chit.name,
         cycle,
         duration: chit.duration,
-        winnerName,
+        winnerName: drawnWinnerName,
+        allottedName: shareAllottedName,
         payout: result.payout,
         entrants: displayMembers.map(labelOf),
         drawnAt: drawnAt || new Date(),
+        labels: {
+          brand: copy.brand,
+          title: copy.luckyDraw.title,
+          winner: copy.luckyDraw.winner,
+          allotted: copy.luckyDraw.allottedTo,
+          adminAllotted: copy.luckyDraw.adminAllotted,
+          monthOf: copy.luckyDraw.monthOf,
+          verified: copy.luckyDraw.verified,
+        },
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not share");
@@ -395,7 +424,12 @@ export function LuckyDrawPage() {
           <div className="ld-actions">
             <div className="ld-result">
               <p className="ld-result-kicker">{copy.luckyDraw.winner}</p>
-              <h2>{winnerName}</h2>
+              <h2>{drawnWinnerName}</h2>
+              {shareAllottedName ? (
+                <p className="muted" style={{ marginTop: 6 }}>
+                  {tx(copy.luckyDraw.adminAllotted, { name: shareAllottedName })}
+                </p>
+              ) : null}
               <p className="ld-result-amt">{inr(result.payout)}</p>
               <p className="muted">
                 {drawnAt
