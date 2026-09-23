@@ -117,9 +117,15 @@ export function LoginPage() {
     return (
       <div className="login-wrap">
         <div style={{ width: "min(420px, 100%)" }}>
-          <div className="brand-mark">₹</div>
-          <h1>{m.brand}</h1>
-          <p className="sub">{m.login.signedIn}</p>
+          <img
+            className="login-logo"
+            src="/brand/bhishi-circle-logo.png"
+            alt={m.brand}
+            width={220}
+            height={164}
+            decoding="async"
+          />
+          <p className="sub" style={{ marginTop: 4 }}>{m.login.signedIn}</p>
           <div className="login-card">
             <p className="sub" style={{ marginBottom: 16 }}>
               {[user.name && user.name !== "Organiser" ? user.name : null, user.phone ? `+91 ${user.phone}` : null]
@@ -137,9 +143,14 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <div style={{ width: "min(420px, 100%)" }}>
-        <div className="brand-mark">₹</div>
-        <h1>{m.brand}</h1>
-        <p className="sub">{m.login.tagline}</p>
+        <img
+          className="login-logo"
+          src="/brand/bhishi-circle-logo.png"
+          alt={m.brand}
+          width={220}
+          height={164}
+          decoding="async"
+        />
         <div className="login-card">
           {step === "form" && (
             <div className="seg" style={{ marginBottom: 14 }}>

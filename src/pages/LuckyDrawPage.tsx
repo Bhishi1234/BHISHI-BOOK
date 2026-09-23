@@ -288,7 +288,10 @@ export function LuckyDrawPage() {
         </div>
 
         <header className="ld-header">
-          <p className="ld-kicker">{copy.brand}</p>
+          <p className="ld-kicker">
+            <img src="/brand/bhishi-mark.png" alt="" width={18} height={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            {copy.brand}
+          </p>
           <h1>{copy.luckyDraw.title}</h1>
           <p className="ld-sub">
             {chit.name} — {copy.terms.haptaRound} {cycle}

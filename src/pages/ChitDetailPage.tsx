@@ -24,6 +24,7 @@ import { StatCard } from "../ui/StatCard";
 import { useI18n } from "../i18n";
 import {
   balanceAfterCycle,
+  canCloseCurrentCycle,
   canCloseLastMonth,
   canGiveLoan,
   canSettleCycle,
@@ -214,6 +215,7 @@ export function ChitDetailPage() {
     ? data.members.filter((m) => paymentStatus(data, m.customerId, cycle, m.slot) === "due").length
     : 0;
   const lastMonthGate = canCloseLastMonth(data);
+  const collectCloseGate = canCloseCurrentCycle(data);
   const loanAllowed = canGiveLoan(data);
   const lastWin = data.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
   const monthLoans = loansThisCycle(data);
@@ -856,7 +858,7 @@ export function ChitDetailPage() {
               const awardDone = awardResolved;
               const collectDone = awardFirst
                 ? awardResolved && remainDue === 0
-                : collectedThisCycle(data) > 0 || unpaidNoted;
+                : remainDue === 0;
               return (
                 <div className="month-steps" role="tablist" aria-label={copy.chit.monthlySteps}>
                   {subs.map((s) => {
@@ -937,7 +939,7 @@ export function ChitDetailPage() {
               )}
               {!awardFirst && !canSettleCycle(data) && !lastWin && (
                 <PromptBox tone="amber" className="inline">
-                  {tx(copy.chit.collectPromptCollectFirst, { recordAll: copy.chit.recordAll })}
+                  {copy.chit.collectPromptCollectFirstFull}
                 </PromptBox>
               )}
               {!awardFirst && lastWin && (
@@ -1118,11 +1120,7 @@ export function ChitDetailPage() {
                 </div>
               ) : !awardFirst && !canSettleCycle(data) ? (
                 <p className="muted" style={{ margin: "12px 0 0" }}>
-                  {data.type === "loan"
-                    ? copy.chit.collectBeforeLoan
-                    : fixedLike
-                      ? copy.chit.collectBeforeAward
-                      : copy.chit.collectBeforeAuction}
+                  {copy.chit.collectPromptCollectFirstFull}
                 </p>
               ) : (
                 <div style={{ padding: "16px 0 0" }}>
@@ -1170,7 +1168,13 @@ export function ChitDetailPage() {
                             const preview = settleWinner(data, who, auctionFirst ? data.pot : cashOnHand, "auction", slot);
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                                <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(preview.payout)}</strong></div>
+                                <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(preview.bid)}</strong></div>
+                                {preview.arrearsWithheld > 0 && (
+                                  <>
+                                    <div className="kv"><span>{copy.chit.arrearsWithheld}</span><strong>{inr(preview.arrearsWithheld)}</strong></div>
+                                    <div className="kv"><span>{copy.chit.netToWinner}</span><strong>{inr(preview.payout)}</strong></div>
+                                  </>
+                                )}
                                 <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(preview.commission)}</strong></div>
                                 {auctionFirst ? (
                                   <div className="kv"><span>{copy.chit.eachMemberPays}</span><strong>{inr(auctionFirstShare({ ...data, auctions: [...data.auctions, preview] }, cycle))}</strong></div>
@@ -1204,17 +1208,31 @@ export function ChitDetailPage() {
                           {winnerId && Number(bid) > 0 && (() => {
                             const preview = settleWinner(data, winnerId, Number(bid), "auction", winnerSlot);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
+                            const entered = Number(bid);
+                            const awardFace = preview.bid;
                             const nextShare = auctionFirst
                               ? auctionFirstShare({ ...data, auctions: [...data.auctions.filter((a) => a.cycle !== cycle), preview] }, cycle)
                               : null;
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
-                                <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(preview.payout)}</strong></div>
+                                <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(awardFace)}</strong></div>
+                                {entered > 0 && awardFace !== entered && (
+                                  <p className="muted" style={{ margin: "4px 0 0" }}>
+                                    {tx(copy.chit.awardClampedHint, { entered: inr(entered), award: inr(awardFace) })}
+                                  </p>
+                                )}
+                                {preview.arrearsWithheld > 0 && (
+                                  <>
+                                    <div className="kv"><span>{copy.chit.arrearsWithheld}</span><strong>{inr(preview.arrearsWithheld)}</strong></div>
+                                    <div className="kv"><span>{copy.chit.netToWinner}</span><strong>{inr(preview.payout)}</strong></div>
+                                  </>
+                                )}
                                 <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(preview.commission)}</strong></div>
                                 {auctionFirst ? (
                                   <div className="kv"><span>{copy.chit.eachMemberPays}</span><strong>{inr(nextShare || 0)}</strong></div>
                                 ) : (
                                   <>
+                                    <div className="kv"><span>{copy.chit.discountKasr}</span><strong>{inr(preview.discount)}</strong></div>
                                     <div className="kv"><span>{copy.chit.dividendNextMonth}</span><strong>{inr(preview.dividend)}</strong></div>
                                     <div className="kv"><span>{copy.chit.cashOnHandAfter}</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
                                   </>
@@ -1617,6 +1635,8 @@ export function ChitDetailPage() {
                   disabled={
                     !isRunning
                       ? true
+                      : !collectCloseGate.ok
+                        ? true
                       : !lastMonthGate.ok
                         ? true
                       : data.mode === "organise" && data.type === "auction" && !lastWin
@@ -1634,6 +1654,8 @@ export function ChitDetailPage() {
                 <p className="muted" style={{ margin: "12px 0 0" }}>
                   {tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })}
                 </p>
+              ) : !collectCloseGate.ok ? (
+                <p className="due" style={{ margin: "12px 0 0" }}>{collectCloseGate.reason}</p>
               ) : !lastMonthGate.ok ? (
                 <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
               ) : (

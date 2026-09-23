@@ -832,6 +832,16 @@ export function expectedThisCycle(chit: Chit) {
   return chit.members.reduce((s, m) => s + rawCycleDue(chit, m.customerId, cyc, m.slot), 0);
 }
 
+/** True when every hand has paid (or overpaid) this month’s dues. */
+export function cycleFullyCollected(chit: Chit) {
+  if (!chit.members.length) return false;
+  const cyc = displayCycle(chit);
+  return chit.members.every((m) => {
+    const st = paymentStatus(chit, m.customerId, cyc, m.slot);
+    return st === "paid" || st === "advance";
+  });
+}
+
 /** Amount still unpaid for the current hapta (cycle dues − paid). */
 export function remainingCollectionsThisCycle(chit: Chit) {
   const cyc = displayCycle(chit);
@@ -1128,11 +1138,14 @@ export function settleWinner(
   } else if (lastAuction) {
     safeBid = awardFirst ? Math.max(0, chit.pot - commission) : Math.max(0, treasuryOf(chit));
   } else if (method === "auction") {
+    // Bid = amount the winner takes (face award). Never invent a different award in the books.
     safeBid = Math.min(chit.pot, Math.max(0, bid));
     if (!auctionPeer) {
-      // Collect-first: winner is paid from the till — never more than cash after commission.
-      const maxPayout = Math.max(0, treasuryOf(chit) - commission);
-      safeBid = Math.min(safeBid, maxPayout);
+      // Collect-first: cash must cover award + commission. Prefer keeping the entered award
+      // when the till is funded; only clamp when cash is short.
+      const available = Math.max(0, treasuryOf(chit));
+      const maxPayout = Math.max(0, available - commission);
+      if (safeBid > maxPayout) safeBid = maxPayout;
       discount = Math.max(0, chit.pot - safeBid);
       dividend = Math.floor(Math.max(0, discount - commission) / memberCount(chit));
     }
@@ -1203,11 +1216,26 @@ export function collectedCount(chit: Chit) {
   return chit.members.filter((m) => paymentStatus(chit, m.customerId, cyc, m.slot) !== "due").length;
 }
 
-/** Auction unlocked: collect-first needs receipts; award-first can award immediately. */
+/** Award unlocked: award-first can award immediately; collect-first needs every hand paid. */
 export function canSettleCycle(chit: Chit) {
   if (!chit.members.length) return false;
   if (isAwardFirst(chit)) return true;
-  return collectedThisCycle(chit) > 0;
+  return cycleFullyCollected(chit);
+}
+
+/** Close month: every hand must have paid this month’s dues (all bhishi types). */
+export function canCloseCurrentCycle(chit: Chit) {
+  if (!chit.members.length) {
+    return { ok: false as const, reason: "Add members before closing a cycle" };
+  }
+  if (!cycleFullyCollected(chit)) {
+    const left = remainingCollectionsThisCycle(chit);
+    return {
+      ok: false as const,
+      reason: `Collect every hand’s dues for this month before closing (${Math.round(left)} still outstanding).`,
+    };
+  }
+  return { ok: true as const };
 }
 
 export function assertCanSettlePayout(
@@ -1223,7 +1251,11 @@ export function assertCanSettlePayout(
   }
   const awardFirst = isAwardFirst(chit);
   if (method !== "settlement" && !canSettleCycle(chit)) {
-    throw new Error("Record this month's collections before the auction");
+    throw new Error(
+      awardFirst
+        ? "Record this month's collections before the auction"
+        : "Collect every hand’s full dues for this month before the award",
+    );
   }
   const lastAuction = (method === "auction" || method === "lucky_draw") && isLastAuctionCycle(chit);
   if (!lastAuction && (!bid || bid <= 0)) {

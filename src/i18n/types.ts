@@ -633,6 +633,11 @@ export type Messages = {
     outstandingLabel: string;
     recordAuctionBeforeClose: string;
     awardPotBeforeClose: string;
+    collectPromptCollectFirstFull: string;
+    awardClampedHint: string;
+    arrearsWithheld: string;
+    netToWinner: string;
+    discountKasr: string;
     searchNoMembers: string;
     searchReceipts: string;
     searchNoReceipts: string;
@@ -882,6 +887,9 @@ export type Messages = {
     memberHelpDefault: string;
     useHandBelow: string;
     allSlotsReady: string;
+    addFromExisting: string;
+    chooseExisting: string;
+    fromPhonebook: string;
     existingMembers: string;
     handsInChit: string;
     removeHand: string;

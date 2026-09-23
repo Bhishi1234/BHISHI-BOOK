@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookUser } from "lucide-react";
+import { BookUser, Plus, Trash2, UserPlus } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
@@ -15,8 +15,12 @@ import { useStore } from "../store";
 
 const FREQS: Frequency[] = ["biweekly", "monthly"];
 
-function needsStyleStep(type: ChitType) {
-  return type === "auction" || type === "fixed" || type === "loan";
+type Phase = "type" | "variant" | "collect" | "terms" | "members";
+
+function phasesFor(type: ChitType): Phase[] {
+  if (type === "fixed") return ["type", "variant", "collect", "terms", "members"];
+  if (type === "auction" || type === "loan") return ["type", "collect", "terms", "members"];
+  return ["type", "terms", "members"];
 }
 
 export function NewChitPage() {
@@ -24,7 +28,6 @@ export function NewChitPage() {
   const { m, tx, freqLabel, freqHint, typeLabel } = useI18n();
   const nav = useNavigate();
   const canPickContacts = contactsPickerAvailable();
-  /** 0 type · 1 style (auction/fixed) · 2 terms · 3 members */
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ChitType>("auction");
   const [auctionStyle, setAuctionStyle] = useState<AuctionStyle>("collect_first");
@@ -32,7 +35,6 @@ export function NewChitPage() {
   const [pot, setPot] = useState("");
   const [count, setCount] = useState("");
   const [duration, setDuration] = useState("");
-  /** While false, haptas stay mirrored to hands as the user types multi-digit counts. */
   const [durationManual, setDurationManual] = useState(false);
   const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
   const [title, setTitle] = useState("");
@@ -48,6 +50,7 @@ export function NewChitPage() {
   const [picked, setPicked] = useState<string[]>([]);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [existingPick, setExistingPick] = useState("");
   const [saving, setSaving] = useState(false);
   const [pickingContacts, setPickingContacts] = useState(false);
 
@@ -87,6 +90,9 @@ export function NewChitPage() {
     [m],
   );
 
+  const phases = phasesFor(type);
+  const phase = phases[Math.min(step, phases.length - 1)]!;
+
   const n = Number(count) || 0;
   const potN = Number(pot) || 0;
   const months = Number(duration) || n;
@@ -94,6 +100,7 @@ export function NewChitPage() {
   const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
   const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
   const tenureN = Number(tenure) || 0;
+  const slotsFull = !!n && picked.length >= n;
 
   async function addFromContacts() {
     setPickingContacts(true);
@@ -104,7 +111,7 @@ export function NewChitPage() {
         if (!phone) continue;
         const existing = customers.find((c) => c.phone === phone);
         if (existing) {
-          setPicked((p) => ((!!n && p.length >= n) ? p : [...p, existing.id]));
+          setPicked((p) => (slotsFull || (!!n && p.length >= n) ? p : [...p, existing.id]));
           continue;
         }
         const created = await addCustomer(row.name.trim() || m.common.member, phone);
@@ -157,24 +164,28 @@ export function NewChitPage() {
     style: styleLabel,
   }), [n, months, instalment, commMonth, styleLabel, m, tx]);
 
-  const stepper = needsStyleStep(type)
-    ? [
-        [m.newChit.pickType, ""],
-        [type === "auction" ? m.newChit.auctionStyle : type === "loan" ? m.settlementStyle.title : m.newChit.fixedStyle, ""],
-        [m.newChit.terms, ""],
-        [m.newChit.membersStep, ""],
-      ]
-    : [
-        [m.newChit.pickType, ""],
-        [m.newChit.terms, ""],
-        [m.newChit.membersStep, ""],
-      ];
+  function phaseLabel(p: Phase) {
+    if (p === "type") return m.newChit.pickType;
+    if (p === "variant") return m.newChit.fixedStyle;
+    if (p === "collect") {
+      return type === "auction" ? m.newChit.auctionStyle : m.settlementStyle.title;
+    }
+    if (p === "terms") return m.newChit.terms;
+    return m.newChit.membersStep;
+  }
 
-  const displayStep = needsStyleStep(type) ? step : step === 0 ? 0 : step - 1;
+  const stepper = phases.map(phaseLabel);
 
-  function goFromType() {
-    if (needsStyleStep(type)) setStep(1);
-    else setStep(2);
+  function goToTab(i: number) {
+    if (i <= step) setStep(i);
+  }
+
+  function goBack() {
+    setStep((s) => Math.max(0, s - 1));
+  }
+
+  function goNext() {
+    setStep((s) => Math.min(phases.length - 1, s + 1));
   }
 
   async function create() {
@@ -240,25 +251,32 @@ export function NewChitPage() {
     if (to < 0 || to >= picked.length) return;
     setPicked((xs) => {
       const next = [...xs];
-      const tmp = next[from];
-      next[from] = next[to];
+      const tmp = next[from]!;
+      next[from] = next[to]!;
       next[to] = tmp;
       return next;
     });
   }
 
-  const termsStepLabel = needsStyleStep(type) ? 3 : 2;
-  const membersStepLabel = needsStyleStep(type) ? 4 : 3;
-  const showPayoutOrder = type === "fixed" && (fixedStyle === "fixed_order" || fixedStyle === "hand_sacrifice");
-
-  function goToTab(i: number) {
-    // Only allow jumping back, or to the current step
-    if (i <= displayStep) {
-      if (needsStyleStep(type)) setStep(i);
-      else setStep(i === 0 ? 0 : i + 1);
-    }
+  function removePickAt(idx: number) {
+    setPicked((p) => p.filter((_, i) => i !== idx));
   }
 
+  async function addManualMember() {
+    if (!newName.trim() || slotsFull) return;
+    const c = await addCustomer(newName.trim(), newPhone.trim());
+    setPicked((p) => [...p, c.id]);
+    setNewName("");
+    setNewPhone("");
+  }
+
+  function addExistingMember() {
+    if (!existingPick || slotsFull) return;
+    setPicked((p) => [...p, existingPick]);
+    setExistingPick("");
+  }
+
+  const showPayoutOrder = type === "fixed" && (fixedStyle === "fixed_order" || fixedStyle === "hand_sacrifice");
   const memberHelp = showPayoutOrder
     ? fixedStyle === "hand_sacrifice"
       ? m.newChitExtra.memberHelpSacrifice
@@ -266,6 +284,8 @@ export function NewChitPage() {
     : fixedStyle === "lucky_draw" && type === "fixed"
       ? m.newChitExtra.memberHelpLuckyDraw
       : m.newChitExtra.memberHelpDefault;
+
+  const availableExisting = customers;
 
   return (
     <AppShell crumb={m.nav.chits} crumb2={m.newChit.title}>
@@ -279,16 +299,16 @@ export function NewChitPage() {
         </div>
 
         <nav className="wizard-tabs" aria-label={m.newChitExtra.createStepsAria}>
-          {stepper.map(([t], i) => {
-            const active = i === displayStep;
-            const done = i < displayStep;
+          {stepper.map((t, i) => {
+            const active = i === step;
+            const done = i < step;
             return (
               <button
-                key={t}
+                key={`${t}-${i}`}
                 type="button"
                 className={`wizard-tab${active ? " active" : ""}${done ? " done" : ""}`}
                 onClick={() => goToTab(i)}
-                disabled={i > displayStep}
+                disabled={i > step}
                 aria-current={active ? "step" : undefined}
               >
                 <span className="wizard-tab-label">{t}</span>
@@ -298,13 +318,19 @@ export function NewChitPage() {
         </nav>
         {error && <p className="due">{error}</p>}
 
-        {step === 0 && (
+        {phase === "type" && (
           <div className="card">
             <div className="row-head"><h2>{m.newChit.pickType}</h2><span className="muted">1 / {stepper.length}</span></div>
-            <p className="muted block">{m.newChit.pickType}</p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
               {TYPES.map((t) => (
-                <button key={t.id} className={`type-pick ${type === t.id ? "active" : ""}`} onClick={() => setType(t.id)}>
+                <button
+                  key={t.id}
+                  className={`type-pick ${type === t.id ? "active" : ""}`}
+                  onClick={() => {
+                    setType(t.id);
+                    setStep(0);
+                  }}
+                >
                   <h3>{t.title}</h3>
                   <p>{t.body}</p>
                 </button>
@@ -312,39 +338,14 @@ export function NewChitPage() {
             </div>
             <div className="wizard-actions">
               <span />
-              <button className="btn" onClick={goFromType}>{m.common.next}</button>
+              <button className="btn" onClick={goNext}>{m.common.next}</button>
             </div>
           </div>
         )}
 
-        {step === 1 && type === "auction" && (
+        {phase === "variant" && type === "fixed" && (
           <div className="card">
-            <div className="row-head"><h2>{m.newChit.auctionStyle}</h2><span className="muted">2 / {stepper.length}</span></div>
-            <p className="muted block">{m.auctionStyle.collect_first}</p>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              {AUCTION_STYLES.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`type-pick ${auctionStyle === s.id ? "active" : ""}`}
-                  onClick={() => setAuctionStyle(s.id)}
-                >
-                  <h3>{s.title}</h3>
-                  <p>{s.body}</p>
-                </button>
-              ))}
-            </div>
-            <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
-              <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
-            </div>
-          </div>
-        )}
-
-        {step === 1 && type === "fixed" && (
-          <div className="card">
-            <div className="row-head"><h2>{m.newChit.fixedStyle}</h2><span className="muted">2 / {stepper.length}</span></div>
-            <p className="muted block">{m.fixedStyle.fixed_order}</p>
+            <div className="row-head"><h2>{m.newChit.fixedStyle}</h2><span className="muted">{step + 1} / {stepper.length}</span></div>
             <div className="type-row" style={{ gridTemplateColumns: "1fr" }}>
               {FIXED_STYLES.map((s) => (
                 <button
@@ -358,34 +359,24 @@ export function NewChitPage() {
                 </button>
               ))}
             </div>
-            <h2 style={{ marginTop: 20 }}>{m.settlementStyle.title}</h2>
-            <p className="muted block">{m.settlementStyle.collect_first}</p>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              {SETTLEMENT_STYLES.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`type-pick ${auctionStyle === s.id ? "active" : ""}`}
-                  onClick={() => setAuctionStyle(s.id)}
-                >
-                  <h3>{s.title}</h3>
-                  <p>{s.body}</p>
-                </button>
-              ))}
-            </div>
             <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
-              <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
+              <button className="btn ghost" onClick={goBack}>{m.common.back}</button>
+              <button className="btn" onClick={goNext}>{m.common.next}</button>
             </div>
           </div>
         )}
 
-        {step === 1 && type === "loan" && (
+        {phase === "collect" && (
           <div className="card">
-            <div className="row-head"><h2>{m.settlementStyle.title}</h2><span className="muted">2 / {stepper.length}</span></div>
-            <p className="muted block">{m.settlementStyle.collect_first}</p>
+            <div className="row-head">
+              <h2>{type === "auction" ? m.newChit.auctionStyle : m.settlementStyle.title}</h2>
+              <span className="muted">{step + 1} / {stepper.length}</span>
+            </div>
+            <p className="muted block">
+              {type === "auction" ? m.auctionStyle.collect_first : m.settlementStyle.collect_first}
+            </p>
             <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              {SETTLEMENT_STYLES.map((s) => (
+              {(type === "auction" ? AUCTION_STYLES : SETTLEMENT_STYLES).map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -398,17 +389,17 @@ export function NewChitPage() {
               ))}
             </div>
             <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(0)}>{m.common.back}</button>
-              <button className="btn" onClick={() => setStep(2)}>{m.common.next}</button>
+              <button className="btn ghost" onClick={goBack}>{m.common.back}</button>
+              <button className="btn" onClick={goNext}>{m.common.next}</button>
             </div>
           </div>
         )}
 
-        {step === 2 && (
+        {phase === "terms" && (
           <div className="grid-2 new-chit-terms">
             <div>
               <div className="card">
-                <div className="row-head"><h2>{m.newChit.terms}</h2><span className="muted">{termsStepLabel} / {stepper.length}</span></div>
+                <div className="row-head"><h2>{m.newChit.terms}</h2><span className="muted">{step + 1} / {stepper.length}</span></div>
                 <div className="grid-2">
                   <div>
                     <label className="label">{m.terms.bhishiAmount}</label>
@@ -485,50 +476,30 @@ export function NewChitPage() {
                     <PromptBox tone="blue">{m.newChitExtra.interestOnAwardHint}</PromptBox>
                     <label className="label">{m.newChitExtra.interestCutLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
-                      <button
-                        type="button"
-                        className={`chip ${loanInterestUpfront ? "on" : ""}`}
-                        onClick={() => setLoanInterestUpfront(true)}
-                      >
+                      <button type="button" className={`chip ${loanInterestUpfront ? "on" : ""}`} onClick={() => setLoanInterestUpfront(true)}>
                         {m.newChitExtra.interestCutAtGive}
                       </button>
-                      <button
-                        type="button"
-                        className={`chip ${!loanInterestUpfront ? "on" : ""}`}
-                        onClick={() => setLoanInterestUpfront(false)}
-                      >
+                      <button type="button" className={`chip ${!loanInterestUpfront ? "on" : ""}`} onClick={() => setLoanInterestUpfront(false)}>
                         {m.newChitExtra.interestCutNextMonth}
                       </button>
                     </div>
                     <PromptBox tone="teal">
-                      {loanInterestUpfront
-                        ? m.newChitExtra.interestCutAtGiveHint
-                        : m.newChitExtra.interestCutNextMonthHint}
+                      {loanInterestUpfront ? m.newChitExtra.interestCutAtGiveHint : m.newChitExtra.interestCutNextMonthHint}
                     </PromptBox>
                     <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
                     <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value)} />
                     <PromptBox tone="blue">{m.newChitExtra.repaymentCapHint}</PromptBox>
                     <label className="label">{m.newChitExtra.principalModeLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
-                      <button
-                        type="button"
-                        className={`chip ${loanPrincipalMode === "emi" ? "on" : ""}`}
-                        onClick={() => setLoanPrincipalMode("emi")}
-                      >
+                      <button type="button" className={`chip ${loanPrincipalMode === "emi" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("emi")}>
                         {m.newChitExtra.principalEmi}
                       </button>
-                      <button
-                        type="button"
-                        className={`chip ${loanPrincipalMode === "end" ? "on" : ""}`}
-                        onClick={() => setLoanPrincipalMode("end")}
-                      >
+                      <button type="button" className={`chip ${loanPrincipalMode === "end" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("end")}>
                         {m.newChitExtra.principalAtEnd}
                       </button>
                     </div>
                     <PromptBox tone="amber">
-                      {loanPrincipalMode === "end"
-                        ? m.newChitExtra.principalAtEndHint
-                        : m.newChitExtra.principalEmiHint}
+                      {loanPrincipalMode === "end" ? m.newChitExtra.principalAtEndHint : m.newChitExtra.principalEmiHint}
                     </PromptBox>
                   </>
                 )}
@@ -542,12 +513,16 @@ export function NewChitPage() {
                   </>
                 )}
               </div>
-
             </div>
             <div className="new-chit-terms-side">
               <div className="card live-preview-card">
                 <div className="row-head"><h2>{m.newChit.summary}</h2></div>
-                {preview.style && <div className="kv"><span>{type === "auction" ? m.newChit.auctionStyle : m.newChit.fixedStyle}</span><strong>{preview.style}</strong></div>}
+                {preview.style && (
+                  <div className="kv">
+                    <span>{type === "auction" ? m.newChit.auctionStyle : type === "fixed" ? m.newChit.fixedStyle : m.settlementStyle.title}</span>
+                    <strong>{preview.style}</strong>
+                  </div>
+                )}
                 <div className="kv"><span>{m.nav.customers}</span><strong>{preview.members}</strong></div>
                 <div className="kv"><span>{m.newChit.duration}</span><strong>{preview.duration}</strong></div>
                 <div className="kv"><span>{m.terms.perHapta}</span><strong>{preview.per}</strong></div>
@@ -564,7 +539,7 @@ export function NewChitPage() {
                   {m.newChitExtra.confirmCheckbox}
                 </label>
                 <div className="wizard-actions">
-                  <button className="btn ghost" onClick={() => setStep(needsStyleStep(type) ? 1 : 0)}>{m.common.back}</button>
+                  <button className="btn ghost" onClick={goBack}>{m.common.back}</button>
                   <button
                     className="btn"
                     disabled={!confirm || !potN || !n}
@@ -574,7 +549,7 @@ export function NewChitPage() {
                         window.alert(tx(m.newChitExtra.haptasMustMatchHands, { hands: n }));
                         return;
                       }
-                      setStep(3);
+                      goNext();
                     }}
                   >
                     {m.common.next}
@@ -585,10 +560,58 @@ export function NewChitPage() {
           </div>
         )}
 
-        {step === 3 && (
-          <div className="card">
-            <div className="row-head"><h2>{m.newChit.membersStep}</h2><span className="muted">{membersStepLabel} / {stepper.length}</span></div>
+        {phase === "members" && (
+          <div className="card members-wizard">
+            <div className="row-head">
+              <h2>{m.newChit.membersStep}</h2>
+              <span className="muted">{step + 1} / {stepper.length}</span>
+            </div>
             <p className="muted block">{memberHelp}</p>
+            <p className="members-slot-meta">
+              {tx(m.newChitExtra.slotsFilled, { filled: picked.length, total: n || 0 })}
+              {n > 0 && picked.length < n ? ` · ${m.newChitExtra.useHandBelow}` : ""}
+              {n > 0 && picked.length === n ? ` · ${m.newChitExtra.allSlotsReady}` : ""}
+            </p>
+
+            {picked.length > 0 && (
+              <div className="picked-list">
+                {picked.map((id, i) => {
+                  const c = customers.find((x) => x.id === id);
+                  const handNo = picked.slice(0, i + 1).filter((x) => x === id).length;
+                  const totalHands = picked.filter((x) => x === id).length;
+                  const needsInvite = Boolean(c?.phone) && !isOnApp(c?.phone);
+                  return (
+                    <div key={`${id}-${i}`} className="picked-row">
+                      <span className="picked-slot">{tx(m.newChitExtra.slotN, { n: i + 1 })}</span>
+                      <div className="grow">
+                        <div className="member-name-row">
+                          <strong>{c?.name || id}</strong>
+                          {totalHands > 1 ? <span className="muted"> · {tx(m.chit.handOf, { n: handNo })}</span> : null}
+                          {needsInvite && c?.phone ? (
+                            <InviteWhatsAppButton phone={c.phone} message={inviteMsg(c.name, c.phone)} />
+                          ) : null}
+                        </div>
+                        {c?.phone ? <div className="muted">{c.phone}</div> : null}
+                      </div>
+                      {showPayoutOrder && (
+                        <>
+                          <button type="button" className="btn ghost btn-sm" disabled={i === 0} onClick={() => movePick(i, -1)}>↑</button>
+                          <button type="button" className="btn ghost btn-sm" disabled={i === picked.length - 1} onClick={() => movePick(i, 1)}>↓</button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={m.newChitExtra.removeHand}
+                        onClick={() => removePickAt(i)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="add-member-box">
               <strong className="add-member-title">{m.newChitExtra.addNewMember}</strong>
@@ -596,113 +619,61 @@ export function NewChitPage() {
                 <input className="field" placeholder={m.profile.name} value={newName} onChange={(e) => setNewName(e.target.value)} />
                 <input className="field" placeholder={m.profile.phone} value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
               </div>
-              <div className="add-member-actions">
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={!newName.trim() || (!!n && picked.length >= n)}
-                  onClick={async () => {
-                    if (!newName.trim()) return;
-                    const c = await addCustomer(newName.trim(), newPhone.trim());
-                    setPicked((p) => [...p, c.id]);
-                    setNewName("");
-                    setNewPhone("");
-                  }}
-                >
-                  {m.newChit.addMember}
-                </button>
-                {canPickContacts && (
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    disabled={pickingContacts || (!!n && picked.length >= n)}
-                    onClick={() => void addFromContacts()}
-                  >
-                    <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromContacts}
-                  </button>
-                )}
-              </div>
+              <button
+                className="btn wide"
+                type="button"
+                disabled={!newName.trim() || slotsFull}
+                onClick={() => void addManualMember()}
+              >
+                <Plus size={15} /> {m.newChit.addMember}
+              </button>
             </div>
 
-            <p className="muted" style={{ margin: "16px 0 8px" }}>
-              {tx(m.newChitExtra.slotsFilled, { filled: picked.length, total: n || 0 })}
-              {n > 0 && picked.length < n ? ` ${m.newChitExtra.useHandBelow}` : ""}
-              {n > 0 && picked.length === n ? ` ${m.newChitExtra.allSlotsReady}` : ""}
-              {" "}{m.newChitExtra.inviteBesideName}
-            </p>
-
-            {!!customers.length && (
-              <div className="section-label" style={{ paddingLeft: 0, paddingTop: 4 }}>{m.newChitExtra.existingMembers}</div>
-            )}
-            {customers.map((c) => {
-              const hands = picked.filter((id) => id === c.id).length;
-              const needsInvite = Boolean(c.phone) && !isOnApp(c.phone);
-              return (
-                <div key={c.id} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
-                  <div className="grow">
-                    <div className="member-name-row">
-                      <strong>{c.name}</strong>
-                      {needsInvite ? (
-                        <InviteWhatsAppButton
-                          phone={c.phone}
-                          message={inviteMsg(c.name, c.phone)}
-                        />
-                      ) : null}
-                    </div>
-                    <div className="muted">{c.phone}</div>
-                    {hands > 0 ? <div className="muted">{tx(m.newChitExtra.handsInChit, { n: hands })}</div> : null}
-                  </div>
+            <div className="member-add-row">
+              <div className="member-add-block">
+                <label className="label">{m.newChitExtra.addFromExisting}</label>
+                <div className="member-add-inline">
+                  <select
+                    className="field"
+                    value={existingPick}
+                    disabled={slotsFull || !availableExisting.length}
+                    onChange={(e) => setExistingPick(e.target.value)}
+                  >
+                    <option value="">{m.newChitExtra.chooseExisting}</option>
+                    {availableExisting.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{c.phone ? ` · ${c.phone}` : ""}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
-                    className="btn ghost btn-sm"
-                    disabled={hands === 0}
-                    onClick={() => {
-                      const idx = picked.lastIndexOf(c.id);
-                      if (idx >= 0) setPicked((p) => p.filter((_, i) => i !== idx));
-                    }}
+                    className="btn ghost"
+                    disabled={!existingPick || slotsFull}
+                    onClick={addExistingMember}
                   >
-                    {m.newChitExtra.removeHand}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost btn-sm"
-                    disabled={!!n && picked.length >= n}
-                    onClick={() => setPicked((p) => [...p, c.id])}
-                  >
-                    {m.newChit.addHand}
+                    <UserPlus size={15} /> {m.newChit.addHand}
                   </button>
                 </div>
-              );
-            })}
-            {showPayoutOrder && !!picked.length && (
-              <div className="card" style={{ margin: "12px 0", background: "#f8fafc" }}>
-                <strong>{m.newChitExtra.payoutOrder}</strong>
-                {picked.map((id, i) => {
-                  const c = customers.find((x) => x.id === id);
-                  const handNo = picked.slice(0, i + 1).filter((x) => x === id).length;
-                  const totalHands = picked.filter((x) => x === id).length;
-                  const needsInvite = Boolean(c?.phone) && !isOnApp(c?.phone);
-                  return (
-                    <div key={`${id}-${i}`} className="list-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
-                      <span className="muted">{tx(m.newChitExtra.slotN, { n: i + 1 })}</span>
-                      <div className="grow">
-                        <div className="member-name-row">
-                          <strong>{c?.name}</strong>
-                          {totalHands > 1 ? <span className="muted"> · {tx(m.chit.handOf, { n: handNo })}</span> : null}
-                          {needsInvite && c?.phone ? (
-                            <InviteWhatsAppButton phone={c.phone} message={inviteMsg(c.name, c.phone)} />
-                          ) : null}
-                        </div>
-                      </div>
-                      <button type="button" className="btn ghost btn-sm" disabled={i === 0} onClick={() => movePick(i, -1)}>↑</button>
-                      <button type="button" className="btn ghost btn-sm" disabled={i === picked.length - 1} onClick={() => movePick(i, 1)}>↓</button>
-                    </div>
-                  );
-                })}
               </div>
-            )}
+
+              {canPickContacts && (
+                <div className="member-add-block">
+                  <label className="label">{m.newChitExtra.fromPhonebook}</label>
+                  <button
+                    className="btn ghost wide"
+                    type="button"
+                    disabled={pickingContacts || slotsFull}
+                    onClick={() => void addFromContacts()}
+                  >
+                    <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromPhonebook}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="wizard-actions">
-              <button className="btn ghost" onClick={() => setStep(2)}>{m.common.back}</button>
+              <button className="btn ghost" onClick={goBack}>{m.common.back}</button>
               <button
                 className="btn"
                 disabled={saving || !n || picked.length !== n}

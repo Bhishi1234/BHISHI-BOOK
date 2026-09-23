@@ -8,7 +8,7 @@ import type {
   Ticket,
   User,
 } from "../types";
-import { assertCanSettlePayout, canCloseLastMonth, chitHasStarted, computeInstalment, cycleDue, inferKind } from "../lib/chitMath";
+import { assertCanSettlePayout, canCloseCurrentCycle, canCloseLastMonth, chitHasStarted, computeInstalment, cycleDue, inferKind } from "../lib/chitMath";
 import { uid } from "../lib/format";
 
 const KEY = "bhishi-book-api-v8";
@@ -619,6 +619,8 @@ export const mockServer = {
       if (chit.mode === "organise" && chit.type !== "loan" && !chit.auctions.some((a) => a.cycle === chit.currentCycle)) {
         throw new Error("Settle this cycle's winner before closing");
       }
+      const collectGate = canCloseCurrentCycle(chit);
+      if (!collectGate.ok) throw new Error(collectGate.reason);
       const gate = canCloseLastMonth(chit);
       if (!gate.ok) throw new Error(gate.reason);
       db.chits = db.chits.map((c) => {
