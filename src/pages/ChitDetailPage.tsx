@@ -4,7 +4,6 @@ import {
   AlertCircle,
   BookUser,
   Calendar,
-  CalendarRange,
   ChevronLeft,
   ChevronRight,
   Percent,
@@ -30,6 +29,7 @@ import {
   canGiveLoan,
   canSettleCycle,
   chitHasStarted,
+  chitProgress,
   collectedThisCycle,
   collectedCount,
   commissionEarned,
@@ -76,13 +76,16 @@ import {
 } from "../lib/chitMath";
 import { downloadChitCsv } from "../lib/exportCsv";
 import {
+  downloadAwardReportPdf,
   downloadChitReportPdf,
   downloadLoanReportPdf,
   downloadMonthDuesPdf,
   downloadReceiptPdf,
 } from "../lib/reportsPdf";
 import { pickContactsFromBook } from "../lib/contacts";
+import { isNativeApp } from "../lib/native";
 import {
+  awardWinnerWhatsAppMessage,
   canMessagePhone,
   dueReminderWhatsAppMessage,
   inviteMemberWhatsAppMessage,
@@ -134,7 +137,7 @@ export function ChitDetailPage() {
   const [editName, setEditName] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editSaving, setEditSaving] = useState(false);
-  const [loanShare, setLoanShare] = useState<AuctionRecord | null>(null);
+  const [awardShare, setAwardShare] = useState<AuctionRecord | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [editPhoneId, setEditPhoneId] = useState<string | null>(null);
@@ -292,6 +295,53 @@ export function ChitDetailPage() {
     setMonthSub(awardFirst ? "award" : "collect");
   }
 
+  function afterAwardRecorded(rec: AuctionRecord | null | undefined) {
+    if (rec) setAwardShare(rec);
+    goAfterAward();
+  }
+
+  function awardMemberLabel(rec: AuctionRecord) {
+    const slot = rec.winnerSlot ?? 1;
+    const hands = data.members.filter((m) => m.customerId === rec.winnerId).length;
+    return handLabel(names[rec.winnerId] || "Member", slot, hands);
+  }
+
+  function awardShareCaption(rec: AuctionRecord) {
+    const memberName = awardMemberLabel(rec);
+    if (data.type === "loan") {
+      const p = loanSharePayload(rec);
+      return loanBorrowerWhatsAppMessage({
+        memberName: p.memberName,
+        chitName: data.name,
+        cycle: rec.cycle,
+        duration: data.duration,
+        face: p.face,
+        interestCut: p.interestCut,
+        netPaid: p.netPaid,
+        interestRate: p.interestRate,
+        tenure: p.tenure,
+        repayFrom: p.repayFrom,
+        repayTo: p.repayTo,
+        deposit: p.deposit,
+        interestPerMonth: p.interestPerMonth,
+        principalPerMonth: p.principalPerMonth,
+        organiserName: user?.name,
+      });
+    }
+    return awardWinnerWhatsAppMessage({
+      memberName,
+      chitName: data.name,
+      cycle: rec.cycle,
+      duration: data.duration,
+      bid: rec.bid,
+      payout: rec.payout,
+      commission: rec.commission || 0,
+      discount: rec.discount || 0,
+      method: rec.method,
+      organiserName: user?.name,
+    });
+  }
+
   function loanSharePayload(rec: AuctionRecord) {
     const face = loanFaceAmount(rec);
     const tenure = loanEffectiveTenure(data, rec.cycle);
@@ -316,8 +366,40 @@ export function ChitDetailPage() {
     };
   }
 
+  function shareAwardPdfOnly(rec: AuctionRecord) {
+    if (data.type === "loan") {
+      downloadLoanReportPdf(data, rec, names, user?.name, { mode: "download" });
+    } else {
+      downloadAwardReportPdf(data, rec, names, user?.name, { mode: "download" });
+    }
+  }
+
+  function shareAwardPdfWhatsApp(rec: AuctionRecord) {
+    const caption = awardShareCaption(rec);
+    const title = data.type === "loan" ? copy.chit.loanReportPdf : copy.chit.awardReportPdf;
+    if (data.type === "loan") {
+      downloadLoanReportPdf(data, rec, names, user?.name, {
+        mode: "share",
+        title,
+        text: caption,
+      });
+    } else {
+      downloadAwardReportPdf(data, rec, names, user?.name, {
+        mode: "share",
+        title,
+        text: caption,
+      });
+    }
+    const phone = customers.find((c) => c.id === rec.winnerId)?.phone;
+    // On native the share sheet can send the PDF to WhatsApp.
+    // On web, also open WhatsApp with the summary so the organiser can attach the downloaded PDF.
+    if (!isNativeApp() && canMessagePhone(phone)) {
+      window.setTimeout(() => openWhatsApp(phone!, caption), 400);
+    }
+  }
+
   function shareLoanPdf(rec: AuctionRecord) {
-    downloadLoanReportPdf(data, rec, names, user?.name);
+    downloadLoanReportPdf(data, rec, names, user?.name, { mode: "download" });
   }
 
   function shareLoanToBorrower(rec: AuctionRecord) {
@@ -372,76 +454,16 @@ export function ChitDetailPage() {
   return (
     <AppShell crumb={copy.nav.chits} crumb2={data.name}>
       <div className="page chit-detail-page">
-        <section className="chit-hero">
+        <section className="chit-hero chit-hero-compact">
           <div className="chit-hero-top">
             <div className="chit-hero-avatar">{initials(data.name)}</div>
             <div className="chit-hero-heading">
               <h1>{data.name}</h1>
-              <p>
-                {typeLabel(data.type)}
-                {styleLabel && styleLabel !== typeLabel(data.type) ? ` · ${styleLabel}` : ""}
-                {data.title ? ` · ${data.title}` : ""}
-              </p>
             </div>
             <span className={`chit-hero-pill ${isRunning ? "live" : ""}`}>
               {statusLabel(data.status) || data.status}
             </span>
           </div>
-          <div className="chit-hero-divider" />
-          <div className="chit-hero-grid">
-            <div className="chit-hero-cell">
-              <div className="chit-hero-icon"><Users size={16} strokeWidth={2} /></div>
-              <div>
-                <span>{copy.nav.customers}</span>
-                <strong>{tx(copy.chit.membersOf, { count: data.members.length, total: data.membersCount })}</strong>
-              </div>
-            </div>
-            <div className="chit-hero-cell">
-              <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
-              <div>
-                <span>{copy.chit.instalment}</span>
-                <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
-              </div>
-            </div>
-            <div className="chit-hero-cell">
-              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
-              <div>
-                <span>{copy.chit.started}</span>
-                <strong>{new Date(data.startDate).toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
-              </div>
-            </div>
-            <div className="chit-hero-cell">
-              <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
-              <div>
-                <span>{copy.chit.ends}</span>
-                <strong>{ended.toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
-              </div>
-            </div>
-            <div className="chit-hero-cell">
-              <div className="chit-hero-icon"><Percent size={16} strokeWidth={2} /></div>
-              <div>
-                <span>{copy.terms.commission}</span>
-                <strong>{commissionLabel}</strong>
-              </div>
-            </div>
-            <div className="chit-hero-cell">
-              <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
-              <div>
-                <span>{copy.chit.month}</span>
-                <strong>{cycle} / {data.duration}</strong>
-              </div>
-            </div>
-          </div>
-          {(data.type === "loan" && (data.repaymentTenure || data.loanPrincipalMode || data.loanInterestUpfront != null)) && (
-            <p className="chit-hero-note">
-              {data.repaymentTenure ? tx(copy.chit.repayMonthsShort, { n: data.repaymentTenure }) : ""}
-              {data.repaymentTenure ? " · " : ""}
-              {data.loanPrincipalMode === "end" ? copy.chit.principalAtEndLabel : copy.chit.principalReducingLabel}
-              {" · "}
-              {data.loanInterestUpfront === false ? copy.chit.interestFromNextLabel : copy.chit.interestCutAtGiveLabel}
-              {" · " + copy.chit.interestPerLoanLabel}
-            </p>
-          )}
         </section>
 
         {error && <p className="due">{error}</p>}
@@ -508,6 +530,62 @@ export function ChitDetailPage() {
               tone="amber"
               icon={Users}
             />
+          </div>
+        )}
+
+        {tab === "overview" && (
+          <div className="card block chit-details-card">
+            <div className="row-head" style={{ marginBottom: 10 }}>
+              <h2 style={{ margin: 0 }}>{copy.chit.groupDetails}</h2>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {typeLabel(data.type)}
+                {styleLabel && styleLabel !== typeLabel(data.type) ? ` · ${styleLabel}` : ""}
+                {data.title ? ` · ${data.title}` : ""}
+              </span>
+            </div>
+            <div className="chit-details-grid">
+              <div className="chit-details-cell">
+                <span>{copy.nav.customers}</span>
+                <strong>{tx(copy.chit.membersOf, { count: data.members.length, total: data.membersCount })}</strong>
+              </div>
+              <div className="chit-details-cell">
+                <span>{copy.chit.instalment}</span>
+                <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
+              </div>
+              <div className="chit-details-cell">
+                <span>{copy.chit.started}</span>
+                <strong>{new Date(data.startDate).toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
+              </div>
+              <div className="chit-details-cell">
+                <span>{copy.chit.ends}</span>
+                <strong>{ended.toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
+              </div>
+              <div className="chit-details-cell">
+                <span>{copy.terms.commission}</span>
+                <strong>{commissionLabel}</strong>
+              </div>
+              <div className="chit-details-cell">
+                <span>{copy.chit.month}</span>
+                <strong>{cycle} / {data.duration}</strong>
+              </div>
+            </div>
+            <div className="dash-chit-progress" style={{ marginTop: 14 }}>
+              <div className="dash-chit-progress-head">
+                <span>{copy.terms.collection}</span>
+                <strong>{chitProgress(data)}%</strong>
+              </div>
+              <div className="progress"><i style={{ width: `${chitProgress(data)}%` }} /></div>
+            </div>
+            {(data.type === "loan" && (data.repaymentTenure || data.loanPrincipalMode || data.loanInterestUpfront != null)) && (
+              <p className="muted" style={{ marginTop: 12, marginBottom: 0, fontSize: 12.5 }}>
+                {data.repaymentTenure ? tx(copy.chit.repayMonthsShort, { n: data.repaymentTenure }) : ""}
+                {data.repaymentTenure ? " · " : ""}
+                {data.loanPrincipalMode === "end" ? copy.chit.principalAtEndLabel : copy.chit.principalReducingLabel}
+                {" · "}
+                {data.loanInterestUpfront === false ? copy.chit.interestFromNextLabel : copy.chit.interestCutAtGiveLabel}
+                {" · " + copy.chit.interestPerLoanLabel}
+              </p>
+            )}
           </div>
         )}
 
@@ -1163,7 +1241,7 @@ export function ChitDetailPage() {
                                 const who = winnerId || lastMember?.customerId || "";
                                 const slot = winnerSlot ?? lastMember?.slot;
                                 void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot)
-                                  .then(() => goAfterAward());
+                                  .then((rec) => afterAwardRecorded(rec));
                               }}
                             >
                               {copy.chit.awardFullPot}
@@ -1207,7 +1285,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !bid}
-                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot).then(() => goAfterAward())}
+                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot).then((rec) => afterAwardRecorded(rec))}
                             >
                               {copy.chit.recordAuctionBtn}
                             </button>
@@ -1356,8 +1434,7 @@ export function ChitDetailPage() {
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
                                   setLoanSkipped(false);
-                                  if (rec) setLoanShare(rec);
-                                  goAfterAward();
+                                  afterAwardRecorded(rec);
                                 });
                               }}
                             >
@@ -1433,7 +1510,7 @@ export function ChitDetailPage() {
                             style={{ marginTop: 12 }}
                             onClick={() => {
                               setLoanSkipped(true);
-                              setLoanShare(null);
+                              setAwardShare(null);
                               goAfterAward();
                             }}
                           >
@@ -1485,7 +1562,7 @@ export function ChitDetailPage() {
                                 onClick={() => {
                                   const who = winnerId || unprized[0]?.customerId || "";
                                   const slot = winnerSlot ?? unprized[0]?.slot;
-                                  void recordAuction(data.id, who, data.pot, "lucky_draw", slot).then(() => goAfterAward());
+                                  void recordAuction(data.id, who, data.pot, "lucky_draw", slot).then((rec) => afterAwardRecorded(rec));
                                 }}
                               >
                                 {copy.chit.awardLastPot}
@@ -1514,7 +1591,7 @@ export function ChitDetailPage() {
                                 <button
                                   className="btn ghost"
                                   disabled={!canSettleCycle(data) || !winnerId}
-                                  onClick={() => void recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot).then(() => goAfterAward())}
+                                  onClick={() => void recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot).then((rec) => afterAwardRecorded(rec))}
                                 >
                                   {copy.chit.awardPot}
                                 </button>
@@ -1547,7 +1624,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then(() => goAfterAward())}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then((rec) => afterAwardRecorded(rec))}
                             >
                               {copy.chit.awardPot}
                             </button>
@@ -1598,7 +1675,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then(() => goAfterAward())}
+                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then((rec) => afterAwardRecorded(rec))}
                             >
                               {copy.chit.awardPot}
                             </button>
@@ -2378,30 +2455,29 @@ export function ChitDetailPage() {
         </div>
       )}
 
-      {loanShare && (
-        <div className="modal-back" onClick={() => setLoanShare(null)}>
+      {awardShare && (
+        <div className="modal-back" onClick={() => setAwardShare(null)}>
           <div
             className="modal loan-share-banner"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="loan-share-title"
+            aria-labelledby="award-share-title"
           >
-            <h2 id="loan-share-title" style={{ margin: "0 0 6px" }}>{copy.chit.loanShareTitle}</h2>
+            <h2 id="award-share-title" style={{ margin: "0 0 6px" }}>
+              {data.type === "loan" ? copy.chit.loanShareTitle : copy.chit.awardShareTitle}
+            </h2>
             <p className="muted" style={{ margin: "0 0 12px" }}>
-              {copy.chit.loanShareHint}
+              {data.type === "loan" ? copy.chit.loanShareHint : copy.chit.awardShareHint}
             </p>
             <div className="loan-share-row">
-              <button type="button" className="btn" onClick={() => shareLoanPdf(loanShare)}>
-                <Share2 size={15} /> {copy.chit.loanReportPdf}
+              <button type="button" className="btn" onClick={() => shareAwardPdfWhatsApp(awardShare)}>
+                <Share2 size={15} /> {copy.chit.sharePdfWhatsApp}
               </button>
-              <button type="button" className="btn ghost" onClick={() => shareLoanToBorrower(loanShare)}>
-                {copy.chit.whatsappBorrower}
+              <button type="button" className="btn ghost" onClick={() => shareAwardPdfOnly(awardShare)}>
+                {copy.chit.pdfOnly}
               </button>
-              <button type="button" className="btn ghost" onClick={() => void shareLoanToGroup(loanShare)}>
-                {copy.chit.shareToGroup}
-              </button>
-              <button type="button" className="btn ghost" onClick={() => setLoanShare(null)}>
+              <button type="button" className="btn ghost" onClick={() => setAwardShare(null)}>
                 {copy.chit.dismiss}
               </button>
             </div>

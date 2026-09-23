@@ -160,6 +160,46 @@ export function loanGroupWhatsAppMessage(opts: {
   return lines.join("\n");
 }
 
+/** WhatsApp note when a pot / auction / lucky-draw award is recorded. */
+export function awardWinnerWhatsAppMessage(opts: {
+  memberName: string;
+  chitName: string;
+  cycle: number;
+  duration: number;
+  bid: number;
+  payout: number;
+  commission: number;
+  discount?: number;
+  method?: string;
+  organiserName?: string;
+}) {
+  const lines = [
+    `Namaste ${opts.memberName.trim() || "friend"} 🙏`,
+    "",
+    `Your award from *${opts.chitName}* (Bhishi Circle) is recorded.`,
+    "",
+    `*Award details*`,
+    `• Month: *${opts.cycle}* of *${opts.duration}*`,
+    `• Award face: *${inr(opts.bid)}*`,
+  ];
+  if ((opts.discount || 0) > 0) {
+    lines.push(`• Discount / kasr: *${inr(opts.discount || 0)}*`);
+  }
+  lines.push(
+    `• You receive: *${inr(opts.payout)}*`,
+    `• Organiser commission: *${inr(opts.commission)}*`,
+  );
+  if (opts.method) lines.push(`• Method: ${opts.method}`);
+  lines.push(
+    "",
+    "A PDF award slip is also available from the organiser.",
+    "",
+    "Thank you!",
+  );
+  if (opts.organiserName) lines.push(`— ${opts.organiserName}`);
+  return lines.join("\n");
+}
+
 export function canMessagePhone(phone: string | null | undefined) {
   return digits10Loose(phone || "").length === 10;
 }

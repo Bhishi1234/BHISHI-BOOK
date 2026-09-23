@@ -6,11 +6,23 @@ import { AppShell } from "../layout/AppShell";
 import { chitProgress, collectedThisCycle, displayCycle, outstandingOf } from "../lib/chitMath";
 import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
+import type { Chit } from "../types";
 import { StatCard, toneAt } from "../ui/StatCard";
+
+function endMonth(chit: Chit) {
+  const d = new Date(chit.startDate);
+  d.setMonth(d.getMonth() + chit.duration);
+  return d;
+}
+
+function commissionText(chit: Chit, formatInr: (n: number) => string) {
+  if (chit.commissionKind === "amount" && chit.commissionValue) return formatInr(chit.commissionValue);
+  return `${chit.commissionPct}%`;
+}
 
 export function DashboardPage() {
   const { user, chits } = useStore();
-  const { m, typeLabel, statusLabel, greetingNow, longDateNow } = useI18n();
+  const { m, typeLabel, statusLabel, greetingNow, longDateNow, freqLabel, locale } = useI18n();
   const nav = useNavigate();
   const active = chits.filter((c) => c.status === "running");
   const managed = active.filter((c) => c.mode === "organise" && c.members.length > 0 && c.viewerRole !== "member");
@@ -42,6 +54,7 @@ export function DashboardPage() {
             {managed.map((c, i) => {
               const pct = chitProgress(c);
               const featured = i % 2 === 0;
+              const ends = endMonth(c);
               return (
                 <article
                   key={c.id}
@@ -52,7 +65,11 @@ export function DashboardPage() {
                     <div className={`dash-chit-avatar tone-${toneAt(i)}`}>{initials(c.name)}</div>
                     <div className="dash-chit-heading">
                       <strong>{c.name}</strong>
-                      <span>{typeLabel(c.type)} · {c.members.length} {m.common.members}</span>
+                      <span>
+                        {typeLabel(c.type)}
+                        {c.title ? ` · ${c.title}` : ""}
+                        {` · ${c.members.length} ${m.common.members}`}
+                      </span>
                     </div>
                     <div className="dash-chit-actions">
                       <span className="dash-chit-status live">
@@ -62,14 +79,30 @@ export function DashboardPage() {
                     </div>
                   </div>
                   <div className="dash-chit-divider" />
-                  <div className="dash-chit-meta">
+                  <div className="dash-chit-grid">
                     <div>
-                      <span>{m.terms.haptaRound}</span>
-                      <strong>{displayCycle(c)} / {c.duration}</strong>
+                      <span>{m.nav.customers}</span>
+                      <strong>{c.members.length} / {c.membersCount}</strong>
                     </div>
                     <div>
                       <span>{m.terms.perHapta}</span>
-                      <strong>{inr(c.instalment)}</strong>
+                      <strong>{inr(c.instalment)}/{freqLabel(c.frequency) || c.frequency}</strong>
+                    </div>
+                    <div>
+                      <span>{m.chit.started}</span>
+                      <strong>{new Date(c.startDate).toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
+                    </div>
+                    <div>
+                      <span>{m.chit.ends}</span>
+                      <strong>{ends.toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
+                    </div>
+                    <div>
+                      <span>{m.terms.commission}</span>
+                      <strong>{commissionText(c, inr)}</strong>
+                    </div>
+                    <div>
+                      <span>{m.terms.haptaRound}</span>
+                      <strong>{displayCycle(c)} / {c.duration}</strong>
                     </div>
                   </div>
                   <div className="dash-chit-progress">

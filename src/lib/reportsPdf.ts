@@ -64,35 +64,69 @@ function safeName(s: string) {
   return (s || "report").replace(/[^\w\-]+/g, "_").slice(0, 60);
 }
 
-function downloadBlob(doc: jsPDF, filename: string) {
-  void savePdf(doc, filename);
+function downloadBlob(doc: jsPDF, filename: string, opts?: SavePdfOpts) {
+  void savePdf(doc, filename, opts);
 }
 
-async function savePdf(doc: jsPDF, filename: string) {
-  if (!isNativeApp()) {
+export type SavePdfOpts = {
+  /** download = save file only; share = open share sheet / Web Share with the PDF */
+  mode?: "download" | "share";
+  title?: string;
+  text?: string;
+};
+
+async function savePdf(doc: jsPDF, filename: string, opts?: SavePdfOpts) {
+  const mode = opts?.mode ?? (isNativeApp() ? "share" : "download");
+  const title = opts?.title || filename;
+  const text = opts?.text;
+
+  if (mode === "download") {
     doc.save(filename);
     return;
   }
-  try {
-    const { Filesystem, Directory } = await import("@capacitor/filesystem");
-    const { Share } = await import("@capacitor/share");
-    const dataUrl = doc.output("datauristring");
-    const base64 = dataUrl.split(",")[1] || "";
-    const path = filename.replace(/[^\w.\-]+/g, "_");
-    await Filesystem.writeFile({
-      path,
-      data: base64,
-      directory: Directory.Cache,
-    });
-    const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
-    await Share.share({
-      title: filename,
-      url: uri,
-      dialogTitle: "Share Bhishi Circle report",
-    });
-  } catch {
-    doc.save(filename);
+
+  if (isNativeApp()) {
+    try {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const { Share } = await import("@capacitor/share");
+      const dataUrl = doc.output("datauristring");
+      const base64 = dataUrl.split(",")[1] || "";
+      const path = filename.replace(/[^\w.\-]+/g, "_");
+      await Filesystem.writeFile({
+        path,
+        data: base64,
+        directory: Directory.Cache,
+      });
+      const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
+      await Share.share({
+        title,
+        text,
+        url: uri,
+        dialogTitle: title,
+      });
+      return;
+    } catch {
+      doc.save(filename);
+      return;
+    }
   }
+
+  try {
+    const blob = doc.output("blob");
+    const file = new File([blob], filename, { type: "application/pdf" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title,
+        text,
+      });
+      return;
+    }
+  } catch {
+    /* cancelled or unsupported */
+  }
+
+  doc.save(filename);
 }
 
 /** Soft page wash — page 1 keeps hero; later pages get a light top band. */
@@ -790,6 +824,7 @@ export function downloadLoanReportPdf(
   auction: AuctionRecord,
   names: Record<string, string>,
   organiserName?: string,
+  opts?: SavePdfOpts,
 ) {
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
   const face = loanFaceAmount(auction);
@@ -877,5 +912,76 @@ export function downloadLoanReportPdf(
   );
 
   footer(doc);
-  downloadBlob(doc, `${safeName(chit.name)}-loan-${safeName(borrower)}-m${auction.cycle}.pdf`);
+  downloadBlob(doc, `${safeName(chit.name)}-loan-${safeName(borrower)}-m${auction.cycle}.pdf`, opts);
+}
+
+/**
+ * Pot / auction / lucky-draw award slip for the winner (and organiser records).
+ */
+export function downloadAwardReportPdf(
+  chit: Chit,
+  auction: AuctionRecord,
+  names: Record<string, string>,
+  organiserName?: string,
+  opts?: SavePdfOpts,
+) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
+  const slot = auction.winnerSlot ?? 1;
+  const hands = chit.members.filter((m) => m.customerId === auction.winnerId).length;
+  const winner = handLabel(names[auction.winnerId] || auction.winnerId, slot, hands);
+  const methodLabel =
+    auction.method === "lucky_draw"
+      ? "Lucky draw"
+      : auction.method === "auction"
+        ? "Auction"
+        : auction.method === "settlement"
+          ? "Settlement"
+          : "Fixed / committee";
+
+  brandHeader(doc, chit.name, "Award report");
+
+  let y = CONTENT_START_Y;
+  y = docTitle(
+    doc,
+    y,
+    "Award / payout report",
+    `Month ${auction.cycle} of ${chit.duration} · ${methodLabel}`,
+  );
+
+  y = kpiRow(doc, y, [
+    { label: "Award face", value: money(auction.bid) },
+    { label: "Discount / kasr", value: money(auction.discount || 0) },
+    { label: "Winner receives", value: money(auction.payout) },
+    { label: "Commission", value: money(auction.commission || 0) },
+  ]);
+
+  const detailRows: [string, string][] = [
+    ["Winner", winner],
+    ["Bhishi / chit", chit.name],
+    ["Type", TYPE_LABEL[chit.type] || chit.type],
+    ["Award method", methodLabel],
+    ["Month", `Month ${auction.cycle} of ${chit.duration}`],
+    ["Pot / face", money(chit.pot)],
+    ["Instalment (hapta)", money(baseInstalment(chit))],
+  ];
+  if ((auction.dividend || 0) > 0) {
+    detailRows.push(["Dividend / adjustment", money(auction.dividend || 0)]);
+  }
+  if (organiserName) detailRows.push(["Recorded by", organiserName]);
+
+  y = drawKvBlock(doc, y, detailRows);
+  y += 2;
+  y = amountBanner(doc, y, "Amount paid to winner", money(auction.payout));
+
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    "This award report is generated by Bhishi Circle for the bhishi group and the winner. It is not a tax invoice or legal bond.",
+    MARGIN,
+    y,
+    { maxWidth: CONTENT_W },
+  );
+
+  footer(doc);
+  downloadBlob(doc, `${safeName(chit.name)}-award-${safeName(winner)}-m${auction.cycle}.pdf`, opts);
 }

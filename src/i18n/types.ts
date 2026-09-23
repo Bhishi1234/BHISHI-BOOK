@@ -287,6 +287,7 @@ export type Messages = {
     };
     notFound: string;
     closedBanner: string;
+    groupDetails: string;
     membersOf: string;
     instalment: string;
     started: string;
@@ -442,6 +443,11 @@ export type Messages = {
     loanShareTitle: string;
     loanShareHint: string;
     loanReportPdf: string;
+    awardShareTitle: string;
+    awardShareHint: string;
+    awardReportPdf: string;
+    sharePdfWhatsApp: string;
+    pdfOnly: string;
     whatsappBorrower: string;
     shareToGroup: string;
     dismiss: string;
