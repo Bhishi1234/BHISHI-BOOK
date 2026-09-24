@@ -10,7 +10,6 @@ export const API_ROUTES = {
   logout: "POST /api/v1/auth/logout",
   me: "GET /api/v1/me",
   updateMe: "PATCH /api/v1/me",
-  setPlan: "POST /api/v1/me/plan",
   deactivate: "POST /api/v1/me/deactivate",
   customers: "GET /api/v1/customers",
   addCustomer: "POST /api/v1/customers",

@@ -2,23 +2,18 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
-  Crown,
-  Download,
   Headset,
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
   Plus,
   Search,
-  Smartphone,
   UserRound,
   Users,
   Wallet,
   X,
 } from "lucide-react";
-import { ModalPortal } from "../components/ModalPortal";
 import { useI18n } from "../i18n";
-import { useAddToHomeScreen } from "../lib/useAddToHomeScreen";
 import { useStore } from "../store";
 
 export function AppShell({
@@ -35,7 +30,6 @@ export function AppShell({
   const nav = useNavigate();
   const loc = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const a2hs = useAddToHomeScreen();
 
   const NAV = [
     { to: "/", label: m.nav.dashboard, icon: LayoutDashboard },
@@ -43,7 +37,6 @@ export function AppShell({
     { to: "/collections", label: m.nav.collections, icon: Wallet },
     { to: "/customers", label: m.nav.customers, icon: Users },
     { to: "/support", label: m.nav.support, icon: Headset },
-    { to: "/upgrade", label: m.nav.upgrade, icon: Crown },
     { to: "/profile", label: m.nav.profile, icon: UserRound },
   ];
 
@@ -58,7 +51,6 @@ export function AppShell({
     { to: "/search", label: m.nav.search, icon: Search, hint: m.moreHints.search },
     { to: "/chits/new", label: m.nav.newChit, icon: Plus, hint: m.moreHints.newChit },
     { to: "/support", label: m.nav.support, icon: Headset, hint: m.moreHints.support },
-    { to: "/upgrade", label: m.nav.upgrade, icon: Crown, hint: m.moreHints.upgrade },
     { to: "/profile", label: m.nav.profile, icon: UserRound, hint: m.moreHints.profile },
   ];
 
@@ -120,7 +112,7 @@ export function AppShell({
         <div className="avatar">{(user?.name || "BC").slice(0, 2).toUpperCase()}</div>
         <div className="grow">
           <div>{user?.name}</div>
-          <div className="muted">{user?.plan.toUpperCase()} {m.nav.plan}</div>
+          {user?.phone ? <div className="muted">+91 {user.phone}</div> : null}
         </div>
         <button className="icon-btn" title={m.nav.signOut} onClick={() => { void logout().then(() => nav("/login")); }}>
           <LogOut size={18} />
@@ -150,21 +142,22 @@ export function AppShell({
               <div className="avatar tone-blue">{(user?.name || "BC").slice(0, 2).toUpperCase()}</div>
               <div className="grow">
                 <strong>{user?.name}</strong>
-                <div className="muted">{user?.plan.toUpperCase()} {m.nav.plan}{user?.phone ? ` · +91 ${user.phone}` : ""}</div>
+                <div className="muted">{user?.phone ? `+91 ${user.phone}` : m.common.notSet}</div>
               </div>
             </div>
+            <div className="sheet-label">{m.nav.more}</div>
             <div className="sheet-list">
               {MORE_NAV.map((n) => (
                 <NavLink
                   key={n.to}
                   to={n.to}
-                  className={({ isActive }) => `sheet-item${isActive ? " active" : ""}`}
+                  className={({ isActive }) => `sheet-link${isActive ? " active" : ""}`}
                   onClick={() => setSheetOpen(false)}
                 >
-                  <span className="sheet-item-icon"><n.icon size={18} strokeWidth={2.2} /></span>
-                  <span className="grow">
+                  <n.icon size={18} />
+                  <span>
                     <strong>{n.label}</strong>
-                    <span className="muted">{n.hint}</span>
+                    <em>{n.hint}</em>
                   </span>
                 </NavLink>
               ))}
@@ -182,7 +175,7 @@ export function AppShell({
       <div className="main">
         <div className="topbar topbar-desktop">
           <div className="crumbs">
-            {crumb && <Link to={crumb === "Chits" || crumb === m.nav.chits ? "/chits" : crumb === "Plan & billing" ? "/upgrade" : "/"}>{crumb}</Link>}
+            {crumb && <Link to={crumb === "Chits" || crumb === m.nav.chits ? "/chits" : "/"}>{crumb}</Link>}
             {crumb2 && <span>›</span>}
             <strong>{title}</strong>
           </div>
@@ -207,12 +200,6 @@ export function AppShell({
               <em>{m.brandTagline}</em>
             </span>
           </Link>
-          {a2hs.showInstall ? (
-            <button type="button" className="mobile-a2hs" onClick={() => a2hs.openInstall()}>
-              <Smartphone size={14} strokeWidth={2.4} />
-              <span>{m.nav.addToHome}</span>
-            </button>
-          ) : null}
         </div>
         <div className="main-scroll">{children}</div>
         <nav className="bottom-tabs" aria-label="Primary">
@@ -239,54 +226,6 @@ export function AppShell({
           </div>
         </nav>
       </div>
-      {a2hs.confirmOpen && (
-        <ModalPortal>
-          <div className="modal-back" onClick={() => !a2hs.busy && a2hs.setConfirmOpen(false)}>
-            <div className="modal a2hs-hint-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-              <div className="modal-head-row">
-                <h2 style={{ margin: 0 }}>{m.nav.addToHome}</h2>
-                <button type="button" className="modal-close-x" disabled={a2hs.busy} onClick={() => a2hs.setConfirmOpen(false)} aria-label={m.common.close}>
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="a2hs-hint-icon" aria-hidden>
-                <Download size={28} strokeWidth={2.2} />
-              </div>
-              <p style={{ margin: "0 0 6px", fontWeight: 650 }}>{m.nav.addToHomeConfirmTitle}</p>
-              <p className="muted">{m.nav.addToHomeConfirmBody}</p>
-              <div className="seg modal-actions" style={{ marginTop: 14 }}>
-                <button type="button" className="btn ghost" disabled={a2hs.busy} onClick={() => a2hs.setConfirmOpen(false)}>
-                  {m.common.cancel}
-                </button>
-                <button type="button" className="btn" disabled={a2hs.busy} onClick={() => void a2hs.confirmInstall()}>
-                  {a2hs.busy ? m.common.loading : m.nav.addToHomeConfirmCta}
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-      {a2hs.iosHintOpen && (
-        <ModalPortal>
-          <div className="modal-back" onClick={() => a2hs.setIosHintOpen(false)}>
-            <div className="modal a2hs-hint-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-              <div className="modal-head-row">
-                <h2 style={{ margin: 0 }}>{m.nav.addToHome}</h2>
-                <button type="button" className="modal-close-x" onClick={() => a2hs.setIosHintOpen(false)} aria-label={m.common.close}>
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="a2hs-hint-icon" aria-hidden>
-                <Download size={28} strokeWidth={2.2} />
-              </div>
-              <p className="muted">{a2hs.isSafari || a2hs.isIos ? m.nav.addToHomeIosHint : m.nav.addToHomeUnavailable}</p>
-              <button type="button" className="btn wide" onClick={() => a2hs.setIosHintOpen(false)}>
-                {m.common.close}
-              </button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
     </div>
   );
 }

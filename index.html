@@ -9,29 +9,6 @@
     />
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#0F3746" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Bhishi Circle" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/brand/bhishi-mark.png" />
-    <script>
-      /* Capture install prompt as early as possible (before React). */
-      window.__bhishiA2HS = window.__bhishiA2HS || { deferred: null, installed: false };
-      window.addEventListener("beforeinstallprompt", function (e) {
-        e.preventDefault();
-        window.__bhishiA2HS.deferred = e;
-      });
-      window.addEventListener("appinstalled", function () {
-        window.__bhishiA2HS.installed = true;
-        window.__bhishiA2HS.deferred = null;
-      });
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function () {
-          navigator.serviceWorker.register("/sw.js").catch(function () {});
-        });
-      }
-    </script>
     <meta
       name="description"
       content="Bhishi Circle — digital bhishi, chit and ROSCA books for organisers. Collect hapta, award pots, share PDF reports in English, Hindi and Marathi."
@@ -57,6 +34,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Clear any leftover PWA service worker from earlier installs.
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (r) { r.unregister(); });
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

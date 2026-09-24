@@ -1,4 +1,4 @@
-import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
+import type { AuctionRecord, Chit, PaymentKind, PayMode, User } from "../types";
 import { phone10 } from "../lib/phone";
 import { readJson } from "./errors";
 import { chitPayload, mapAuction, mapChit, mapCustomer, mapTicket, mapUser } from "./map";
@@ -135,10 +135,6 @@ export const restApi = {
 
   async updateProfile(patch: Partial<User>) {
     return mapUser(await request("/api/v1/me", { method: "PATCH", body: JSON.stringify(patch) }));
-  },
-
-  async setPlan(plan: PlanId) {
-    return mapUser(await request("/api/v1/me/plan", { method: "POST", body: JSON.stringify({ plan }) }));
   },
 
   async deactivateAccount(reasons?: string[], note?: string) {

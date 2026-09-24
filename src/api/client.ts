@@ -3,7 +3,7 @@ import { mockServer, delay } from "./mockServer";
 import { restApi } from "./restApi";
 import { supabaseApi } from "./supabaseApi";
 import { META_FREQUENCIES, META_TYPES } from "./contract";
-import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
+import type { AuctionRecord, Chit, PaymentKind, PayMode, User } from "../types";
 
 type Backend = {
   authHint: () => string;
@@ -22,7 +22,6 @@ type Backend = {
   logout: () => Promise<unknown>;
   profile: () => Promise<User>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
-  setPlan: (plan: PlanId) => Promise<User>;
   deactivateAccount: (reasons?: string[], note?: string) => Promise<unknown>;
   types: () => Promise<readonly { id: string; label: string }[]>;
   frequencies: () => Promise<readonly { id: string; label: string }[]>;
@@ -68,7 +67,6 @@ const mockApi: Backend = {
   logout: () => delay(mockServer.auth.logout()),
   profile: () => delay(mockServer.auth.profile()),
   updateProfile: (patch) => delay(mockServer.auth.updateProfile(patch)),
-  setPlan: (plan) => delay(mockServer.auth.setPlan(plan)),
   deactivateAccount: (reasons, note) => delay(mockServer.auth.deactivate(reasons, note)),
   types: () => delay([...META_TYPES]),
   frequencies: () => delay([...META_FREQUENCIES]),

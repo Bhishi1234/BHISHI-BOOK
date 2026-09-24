@@ -16,7 +16,6 @@ export type ChitMode = "organise" | "tracking";
 export type ChitStatus = "running" | "cancelled" | "completed";
 export type PaymentKind = "full" | "partial" | "advance";
 export type PayMode = "cash" | "upi" | "bank" | "cheque" | "adjusted";
-export type PlanId = "free" | "pro" | "power";
 
 /** Collect first = pot gathered then auction; auction first = bid first, then each pays bid/n. */
 export type AuctionStyle = "collect_first" | "auction_first";
@@ -26,10 +25,9 @@ export type User = {
   name: string;
   email?: string;
   phone: string;
-  plan: PlanId;
+  /** Legacy field kept for API compatibility; platform is free for everyone. */
+  plan?: "free";
   language?: string;
-  billingMode?: "subscription" | "payg";
-  planExpiresAt?: string | null;
 };
 
 export type Customer = {

@@ -14,7 +14,6 @@ import type {
   Customer,
   PaymentKind,
   PayMode,
-  PlanId,
   Ticket,
   User,
 } from "./types";
@@ -41,7 +40,6 @@ type Store = {
   logout: () => Promise<void>;
   deactivateAccount: (reasons?: string[], note?: string) => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<void>;
-  setPlan: (plan: PlanId) => Promise<void>;
   refresh: () => Promise<void>;
   addCustomer: (name: string, phone: string) => Promise<Customer>;
   updateCustomer: (id: string, patch: { name?: string; phone?: string }) => Promise<Customer>;
@@ -207,10 +205,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (patch.phone !== undefined) {
           await reload();
         }
-      },
-      setPlan: async (plan) => {
-        const next = await guarded(() => api.setPlan(plan));
-        setUser(next);
       },
       refresh: async () => {
         await reload();

@@ -1,4 +1,4 @@
-import type { AuctionRecord, Chit, PaymentKind, PayMode, PlanId, User } from "../types";
+import type { AuctionRecord, Chit, PaymentKind, PayMode, User } from "../types";
 import { getSupabase } from "../lib/supabase";
 import { e164in, phone10 } from "../lib/phone";
 import { throwIf } from "./errors";
@@ -289,13 +289,6 @@ export const supabaseApi = {
       ...row,
       email: (row.email as string) || user.email || "",
     });
-  },
-
-  async setPlan(plan: PlanId) {
-    const { sb } = await requireUser();
-    const { data, error } = await sb.rpc("set_plan", { p_plan: plan });
-    throwIf(error);
-    return mapUser(data as Record<string, unknown>);
   },
 
   async deactivateAccount(reasons?: string[], note?: string) {

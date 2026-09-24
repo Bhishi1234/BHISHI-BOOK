@@ -4,7 +4,6 @@ import type {
   Customer,
   Payment,
   PaymentKind,
-  PlanId,
   Ticket,
   User,
 } from "../types";
@@ -397,9 +396,6 @@ export const mockServer = {
       write(db);
       return db.session.user;
     },
-    setPlan(plan: PlanId) {
-      return this.updateProfile({ plan, billingMode: "subscription" });
-    },
     deactivate(reasons?: string[], note?: string) {
       const db = read();
       db.deletionFeedback.push({
@@ -469,7 +465,7 @@ export const mockServer = {
     },
     create(input: Omit<Chit, "id" | "payments" | "status">) {
       const db = read();
-      const user = needUser(db);
+      needUser(db);
       if (input.mode === "organise") {
         if (!input.members?.length) {
           throw new Error("Add members to every slot before creating this chit");
@@ -478,11 +474,7 @@ export const mockServer = {
           throw new Error(`Fill all ${input.membersCount} slots (currently ${input.members.length})`);
         }
       }
-      const active = db.chits.filter((c) => c.status === "running" && c.mode === "organise" && c.members.length > 0).length;
-      const cap = user.plan === "free" ? 1 : user.plan === "pro" ? 5 : 999;
-      if (input.mode === "organise" && active >= cap) {
-        throw new Error(`Your ${user.plan} plan allows ${cap} active organised chit(s)`);
-      }
+      // Platform is free — unlimited organised groups.
       const chit: Chit = {
         ...input,
         id: uid("ch"),

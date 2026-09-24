@@ -19,28 +19,18 @@ export type Messages = {
     people: string;
     customers: string;
     support: string;
-    upgrade: string;
     profile: string;
     search: string;
     newChit: string;
     createBhishi: string;
-    addToHome: string;
-    addToHomeHint: string;
-    addToHomeIosHint: string;
-    addToHomeConfirmTitle: string;
-    addToHomeConfirmBody: string;
-    addToHomeConfirmCta: string;
-    addToHomeUnavailable: string;
     more: string;
     moreHint: string;
     signOut: string;
-    plan: string;
   };
   moreHints: {
     search: string;
     newChit: string;
     support: string;
-    upgrade: string;
     profile: string;
   };
   searchPlaceholder: string;
@@ -806,45 +796,8 @@ export type Messages = {
     newConversation: string;
     selectOrStart: string;
   };
-  upgrade: {
-    title: string;
-    subtitle: string;
-    currentPlan: string;
-    subscribePro: string;
-    subscribePower: string;
-    features: string;
-    crumb: string;
-    renewsEnds: string;
-    payAsYouGo: string;
-    monthly: string;
-    yearly: string;
-    paygBody: string;
-    firstChit: string;
-    free: string;
-    everyChitAfter: string;
-    paygPrice: string;
-    paygLater: string;
-    proFeat1: string;
-    proFeat2: string;
-    proFeat3: string;
-    powerFeat1: string;
-    powerFeat2: string;
-    powerFeat3: string;
-    priceMonth: string;
-    priceYear: string;
-    openingCashfree: string;
-    cashfreeNote: string;
-    checkoutFailed: string;
-  };
-  billing: {
-    confirming: string;
-    success: string;
-    failed: string;
-    backUpgrade: string;
-    processing: string;
-    waiting: string;
-    notConfigured: string;
-  };
+
+
   tracked: {
     crumb: string;
     subtitle: string;
