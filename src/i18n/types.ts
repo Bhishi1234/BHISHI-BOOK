@@ -27,6 +27,10 @@ export type Messages = {
     addToHome: string;
     addToHomeHint: string;
     addToHomeIosHint: string;
+    addToHomeConfirmTitle: string;
+    addToHomeConfirmBody: string;
+    addToHomeConfirmCta: string;
+    addToHomeUnavailable: string;
     more: string;
     moreHint: string;
     signOut: string;

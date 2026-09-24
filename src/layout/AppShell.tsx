@@ -208,7 +208,7 @@ export function AppShell({
             </span>
           </Link>
           {a2hs.showInstall ? (
-            <button type="button" className="mobile-a2hs" onClick={() => void a2hs.promptInstall()}>
+            <button type="button" className="mobile-a2hs" onClick={() => a2hs.openInstall()}>
               <Smartphone size={14} strokeWidth={2.4} />
               <span>{m.nav.addToHome}</span>
             </button>
@@ -239,21 +239,48 @@ export function AppShell({
           </div>
         </nav>
       </div>
-      {a2hs.hintOpen && (
+      {a2hs.confirmOpen && (
         <ModalPortal>
-          <div className="modal-back" onClick={() => a2hs.setHintOpen(false)}>
+          <div className="modal-back" onClick={() => !a2hs.busy && a2hs.setConfirmOpen(false)}>
             <div className="modal a2hs-hint-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
               <div className="modal-head-row">
                 <h2 style={{ margin: 0 }}>{m.nav.addToHome}</h2>
-                <button type="button" className="modal-close-x" onClick={() => a2hs.setHintOpen(false)} aria-label={m.common.close}>
+                <button type="button" className="modal-close-x" disabled={a2hs.busy} onClick={() => a2hs.setConfirmOpen(false)} aria-label={m.common.close}>
                   <X size={18} />
                 </button>
               </div>
               <div className="a2hs-hint-icon" aria-hidden>
                 <Download size={28} strokeWidth={2.2} />
               </div>
-              <p className="muted">{a2hs.isIos ? m.nav.addToHomeIosHint : m.nav.addToHomeHint}</p>
-              <button type="button" className="btn wide" onClick={() => a2hs.setHintOpen(false)}>
+              <p style={{ margin: "0 0 6px", fontWeight: 650 }}>{m.nav.addToHomeConfirmTitle}</p>
+              <p className="muted">{m.nav.addToHomeConfirmBody}</p>
+              <div className="seg modal-actions" style={{ marginTop: 14 }}>
+                <button type="button" className="btn ghost" disabled={a2hs.busy} onClick={() => a2hs.setConfirmOpen(false)}>
+                  {m.common.cancel}
+                </button>
+                <button type="button" className="btn" disabled={a2hs.busy} onClick={() => void a2hs.confirmInstall()}>
+                  {a2hs.busy ? m.common.loading : m.nav.addToHomeConfirmCta}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+      {a2hs.iosHintOpen && (
+        <ModalPortal>
+          <div className="modal-back" onClick={() => a2hs.setIosHintOpen(false)}>
+            <div className="modal a2hs-hint-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <div className="modal-head-row">
+                <h2 style={{ margin: 0 }}>{m.nav.addToHome}</h2>
+                <button type="button" className="modal-close-x" onClick={() => a2hs.setIosHintOpen(false)} aria-label={m.common.close}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="a2hs-hint-icon" aria-hidden>
+                <Download size={28} strokeWidth={2.2} />
+              </div>
+              <p className="muted">{a2hs.isSafari || a2hs.isIos ? m.nav.addToHomeIosHint : m.nav.addToHomeUnavailable}</p>
+              <button type="button" className="btn wide" onClick={() => a2hs.setIosHintOpen(false)}>
                 {m.common.close}
               </button>
             </div>

@@ -14,7 +14,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Bhishi Circle" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/brand/bhishi-mark.png?v=3" />
+    <link rel="apple-touch-icon" href="/brand/bhishi-mark.png" />
+    <script>
+      /* Capture install prompt as early as possible (before React). */
+      window.__bhishiA2HS = window.__bhishiA2HS || { deferred: null, installed: false };
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        window.__bhishiA2HS.deferred = e;
+      });
+      window.addEventListener("appinstalled", function () {
+        window.__bhishiA2HS.installed = true;
+        window.__bhishiA2HS.deferred = null;
+      });
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/sw.js").catch(function () {});
+        });
+      }
+    </script>
     <meta
       name="description"
       content="Bhishi Circle — digital bhishi, chit and ROSCA books for organisers. Collect hapta, award pots, share PDF reports in English, Hindi and Marathi."
