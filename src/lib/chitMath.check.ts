@@ -55,10 +55,11 @@ function members(n: number): ChitMember[] {
 
 function collectAll(c: Chit, amount?: number) {
   for (const m of c.members) {
-    const due = amount ?? 20000;
+    const due = amount ?? rawCycleDue(c, m.customerId, c.currentCycle, m.slot);
     c.payments.push({
       id: `p${c.payments.length}`,
       memberId: m.customerId,
+      slot: m.slot,
       cycle: c.currentCycle,
       amount: due,
       kind: "full",
@@ -122,7 +123,7 @@ assert(last.dividend === 0, `last dividend ${last.dividend}`);
 assert(last.bid === cashBeforeLast, `last bid ${last.bid} vs ${cashBeforeLast}`);
 assert(treasuryOf(book) === 0, `last cash ${treasuryOf(book)}`);
 
-// Collect-first: short stored instalment must still cover the pot so cash is not ₹1 light
+// Collect-first: equal floor share; highest slot absorbs remainder so total = pot
 const short = chit({
   members: members(3),
   pot: 100000,
@@ -133,13 +134,15 @@ const short = chit({
   commissionValue: 0,
   auctionStyle: "collect_first",
 });
-assert(rawCycleDue(short, "m1", 1) === 33334, `short instalment bumped ${rawCycleDue(short, "m1", 1)}`);
-collectAll(short, rawCycleDue(short, "m1", 1));
-assert(treasuryOf(short) === 100002, `short collect cash ${treasuryOf(short)}`);
+assert(rawCycleDue(short, "m1", 1, 1) === 33333, `short slot1 ${rawCycleDue(short, "m1", 1, 1)}`);
+assert(rawCycleDue(short, "m2", 1, 2) === 33333, `short slot2 ${rawCycleDue(short, "m2", 1, 2)}`);
+assert(rawCycleDue(short, "m3", 1, 3) === 33334, `short slot3 ${rawCycleDue(short, "m3", 1, 3)}`);
+collectAll(short);
+assert(treasuryOf(short) === 100000, `short collect cash ${treasuryOf(short)}`);
 const shortWin = settleWinner(short, "m1", 90000, "auction");
 short.auctions.push(shortWin);
 assert(shortWin.payout === 90000, `short payout ${shortWin.payout}`);
-assert(treasuryOf({ ...short, auctions: [...short.auctions] }) === 100002 - 90000, `short cash after ${treasuryOf({ ...short, auctions: short.auctions })}`);
+assert(treasuryOf({ ...short, auctions: [...short.auctions] }) === 100000 - 90000, `short cash after ${treasuryOf({ ...short, auctions: short.auctions })}`);
 
 // Auction-first: bid then each pays bid÷n
 const af = chit({

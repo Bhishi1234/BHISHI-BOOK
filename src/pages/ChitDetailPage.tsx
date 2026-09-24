@@ -6,11 +6,12 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Info,
   Percent,
   PiggyBank,
   Share2,
-  Users,
   Wallet,
+  Check,
 } from "lucide-react";
 import { PayModal } from "../components/PayModal";
 import { MemberReachButtons } from "../components/MemberReachButtons";
@@ -19,8 +20,8 @@ import { PromptBox } from "../components/PromptBox";
 import { ReasonModal } from "../components/ReasonModal";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
-import { buildActivityLog, formatActivityAt } from "../lib/activityLog";
-import { StatCard } from "../ui/StatCard";
+import { buildActivityLog, formatActivityAt, groupActivityByCycle } from "../lib/activityLog";
+import { StatCard, toneAt } from "../ui/StatCard";
 import { useI18n } from "../i18n";
 import {
   balanceAfterCycle,
@@ -59,7 +60,6 @@ import {
   loanSettlementPlan,
   loansThisCycle,
   handLabel,
-  firstSlotOf,
   memberBalance,
   memberDividendTotal,
   memberLedgerRows,
@@ -95,7 +95,6 @@ import {
   shareText,
   tryPhone10,
 } from "../lib/share";
-import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import type { AuctionRecord, PayMode, PaymentKind } from "../types";
@@ -104,13 +103,16 @@ export function ChitDetailPage() {
   const { id } = useParams();
   const {
     chits, customers, recordPayment, recordAllPayments, recordAuction, settleBooksEqually, closeCycle,
-    cancelChit, addMember, removeMember, swapMember, addCustomer, updateCustomer, undoPayment, updateChitSettings, error, user,
+    cancelChit, addMember, removeMember, swapMember, addCustomer, undoPayment, updateChitSettings, error, user,
   } = useStore();
   const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
   const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "cycles" | "members" | "activity" | "settlement" | "settings">("overview");
   const [monthSub, setMonthSub] = useState<"collect" | "award" | "close">("collect");
+  const [booksOpen, setBooksOpen] = useState(false);
+  const [collectHelpOpen, setCollectHelpOpen] = useState(false);
+  const [awardTouched, setAwardTouched] = useState(false);
 
   useEffect(() => {
     scrollPageToTop();
@@ -140,8 +142,7 @@ export function ChitDetailPage() {
   const [awardShare, setAwardShare] = useState<AuctionRecord | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
-  const [editPhoneId, setEditPhoneId] = useState<string | null>(null);
-  const [editPhoneVal, setEditPhoneVal] = useState("");
+  const [membersHelpOpen, setMembersHelpOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -203,11 +204,6 @@ export function ChitDetailPage() {
     winnerId && winnerSlot != null ? `${winnerId}::${winnerSlot}` : winnerId;
 
   const names = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
-  const memberPhones = useMemo(
-    () => (chit ? chit.members.map((m) => customers.find((c) => c.id === m.customerId)?.phone) : []),
-    [chit, customers],
-  );
-  const { isOnApp } = usePhonesOnApp(memberPhones);
 
   if (!chit) {
     return <AppShell crumb={copy.nav.chits}><div className="page"><p>{copy.chit.notFound}</p></div></AppShell>;
@@ -233,8 +229,6 @@ export function ChitDetailPage() {
   const loanMaxFace = data.type === "loan" ? loanMaxFaceAmount(data) : 0;
   const loanCapacity = data.type === "loan" ? loanFundingCapacity(data) : 0;
   const showSettlement = data.type === "loan";
-  const monthDate = new Date(data.startDate);
-  monthDate.setMonth(monthDate.getMonth() + cycle - 1);
   const remainDue = isRunning
     ? data.members.filter((m) => {
         const due = cycleDue(data, m.customerId, cycle, m.slot);
@@ -493,7 +487,7 @@ export function ChitDetailPage() {
         </div>
 
         {tab === "overview" && (
-          <div className="stats six">
+          <div className="stats four">
             <StatCard label={copy.chit.month} value={`${cycle} / ${data.duration}`} hint={copy.chit.currentHapta} tone="blue" icon={Calendar} />
             <StatCard
               label={copy.chit.collectedThisHapta}
@@ -515,20 +509,6 @@ export function ChitDetailPage() {
               hint={auctionFirst ? copy.chit.tillAlwaysZero : copy.chit.treasuryToday}
               tone="teal"
               icon={Wallet}
-            />
-            <StatCard
-              label={copy.chit.commissionEarned}
-              value={inr(commissionEarned(data))}
-              hint={tx(copy.chit.thisHaptaAmount, { amount: inr(data.auctions.find((a) => a.cycle === cycle)?.commission || 0) })}
-              tone="violet"
-              icon={Percent}
-            />
-            <StatCard
-              label={copy.nav.customers}
-              value={data.members.length}
-              hint={tx(copy.chit.ofSlots, { count: data.membersCount })}
-              tone="amber"
-              icon={Users}
             />
           </div>
         )}
@@ -591,6 +571,29 @@ export function ChitDetailPage() {
 
         {tab === "overview" && (
           <>
+            <div className="row-head" style={{ marginBottom: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 16 }}>{copy.chit.booksSectionTitle}</h2>
+              <button
+                type="button"
+                className={`info-chip${booksOpen ? " on" : ""}`}
+                aria-expanded={booksOpen}
+                aria-label={copy.chit.booksToggleAria}
+                title={copy.chit.booksToggleAria}
+                onClick={() => setBooksOpen((v) => !v)}
+              >
+                <Info size={15} strokeWidth={2.4} />
+              </button>
+            </div>
+            {!booksOpen && (
+              <p className="muted block" style={{ marginTop: 0 }}>
+                {tx(copy.chit.booksCollapsedHint, {
+                  cash: inr(treasuryOf(data)),
+                  life: inr(expectedLife),
+                })}
+              </p>
+            )}
+            {booksOpen && (
+              <>
             <p className="muted block">{copy.chit.booksIntro}</p>
             <div className="card block">
               <div className="muted">{auctionFirst ? copy.chit.tillToday : copy.chit.cashOnHandToday}</div>
@@ -602,8 +605,8 @@ export function ChitDetailPage() {
                 <div className="progress blue" style={{ margin: "4px 0 12px" }}><i style={{ width: `${Math.round((cycle / data.duration) * 100)}%` }} /></div>
                 <p className="muted block">
                   {data.type === "loan"
-                    ? `${inr(memberLedgerRows(data).reduce((s, r) => s + r.paid, 0))} deposits of ${inr(expectedLife)} expected · ${inr(moneyIn(data))} total cash in (incl. loan repayments)`
-                    : `${inr(moneyIn(data))} collected of ${inr(expectedLife)} expected`}
+                    ? `${inr(memberLedgerRows(data).reduce((s, r) => s + r.paid, 0))} deposits of ${inr(expectedLife)} ${copy.chit.lifetimeExpected} · ${inr(moneyIn(data))} total cash in (incl. loan repayments)`
+                    : `${inr(moneyIn(data))} collected of ${inr(expectedLife)} ${copy.chit.lifetimeExpected}`}
                 </p>
                 {data.type !== "auction" && (
                   <div className="grid-2">
@@ -648,8 +651,8 @@ export function ChitDetailPage() {
                       : copy.chit.ledgerDefaultHint}
                   </p>
                 </div>
-                <div className="table-wrap">
-                  <table className="table">
+                <div className="table-wrap member-ledger-wrap">
+                  <table className="table member-ledger-table">
                     <thead>
                       <tr>
                         <th>{copy.common.member}</th>
@@ -666,13 +669,13 @@ export function ChitDetailPage() {
                             <th>{handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}</th>
                           </>
                         )}
-                        <th>Net</th>
+                        <th>{copy.chit.net}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {memberLedgerRows(data).map((row) => (
                         <tr key={`${row.customerId}-${row.slot}`}>
-                          <td>
+                          <td data-label={copy.common.member}>
                             <strong>
                               {handLabel(
                                 names[row.customerId] || "Member",
@@ -682,20 +685,20 @@ export function ChitDetailPage() {
                             </strong>
                             {row.prizedCycle ? <div className="muted">{tx(copy.chit.prizedMonth, { n: row.prizedCycle })}</div> : null}
                           </td>
-                          <td>{inr(row.paid)}</td>
+                          <td data-label={copy.chit.paidIn}>{inr(row.paid)}</td>
                           {data.type === "loan" ? (
                             <>
-                              <td>{inr(row.loanOut || 0)}</td>
-                              <td>{inr(row.interestPaid || 0)}</td>
-                              <td>{inr(row.dividend)}</td>
+                              <td data-label={copy.chit.loanReceived}>{inr(row.loanOut || 0)}</td>
+                              <td data-label={copy.chit.interestPaid}>{inr(row.interestPaid || 0)}</td>
+                              <td data-label={copy.chit.interestDividend}>{inr(row.dividend)}</td>
                             </>
                           ) : (
                             <>
-                              <td>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
-                              <td>{inr(row.dividend)}</td>
+                              <td data-label={copy.chit.gotFromPot}>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
+                              <td data-label={handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}>{inr(row.dividend)}</td>
                             </>
                           )}
-                          <td className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
+                          <td data-label={copy.chit.net} className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -831,6 +834,8 @@ export function ChitDetailPage() {
                 }</strong></div>
               </div>
             </div>
+              </>
+            )}
           </>
         )}
 
@@ -966,25 +971,19 @@ export function ChitDetailPage() {
             })()}
             {monthSub === "collect" && (
             <>
-            <div className="stats four">
+            <div className="stats two">
               <StatCard label={copy.chit.expectedThisHapta} value={inr(expectedThisCycle(data))} hint="target" tone="blue" icon={Wallet} />
               <StatCard label={copy.terms.collected} value={inr(collectedThisCycle(data))} hint="received" tone="green" icon={PiggyBank} />
-              <StatCard label={copy.terms.outstanding} value={inr(outstandingOf(data))} hint={copy.chit.stillDue} tone="rose" icon={AlertCircle} />
-              <StatCard
-                label={auctionFirst ? copy.chit.tillAlwaysZeroShort : copy.chit.cashOnHand}
-                value={<span className={treasuryOf(data) < 0 ? "neg" : undefined}>{inr(treasuryOf(data))}</span>}
-                hint={auctionFirst ? copy.chit.unpaidAsOutstanding : copy.chit.treasuryToday}
-                tone="teal"
-                icon={Wallet}
-              />
             </div>
-            <div className="card flush">
+            <div className="card flush member-list-card">
               <div className="card-pad month-head">
-                <div>
-                  <strong>{copy.chit.month} {cycle}</strong>
-                  <span className="muted"> {monthDate.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}</span>
-                  <span className={`pill ${isRunning ? "paid" : "partial"}`}>{isRunning ? copy.chit.open : copy.chit.closed}</span>
-                  <div className="muted" style={{ marginTop: 6 }}>{tx(copy.chit.handsCollected, { done: collectedCount(data), total: data.members.length })}</div>
+                <div className="member-list-head" style={{ padding: 0 }}>
+                  {tx(copy.chit.haptaCollectMeta, {
+                    n: cycle,
+                    status: isRunning ? copy.chit.open : copy.chit.closed,
+                    done: collectedCount(data),
+                    total: data.members.length,
+                  })}
                 </div>
                 <div className="seg">
                   <button
@@ -1017,106 +1016,125 @@ export function ChitDetailPage() {
                       : copy.chit.collectPromptAward}
                 </PromptBox>
               )}
-              {auctionFirst && lastWin && shareHint != null && (
-                <PromptBox tone="blue" className="inline">
-                  {tx(copy.chit.collectPromptShare, { bid: inr(lastWin.bid), n: data.members.length, share: inr(shareHint), pot: inr(data.pot) })}
-                </PromptBox>
+              <div className="row-head" style={{ margin: "8px 14px" }}>
+                <span className="muted" style={{ fontSize: 13 }}>{copy.chit.collectRulesLabel}</span>
+                <button
+                  type="button"
+                  className={`info-chip${collectHelpOpen ? " on" : ""}`}
+                  aria-expanded={collectHelpOpen}
+                  aria-label={copy.chit.collectRulesAria}
+                  title={copy.chit.collectRulesAria}
+                  onClick={() => setCollectHelpOpen((v) => !v)}
+                >
+                  <Info size={15} strokeWidth={2.4} />
+                </button>
+              </div>
+              {collectHelpOpen && (
+                <div className="stack" style={{ gap: 8, margin: "0 14px 8px" }}>
+                  {auctionFirst && lastWin && shareHint != null && (
+                    <PromptBox tone="blue" className="inline">
+                      {tx(copy.chit.collectPromptShare, { bid: inr(lastWin.bid), n: data.members.length, share: inr(shareHint), pot: inr(data.pot) })}
+                    </PromptBox>
+                  )}
+                  {!awardFirst && !canSettleCycle(data) && !lastWin && (
+                    <PromptBox tone="amber" className="inline">
+                      {copy.chit.collectPromptCollectFirstFull}
+                    </PromptBox>
+                  )}
+                  {!awardFirst && lastWin && (
+                    <PromptBox tone="teal" className="inline">
+                      {copy.chit.collectPromptDividend}
+                    </PromptBox>
+                  )}
+                  {unpaidNoted && remainDue > 0 && (
+                    <PromptBox tone="rose" className="inline">
+                      {tx(copy.chit.collectPromptUnpaid, { suffix: awardFirst ? copy.chit.collectUnpaidSuffixAward : copy.chit.collectUnpaidSuffixCollect })}
+                    </PromptBox>
+                  )}
+                  {!auctionFirst && !lastWin && awardFirst === false && canSettleCycle(data) && (
+                    <PromptBox tone="blue" className="inline">{copy.chit.collectPromptCollectFirstFull}</PromptBox>
+                  )}
+                </div>
               )}
-              {!awardFirst && !canSettleCycle(data) && !lastWin && (
-                <PromptBox tone="amber" className="inline">
-                  {copy.chit.collectPromptCollectFirstFull}
-                </PromptBox>
-              )}
-              {!awardFirst && lastWin && (
-                <PromptBox tone="teal" className="inline">
-                  {copy.chit.collectPromptDividend}
-                </PromptBox>
-              )}
-              {unpaidNoted && remainDue > 0 && (
-                <PromptBox tone="rose" className="inline">
-                  {tx(copy.chit.collectPromptUnpaid, { suffix: awardFirst ? copy.chit.collectUnpaidSuffixAward : copy.chit.collectUnpaidSuffixCollect })}
-                </PromptBox>
+              {!collectHelpOpen && unpaidNoted && remainDue > 0 && (
+                <div style={{ margin: "0 14px 8px" }}>
+                  <PromptBox tone="rose" className="inline">
+                    {tx(copy.chit.collectPromptUnpaid, { suffix: awardFirst ? copy.chit.collectUnpaidSuffixAward : copy.chit.collectUnpaidSuffixCollect })}
+                  </PromptBox>
+                </div>
               )}
               {!awardFirst || awardResolved ? (
-              <div className="table-wrap">
-                <table className="table month-table">
-                  <thead>
-                    <tr>
-                      <th>{copy.common.member}</th>
-                      <th>{copy.chit.duesDue}</th>
-                      <th>{copy.chit.duesPaid}</th>
-                      <th>{copy.chit.balance}</th>
-                      <th>{copy.chit.duesMode}</th>
-                      <th>{copy.chit.duesDate}</th>
-                      <th>{copy.chit.duesStatus}</th>
-                      <th>{copy.chit.duesAction}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.members.map((m) => {
-                      const due = cycleDue(data, m.customerId, cycle, m.slot);
-                      const paid = paidInCycle(data, m.customerId, cycle, m.slot);
-                      const status = paymentStatus(data, m.customerId, cycle, m.slot);
-                      const last = [...data.payments].reverse().find(
-                        (p) => p.memberId === m.customerId && p.cycle === cycle && (p.slot == null || p.slot === m.slot),
-                      );
-                      const label =
-                        status === "due" && unpaidNoted
-                          ? copy.payStatus.unpaid
-                          : copy.payStatus[status as keyof typeof copy.payStatus] || status;
-                      const isWinner = lastWin?.winnerId === m.customerId
-                        && (lastWin.winnerSlot == null || lastWin.winnerSlot === m.slot);
-                      const hands = data.members.filter((x) => x.customerId === m.customerId).length;
-                      return (
-                        <tr key={`${m.customerId}-${m.slot}`}>
-                          <td>
-                            <div className="person">
-                              <div className="avatar">{initials(names[m.customerId] || "?")}</div>
-                              <span className="ellipsis">
-                                {handLabel(names[m.customerId] || copy.common.member, m.slot, hands)}
-                                {isWinner ? <span className="muted">{copy.chit.winnerSuffix}</span> : null}
-                              </span>
-                            </div>
-                          </td>
-                          <td>{inr(due)}</td>
-                          <td>{inr(paid)}</td>
-                          <td>{paid >= due ? "—" : inr(due - paid)}</td>
-                          <td>{last ? modeLabel(last.mode || "cash") : "—"}</td>
-                          <td>{last ? new Date(last.date).toLocaleDateString(locale, { day: "numeric", month: "short" }) : "—"}</td>
-                          <td><span className={`pill ${status}`}>{label}</span></td>
-                          <td>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            {isRunning && !(awardFirst && !awardResolved) && (status === "due" || status === "partial") ? (
-                              <button className="btn ghost btn-sm" onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}>{copy.chit.record}</button>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                            {(() => {
-                              const cust = customers.find((c) => c.id === m.customerId);
-                              const left = Math.max(0, due - paid);
-                              if (!cust?.phone || left <= 0) return null;
-                              return (
-                                <MemberReachButtons
-                                  compact
-                                  phone={cust.phone}
-                                  whatsappText={dueReminderWhatsAppMessage({
-                                    memberName: names[m.customerId] || cust.name,
-                                    chitName: data.name,
-                                    cycle,
-                                    duration: data.duration,
-                                    amountDue: left,
-                                    organiserName: user?.name,
-                                  })}
-                                />
-                              );
-                            })()}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="hapta-collect-list">
+                {data.members
+                  .slice()
+                  .sort((a, b) => a.slot - b.slot)
+                  .map((m, i) => {
+                    const due = cycleDue(data, m.customerId, cycle, m.slot);
+                    const paid = paidInCycle(data, m.customerId, cycle, m.slot);
+                    const status = paymentStatus(data, m.customerId, cycle, m.slot);
+                    const left = Math.max(0, due - paid);
+                    const fullyPaid = status === "paid" || status === "advance" || (due > 0 && paid >= due);
+                    const isWinner = lastWin?.winnerId === m.customerId
+                      && (lastWin.winnerSlot == null || lastWin.winnerSlot === m.slot);
+                    const hands = data.members.filter((x) => x.customerId === m.customerId).length;
+                    const cust = customers.find((c) => c.id === m.customerId);
+                    const canRecord = isRunning && !(awardFirst && !awardResolved) && (status === "due" || status === "partial");
+                    return (
+                      <div
+                        key={`${m.customerId}-${m.slot}`}
+                        className={`hapta-collect-row${canRecord ? " due" : ""}${fullyPaid ? " paid" : ""}`}
+                      >
+                        <div className={`avatar tone-${toneAt(i)}`}>{initials(names[m.customerId] || "?")}</div>
+                        <div className="grow">
+                          <button
+                            type="button"
+                            className="member-list-name"
+                            onClick={() => nav(`/customers/${m.customerId}`)}
+                          >
+                            {handLabel(names[m.customerId] || copy.common.member, m.slot, hands)}
+                            {isWinner ? <span className="muted">{copy.chit.winnerSuffix}</span> : null}
+                          </button>
+                          <div className="muted member-list-meta">
+                            {fullyPaid
+                              ? copy.chit.paidForMonth
+                              : tx(copy.chit.balanceLeft, { amount: inr(left || due) })}
+                          </div>
+                        </div>
+                        {fullyPaid ? (
+                          <div className="hapta-paid-badge" aria-label={copy.chit.paidForMonth}>
+                            <span className="hapta-paid-amount">{inr(paid || due)}</span>
+                            <span className="hapta-paid-tick"><Check size={16} strokeWidth={2.6} /></span>
+                          </div>
+                        ) : (
+                          <div className="hapta-collect-actions">
+                            {canRecord ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm hapta-record-btn"
+                                onClick={() => setPayFor({ customerId: m.customerId, slot: m.slot })}
+                              >
+                                {copy.chit.record}
+                              </button>
+                            ) : null}
+                            {cust?.phone && left > 0 ? (
+                              <MemberReachButtons
+                                compact
+                                phone={cust.phone}
+                                whatsappText={dueReminderWhatsAppMessage({
+                                  memberName: names[m.customerId] || cust.name,
+                                  chitName: data.name,
+                                  cycle,
+                                  duration: data.duration,
+                                  amountDue: left,
+                                  organiserName: user?.name,
+                                })}
+                              />
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
               ) : (
                 <p className="muted" style={{ padding: "0 16px 16px" }}>{copy.chit.duesAfterAuction}</p>
@@ -1273,7 +1291,14 @@ export function ChitDetailPage() {
                       ) : (
                         <>
                           <div className="month-auction" style={{ padding: 0 }}>
-                            <select className="field" value={handSelectValue} onChange={(e) => pickHand(e.target.value)}>
+                            <select
+                              className="field"
+                              value={handSelectValue}
+                              onChange={(e) => {
+                                setAwardTouched(true);
+                                pickHand(e.target.value);
+                              }}
+                            >
                               <option value="">{copy.luckyDraw.winner}</option>
                               {unprized.map((m) => (
                                 <option key={`${m.customerId}-${m.slot}`} value={`${m.customerId}::${m.slot}`}>
@@ -1281,15 +1306,30 @@ export function ChitDetailPage() {
                                 </option>
                               ))}
                             </select>
-                            <input className="field" placeholder={copy.chit.winningBidPlaceholder} value={bid} onChange={(e) => setBid(e.target.value)} />
+                            <input
+                              className="field"
+                              placeholder={copy.chit.winningBidPlaceholder}
+                              value={bid}
+                              onChange={(e) => {
+                                setAwardTouched(true);
+                                setBid(e.target.value);
+                              }}
+                            />
                             <button
                               className="btn"
-                              disabled={!winnerId || !bid}
+                              disabled={!winnerId || !bid || !Number(bid)}
                               onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot).then((rec) => afterAwardRecorded(rec))}
                             >
                               {copy.chit.recordAuctionBtn}
                             </button>
                           </div>
+                          {awardTouched && (!winnerId || !bid || !Number(bid)) && (
+                            <p className="due" style={{ marginTop: 8 }}>
+                              {!winnerId
+                                ? copy.chit.awardNeedWinner
+                                : copy.chit.awardNeedBid}
+                            </p>
+                          )}
                           {winnerId && Number(bid) > 0 && (() => {
                             const preview = settleWinner(data, winnerId, Number(bid), "auction", winnerSlot);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
@@ -1325,7 +1365,7 @@ export function ChitDetailPage() {
                               </div>
                             );
                           })()}
-                          <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => nav(`/chits/${data.id}/lucky-draw`)}>{copy.chit.luckyDrawBtn}</button>
+                          {/* Lucky draw belongs on lucky-draw / sacrifice types — not auction */}
                         </>
                       )}
                     </>
@@ -1817,7 +1857,22 @@ export function ChitDetailPage() {
           <>
             {!started ? (
               <>
-                <PromptBox tone="teal">{copy.chit.membersBeforeStartHint}</PromptBox>
+                <div className="row-head" style={{ marginBottom: 8 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{tx(copy.chit.membersOf, { count: data.members.length, total: data.membersCount })}</span>
+                  <button
+                    type="button"
+                    className={`info-chip${membersHelpOpen ? " on" : ""}`}
+                    aria-expanded={membersHelpOpen}
+                    aria-label={copy.chit.membersTabHelpAria}
+                    title={copy.chit.membersTabHelpAria}
+                    onClick={() => setMembersHelpOpen((v) => !v)}
+                  >
+                    <Info size={15} strokeWidth={2.4} />
+                  </button>
+                </div>
+                {membersHelpOpen && (
+                  <PromptBox tone="teal">{copy.chit.membersBeforeStartHint}</PromptBox>
+                )}
                 <div className="toolbar">
                   <select className="field" style={{ margin: 0, maxWidth: 260 }} value={newMemberId} onChange={(e) => setNewMemberId(e.target.value)}>
                     <option value="">{copy.chit.addMember} / {copy.chit.addHand}</option>
@@ -1905,12 +1960,23 @@ export function ChitDetailPage() {
                 </div>
               </>
             ) : (
+              <div className="row-head" style={{ marginBottom: 8 }}>
+                <span className="muted" style={{ fontSize: 13 }}>{copy.chit.tabs.members}</span>
+                <button
+                  type="button"
+                  className={`info-chip${membersHelpOpen ? " on" : ""}`}
+                  aria-expanded={membersHelpOpen}
+                  aria-label={copy.chit.membersTabHelpAria}
+                  title={copy.chit.membersTabHelpAria}
+                  onClick={() => setMembersHelpOpen((v) => !v)}
+                >
+                  <Info size={15} strokeWidth={2.4} />
+                </button>
+              </div>
+            )}
+            {membersHelpOpen && started && (
               <PromptBox tone="amber">{copy.chit.membersAfterStartHint}</PromptBox>
             )}
-            <PromptBox tone="blue">
-              One person can play multiple hands (slots). Each hand pays its own instalment and can win once. {data.members.length} of {data.membersCount} slots filled.
-              {" "}{copy.chit.inviteNotOnApp}
-            </PromptBox>
             {swapSlot != null && (
               <div className="card" style={{ marginBottom: 12, background: "#f8fafc" }}>
                 <strong>{copy.chit.swapMemberTitle}</strong>
@@ -2010,145 +2076,93 @@ export function ChitDetailPage() {
                 </div>
               </div>
             )}
-            <div className="card flush">
-              {data.members.map((m) => {
-                const first = firstSlotOf(data, m.customerId);
-                const handPaid = data.payments
-                  .filter((p) => p.memberId === m.customerId && (p.slot != null ? p.slot === m.slot : m.slot === first))
-                  .reduce((s, p) => s + p.amount, 0);
-                const principal = loanPrincipalOf(data, m.customerId, m.slot);
-                const received = data.auctions
-                  .filter((a) => a.winnerId === m.customerId && (a.winnerSlot != null ? a.winnerSlot === m.slot : m.slot === first))
-                  .reduce((s, a) => s + a.payout, 0);
-                const left = Math.max(0, memberBalance(data, m.customerId, m.slot).outstanding);
-                const hands = data.members.filter((x) => x.customerId === m.customerId).length;
-                const cust = customers.find((c) => c.id === m.customerId);
-                const needsInvite = Boolean(cust?.phone) && !isOnApp(cust?.phone);
-                return (
-                  <div key={`${m.customerId}-${m.slot}`} className="list-row">
-                    <div className="avatar">{initials(names[m.customerId] || "?")}</div>
-                    <div className="grow">
-                      <div className="member-name-row">
-                        <button className="link" style={{ fontWeight: 600 }} onClick={() => nav(`/customers/${m.customerId}`)}>
-                          {names[m.customerId]}
-                        </button>
-                        {needsInvite ? (
-                          <InviteWhatsAppButton
-                            phone={cust!.phone}
-                            title={copy.reach.inviteWhatsApp}
-                            message={inviteMemberWhatsAppMessage({
-                              memberName: cust!.name,
-                              phone: cust!.phone,
-                              chitName: data.name,
-                              organiserName: user?.name,
-                              instalment: data.instalment,
-                            })}
-                          />
-                        ) : null}
-                      </div>
-                      <div className="muted">
-                        {tx(copy.chit.slot, { n: m.slot })}{hands > 1 ? ` · ${tx(copy.chit.handOf, { n: hands })}` : ""}
-                        {cust?.phone ? ` · ${cust.phone}` :  ` · ${copy.chit.noPhoneMeta}`}
-                        {` · paid ${inr(handPaid)}`}
-                        {data.type === "auction" || handSacrifice ? ` · got ${inr(received)}` : ""}
-                        {principal ? ` · loan ${inr(principal)}` : ""}
-                        {m.prizedCycle ? ` · prized month ${m.prizedCycle}` : ""}
-                      </div>
-                      {editPhoneId === m.customerId ? (
-                        <div className="phone-edit-row">
-                          <input
-                            className="field"
-                            inputMode="tel"
-                            value={editPhoneVal}
-                            onChange={(e) => setEditPhoneVal(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                            placeholder={copy.chit.phonePlaceholder}
-                          />
+            <div className="card flush member-list-card">
+              <div className="member-list-head">
+                {tx(copy.chit.membersListMeta, {
+                  filled: data.members.length,
+                  total: data.membersCount,
+                })}
+              </div>
+              {data.members.length === 0 ? (
+                <p className="empty" style={{ margin: 0, padding: "16px 14px" }}>{copy.chitsPage.empty}</p>
+              ) : (
+                data.members
+                  .slice()
+                  .sort((a, b) => a.slot - b.slot)
+                  .map((m, i) => {
+                    const left = Math.max(0, memberBalance(data, m.customerId, m.slot).outstanding);
+                    const cust = customers.find((c) => c.id === m.customerId);
+                    return (
+                      <div key={`${m.customerId}-${m.slot}`} className="member-list-row">
+                        <div className={`avatar tone-${toneAt(i)}`}>{initials(names[m.customerId] || "?")}</div>
+                        <div className="grow">
                           <button
                             type="button"
-                            className="btn btn-sm"
-                            disabled={editPhoneVal.length !== 10}
-                            onClick={() => {
-                              void updateCustomer(m.customerId, { phone: editPhoneVal }).then(() => {
-                                setEditPhoneId(null);
-                                setEditPhoneVal("");
-                              });
-                            }}
+                            className="member-list-name"
+                            onClick={() => nav(`/customers/${m.customerId}`)}
                           >
-                            {copy.chit.savePhone}
+                            {names[m.customerId]}
                           </button>
-                          <button type="button" className="btn ghost btn-sm" onClick={() => { setEditPhoneId(null); setEditPhoneVal(""); }}>
-                            {copy.common.cancel}
-                          </button>
+                          <div className="muted member-list-meta">
+                            {tx(copy.chit.handAmountLeft, { n: m.slot, amount: inr(left) })}
+                          </div>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn ghost btn-sm"
-                          style={{ marginTop: 4 }}
-                          onClick={() => {
-                            setEditPhoneId(m.customerId);
-                            setEditPhoneVal(cust?.phone || "");
-                          }}
-                        >
-                          {copy.chit.editPhone}
-                        </button>
-                      )}
-                    </div>
-                    <div className="num">{tx(copy.chit.leftToPay, { amount: inr(left) })}</div>
-                    {cust?.phone ? (
-                      <MemberReachButtons
-                        compact
-                        phone={cust.phone}
-                        showWhatsApp={left > 0}
-                        whatsappText={dueReminderWhatsAppMessage({
-                          memberName: cust.name,
-                          chitName: data.name,
-                          cycle,
-                          duration: data.duration,
-                          amountDue: left,
-                          organiserName: user?.name,
-                        })}
-                      />
-                    ) : null}
-                    {isRunning && started && (
-                      <button
-                        type="button"
-                        className="btn ghost btn-sm"
-                        onClick={() => {
-                          setSwapSlot(m.slot);
-                          setSwapToId("");
-                        }}
-                      >
-                        {copy.chit.swapMember}
-                      </button>
-                    )}
-                    {isRunning && !started && (
-                      <button
-                        type="button"
-                        className="btn ghost btn-sm"
-                        onClick={() => {
-                          const ok = window.confirm(
-                            tx(copy.chit.removeMemberConfirm, {
-                              name: names[m.customerId] || m.customerId,
-                              slot: String(m.slot),
-                            }),
-                          );
-                          if (!ok) return;
-                          void removeMember(data.id, m.slot);
-                        }}
-                      >
-                        {copy.chit.removeMember}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+                        <div className="member-list-actions">
+                          {cust?.phone ? (
+                            <InviteWhatsAppButton
+                              phone={cust.phone}
+                              title={copy.reach.inviteWhatsApp}
+                              message={inviteMemberWhatsAppMessage({
+                                memberName: cust.name,
+                                phone: cust.phone,
+                                chitName: data.name,
+                                organiserName: user?.name,
+                                instalment: data.instalment,
+                              })}
+                            />
+                          ) : null}
+                          {isRunning && started && (
+                            <button
+                              type="button"
+                              className="btn swap-chip"
+                              onClick={() => {
+                                setSwapSlot(m.slot);
+                                setSwapToId("");
+                              }}
+                            >
+                              {copy.chit.swapMember}
+                            </button>
+                          )}
+                          {isRunning && !started && (
+                            <button
+                              type="button"
+                              className="btn swap-chip"
+                              onClick={() => {
+                                const ok = window.confirm(
+                                  tx(copy.chit.removeMemberConfirm, {
+                                    name: names[m.customerId] || m.customerId,
+                                    slot: String(m.slot),
+                                  }),
+                                );
+                                if (!ok) return;
+                                void removeMember(data.id, m.slot);
+                              }}
+                            >
+                              {copy.chit.removeMember}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </>
         )}
 
         {tab === "activity" && (() => {
           const feed = buildActivityLog(data, names);
+          const groups = groupActivityByCycle(feed);
           const kindLabel = (k: string) => {
             if (k === "payment") return copy.chit.activityKindPayment;
             if (k === "award") return copy.chit.activityKindAward;
@@ -2157,76 +2171,82 @@ export function ChitDetailPage() {
             if (k === "lucky_draw") return copy.chit.activityKindLuckyDraw;
             return k;
           };
-          const whoTitle = (tpl: string, row: (typeof feed)[0]) =>
-            tx(tpl, {
-              who: `${row.memberName}${row.slot != null ? tx(copy.chit.activitySlot, { n: row.slot }) : ""}`,
-            });
+          const kindTone = (k: string) => {
+            if (k === "payment") return "green";
+            if (k === "loan") return "amber";
+            if (k === "settlement") return "violet";
+            if (k === "lucky_draw") return "blue";
+            return "blue";
+          };
+          const kindInitial = (k: string) => {
+            if (k === "payment") return "C";
+            if (k === "loan") return "L";
+            if (k === "settlement") return "S";
+            if (k === "lucky_draw") return "D";
+            return "A";
+          };
+          const whoLabel = (row: (typeof feed)[0]) =>
+            `${row.memberName}${row.slot != null ? tx(copy.chit.activitySlot, { n: row.slot }) : ""}`;
           return (
-            <div className="card flush">
+            <div className="card flush member-list-card">
+              <div className="member-list-head">
+                {tx(copy.chit.activityListMeta, { n: feed.length })}
+              </div>
               {feed.length === 0 ? (
-                <div className="card-pad">
-                  <PromptBox tone="blue">{copy.chit.activityEmpty}</PromptBox>
-                </div>
+                <p className="empty" style={{ margin: 0, padding: "16px 14px" }}>{copy.chit.activityEmpty}</p>
               ) : (
                 <div className="activity-list">
-                  {feed.map((row) => {
-                    let title = "";
-                    let detail = "";
-                    if (row.kind === "payment") {
-                      title = whoTitle(copy.chit.activityCollection, row);
-                      const kind =
-                        copy.payKind[row.paymentKind as keyof typeof copy.payKind] || row.paymentKind || "";
-                      const mode = row.mode ? ` · ${modeLabel(row.mode) || row.mode}` : "";
-                      detail = tx(copy.chit.activityPayDetail, {
-                        kind,
-                        mode,
-                        cycle: row.cycle,
-                      });
-                    } else if (row.kind === "settlement") {
-                      title = whoTitle(copy.chit.activitySettlement, row);
-                      detail = tx(copy.chit.activitySettleDetail, { cycle: row.cycle });
-                    } else if (row.kind === "loan") {
-                      title = whoTitle(copy.chit.activityLoan, row);
-                      detail = tx(copy.chit.activityLoanDetail, {
-                        face: inr(row.bid || 0),
-                        rate: row.interestRate != null ? tx(copy.chit.activityRate, { rate: row.interestRate }) : "",
-                        cut: row.discount ? tx(copy.chit.activityInterestCut, { amount: inr(row.discount) }) : "",
-                        cycle: row.cycle,
-                      });
-                    } else if (row.kind === "lucky_draw") {
-                      title = whoTitle(copy.chit.activityLuckyDraw, row);
-                      detail = tx(copy.chit.activityLdDetail, {
-                        cycle: row.cycle,
-                        commission: row.commission
-                          ? tx(copy.chit.activityCommission, { amount: inr(row.commission) })
-                          : "",
-                      });
-                    } else {
-                      title = whoTitle(copy.chit.activityAward, row);
-                      const method =
-                        row.method === "auction"
-                          ? tx(copy.chit.activityBid, { amount: inr(row.bid || 0) })
-                          : copy.chit.activityFixedPot;
-                      detail = tx(copy.chit.activityAwardDetail, {
-                        method,
-                        commission: row.commission
-                          ? tx(copy.chit.activityCommission, { amount: inr(row.commission) })
-                          : "",
-                        cycle: row.cycle,
-                      });
-                    }
-                    return (
-                      <div key={row.id} className="activity-row">
-                        <div className="muted">{formatActivityAt(row.at, locale)}</div>
-                        <div>
-                          <span className={`activity-kind ${row.kind}`}>{kindLabel(row.kind)}</span>
-                          <strong style={{ display: "block" }}>{title}</strong>
-                          <div className="muted">{detail}</div>
-                        </div>
-                        <div className="num">{row.amount != null ? inr(row.amount) : ""}</div>
+                  {groups.map((group) => (
+                    <div key={group.cycle} className="activity-group">
+                      <div className="activity-group-head">
+                        {tx(copy.chit.activityHaptaHead, { n: group.cycle })}
                       </div>
-                    );
-                  })}
+                      {group.rows.map((row) => {
+                        let meta = formatActivityAt(row.at, locale);
+                        if (row.kind === "payment") {
+                          const kind =
+                            copy.payKind[row.paymentKind as keyof typeof copy.payKind] || row.paymentKind || "";
+                          const mode = row.mode ? modeLabel(row.mode) || row.mode : "";
+                          meta = [kind, mode, meta].filter(Boolean).join(" · ");
+                        } else if (row.kind === "loan") {
+                          const bits = [
+                            row.bid ? tx(copy.chit.activityBid, { amount: inr(row.bid) }) : "",
+                            row.interestRate != null ? tx(copy.chit.activityRate, { rate: row.interestRate }) : "",
+                            meta,
+                          ];
+                          meta = bits.filter(Boolean).join(" · ");
+                        } else if (row.kind === "award" || row.kind === "lucky_draw") {
+                          const bits = [
+                            row.method === "auction" && row.bid
+                              ? tx(copy.chit.activityBid, { amount: inr(row.bid) })
+                              : row.kind === "lucky_draw"
+                                ? copy.chit.activityKindLuckyDraw
+                                : copy.chit.activityFixedPot,
+                            row.commission
+                              ? tx(copy.chit.activityCommission, { amount: inr(row.commission) })
+                              : "",
+                            meta,
+                          ];
+                          meta = bits.filter(Boolean).join(" · ");
+                        }
+                        return (
+                          <div key={row.id} className="activity-row">
+                            <div className={`avatar tone-${kindTone(row.kind)}`}>{kindInitial(row.kind)}</div>
+                            <div className="grow">
+                              <div className="activity-title-row">
+                                <span className={`activity-kind ${row.kind}`}>{kindLabel(row.kind)}</span>
+                                <strong className="activity-who">{whoLabel(row)}</strong>
+                              </div>
+                              <div className="muted member-list-meta">{meta}</div>
+                            </div>
+                            <div className="activity-amount num">
+                              {row.amount != null ? inr(row.amount) : ""}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -305,6 +305,14 @@ export type Messages = {
     thisHaptaAmount: string;
     ofSlots: string;
     booksIntro: string;
+    booksSectionTitle: string;
+    booksToggleAria: string;
+    booksCollapsedHint: string;
+    lifetimeExpected: string;
+    collectRulesLabel: string;
+    collectRulesAria: string;
+    awardNeedWinner: string;
+    awardNeedBid: string;
     cashOnHandToday: string;
     tillToday: string;
     monthOf: string;
@@ -361,6 +369,9 @@ export type Messages = {
     open: string;
     closed: string;
     handsCollected: string;
+    paidForMonth: string;
+    haptaCollectMeta: string;
+    balanceLeft: string;
     record: string;
     collect: string;
     award: string;
@@ -408,6 +419,8 @@ export type Messages = {
       other: string;
     };
     activityEmpty: string;
+    activityListMeta: string;
+    activityHaptaHead: string;
     editPhone: string;
     savePhone: string;
     phoneInvalid: string;
@@ -466,6 +479,9 @@ export type Messages = {
     scrollTabsRight: string;
     fromContacts: string;
     slotsFilledInvite: string;
+    membersListMeta: string;
+    handAmountLeft: string;
+    membersTabHelpAria: string;
     principalAtEndLabel: string;
     principalReducingLabel: string;
     interestFromNextLabel: string;
@@ -905,5 +921,6 @@ export type Messages = {
     monthsZero: string;
     noOfHands: string;
     membersInfoAria: string;
+    termsHelpAria: string;
   };
 };

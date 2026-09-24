@@ -2,18 +2,37 @@ import type { AuctionRecord, Chit, PaymentKind } from "../types";
 
 export function baseInstalment(chit: Chit) {
   const n = memberCount(chit);
-  const cover = computeInstalment(chit.pot, n);
-  // Prefer stored instalment, but never under-collect the pot (avoids ₹1 short cash-on-hand).
-  if (chit.instalment && chit.instalment > 0) return Math.max(chit.instalment, cover);
-  return cover;
+  const floor = computeInstalment(chit.pot, n);
+  // Prefer stored instalment when it is intentional; normalize legacy ceil (+1) back to floor.
+  if (chit.instalment && chit.instalment > 0) {
+    if (chit.instalment === floor || chit.instalment === floor + 1) return floor;
+    return chit.instalment;
+  }
+  return floor;
 }
 
-/** Monthly due so N × instalment always covers the pot (avoids ₹1 shortfalls from rounding). */
+/**
+ * Equal monthly share (floor). Remainder so N×share + rem = pot is applied on the
+ * highest slot via {@link handInstalment} — Expected never exceeds the pot.
+ */
 export function computeInstalment(pot: number, members: number) {
   if (!members || pot <= 0) return 0;
-  let inst = Math.round(pot / members);
-  if (inst * members < pot) inst += 1;
-  return inst;
+  return Math.floor(pot / members);
+}
+
+export function potCoverRemainder(pot: number, members: number) {
+  if (!members || pot <= 0) return 0;
+  return pot - computeInstalment(pot, members) * members;
+}
+
+/** Per-hand instalment: floor for all, highest slot absorbs ₹ rem so totals equal pot. */
+export function handInstalment(chit: Chit, slot: number) {
+  const n = memberCount(chit);
+  const floor = baseInstalment(chit);
+  const rem = potCoverRemainder(chit.pot, n);
+  if (rem <= 0 || !chit.members.length) return floor;
+  const maxSlot = Math.max(...chit.members.map((m) => m.slot));
+  return slot === maxSlot ? floor + rem : floor;
 }
 
 export function memberCount(chit: Chit) {
@@ -180,12 +199,22 @@ export function rawCycleDue(chit: Chit, memberId: string, cycle: number, slot?: 
 }
 
 function rawCycleDueOneHand(chit: Chit, hand: { customerId: string; slot: number; prizedCycle?: number }, cycle: number) {
-  const base = baseInstalment(chit);
+  const base = handInstalment(chit, hand.slot);
   const memberId = hand.customerId;
   const slot = hand.slot;
 
   if (chit.type === "auction") {
-    if (isAuctionFirst(chit)) return auctionFirstShare(chit, cycle);
+    if (isAuctionFirst(chit)) {
+      const n = memberCount(chit);
+      const a = auctionOfCycle(chit, cycle);
+      if (a) {
+        const floor = computeInstalment(a.bid, n);
+        const rem = potCoverRemainder(a.bid, n);
+        const maxSlot = Math.max(...chit.members.map((m) => m.slot), hand.slot);
+        return hand.slot === maxSlot ? floor + rem : floor;
+      }
+      return base;
+    }
     return Math.max(0, base - appliedDividend(chit, cycle));
   }
   if (chit.type === "fixed" || chit.type === "lucky_draw" || chit.type === "hand_sacrifice") {
@@ -579,7 +608,17 @@ export function dividendsHeld(chit: Chit) {
  */
 export function expectedLifeCollections(chit: Chit) {
   const n = memberCount(chit);
-  const base = baseInstalment(chit) * n * chit.duration;
+  /** One hapta of deposits when every hand pays base share (remainder on max slot = pot). */
+  const cycleBase = (() => {
+    if (!chit.members.length) {
+      return baseInstalment(chit) * n + potCoverRemainder(chit.pot, n);
+    }
+    let total = chit.members.reduce((s, m) => s + handInstalment(chit, m.slot), 0);
+    const empty = Math.max(0, n - chit.members.length);
+    if (empty) total += empty * baseInstalment(chit);
+    return total;
+  })();
+  const base = cycleBase * chit.duration;
   if (chit.type === "auction") return Math.max(0, base - dividendsHeld(chit));
   if (chit.type === "base_premium" || (chit.type === "fixed" && chit.premiumAmount)) {
     let total = 0;

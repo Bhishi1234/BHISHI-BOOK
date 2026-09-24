@@ -56,6 +56,7 @@ export function NewChitPage() {
   const [saving, setSaving] = useState(false);
   const [pickingContacts, setPickingContacts] = useState(false);
   const [memberHelpOpen, setMemberHelpOpen] = useState(false);
+  const [termsHelpOpen, setTermsHelpOpen] = useState(false);
 
   const { isOnApp } = usePhonesOnApp(customers.map((c) => c.phone));
 
@@ -494,25 +495,41 @@ export function NewChitPage() {
               </div>
 
               <div className="card" style={{ marginTop: 16 }}>
-                <h2>{m.terms.collected}</h2>
+                <div className="row-head" style={{ marginBottom: 8 }}>
+                  <h2 style={{ margin: 0 }}>{m.terms.collected}</h2>
+                  <button
+                    type="button"
+                    className={`info-chip${termsHelpOpen ? " on" : ""}`}
+                    aria-expanded={termsHelpOpen}
+                    aria-label={m.newChitExtra.termsHelpAria}
+                    title={m.newChitExtra.termsHelpAria}
+                    onClick={() => setTermsHelpOpen((v) => !v)}
+                  >
+                    <Info size={15} strokeWidth={2.4} />
+                  </button>
+                </div>
                 <label className="label">{m.terms.commission}</label>
                 <div className="seg" style={{ marginBottom: 12 }}>
                   <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>{m.newChitExtra.amountKind}</button>
                   <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>{m.newChitExtra.percentKind}</button>
                 </div>
                 <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
-                <PromptBox tone="amber">
-                  {type === "loan"
-                    ? m.newChitExtra.commissionFromTill
-                    : type === "auction" && auctionStyle === "auction_first"
-                      ? m.newChitExtra.commissionAuctionFirstPeer
-                      : type === "auction"
-                        ? m.newChitExtra.commissionAuctionFirst
-                        : m.newChitExtra.commissionCollectFirst}
-                </PromptBox>
+                {termsHelpOpen && (
+                  <PromptBox tone="amber">
+                    {type === "loan"
+                      ? m.newChitExtra.commissionFromTill
+                      : type === "auction" && auctionStyle === "auction_first"
+                        ? m.newChitExtra.commissionAuctionFirstPeer
+                        : type === "auction"
+                          ? m.newChitExtra.commissionAuctionFirst
+                          : m.newChitExtra.commissionCollectFirst}
+                  </PromptBox>
+                )}
                 {type === "loan" && (
                   <>
-                    <PromptBox tone="blue">{m.newChitExtra.interestOnAwardHint}</PromptBox>
+                    {termsHelpOpen && (
+                      <PromptBox tone="blue">{m.newChitExtra.interestOnAwardHint}</PromptBox>
+                    )}
                     <label className="label">{m.newChitExtra.interestCutLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
                       <button type="button" className={`chip ${loanInterestUpfront ? "on" : ""}`} onClick={() => setLoanInterestUpfront(true)}>
@@ -522,12 +539,16 @@ export function NewChitPage() {
                         {m.newChitExtra.interestCutNextMonth}
                       </button>
                     </div>
-                    <PromptBox tone="teal">
-                      {loanInterestUpfront ? m.newChitExtra.interestCutAtGiveHint : m.newChitExtra.interestCutNextMonthHint}
-                    </PromptBox>
+                    {termsHelpOpen && (
+                      <PromptBox tone="teal">
+                        {loanInterestUpfront ? m.newChitExtra.interestCutAtGiveHint : m.newChitExtra.interestCutNextMonthHint}
+                      </PromptBox>
+                    )}
                     <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
                     <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value)} />
-                    <PromptBox tone="blue">{m.newChitExtra.repaymentCapHint}</PromptBox>
+                    {termsHelpOpen && (
+                      <PromptBox tone="blue">{m.newChitExtra.repaymentCapHint}</PromptBox>
+                    )}
                     <label className="label">{m.newChitExtra.principalModeLabel}</label>
                     <div className="seg" style={{ marginBottom: 8 }}>
                       <button type="button" className={`chip ${loanPrincipalMode === "emi" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("emi")}>
@@ -537,9 +558,11 @@ export function NewChitPage() {
                         {m.newChitExtra.principalAtEnd}
                       </button>
                     </div>
-                    <PromptBox tone="amber">
-                      {loanPrincipalMode === "end" ? m.newChitExtra.principalAtEndHint : m.newChitExtra.principalEmiHint}
-                    </PromptBox>
+                    {termsHelpOpen && (
+                      <PromptBox tone="amber">
+                        {loanPrincipalMode === "end" ? m.newChitExtra.principalAtEndHint : m.newChitExtra.principalEmiHint}
+                      </PromptBox>
+                    )}
                   </>
                 )}
                 {type === "auction" && auctionStyle === "collect_first" && (
