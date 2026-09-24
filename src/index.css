@@ -1089,6 +1089,7 @@ button.stat {
   gap: 12px;
   margin-top: 20px;
   padding: 0;
+  position: static;
 }
 .wizard-actions .btn { min-width: 110px; }
 .wizard-actions .btn:not(.ghost) {
@@ -1450,9 +1451,14 @@ button.stat {
 .loan-share-row .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 .type-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.type-row.type-row-1 { grid-template-columns: 1fr; }
+.type-row.type-row-2 { grid-template-columns: 1fr 1fr; }
+.type-row.type-row-3 { grid-template-columns: 1fr 1fr 1fr; }
 .type-pick {
   border: 1px solid #e8ecf1; background: #fff; border-radius: 12px;
   padding: 14px; text-align: left; cursor: pointer; min-height: 96px;
+  min-width: 0;
+  align-self: start;
 }
 .type-pick.active { border-color: var(--blue); background: #f7faff; }
 .type-pick h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
@@ -1738,7 +1744,7 @@ body.native-app {
 }
 
 @media (max-width: 1100px) {
-  .stats, .cards, .grid-2, .grid-3, .type-row, .dash-chits { grid-template-columns: 1fr; }
+  .stats, .cards, .grid-2, .grid-3, .type-row, .type-row.type-row-2, .type-row.type-row-3, .dash-chits { grid-template-columns: 1fr; }
   .stats.three,
   .stats.four,
   .stats.six,
@@ -2103,15 +2109,14 @@ body.native-app {
     grid-template-columns: 1fr;
   }
   .wizard-actions {
-    position: sticky;
-    bottom: calc(88px + env(safe-area-inset-bottom));
-    background: rgb(244 246 250 / 0.72);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    position: static;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border-top: 0;
     padding: 0;
-    margin-top: 12px;
-    z-index: 5;
+    margin-top: 16px;
+    z-index: auto;
   }
 }
 
@@ -2698,7 +2703,7 @@ body.native-app {
 /* Create bhishi — keep fields inside cards */
 .new-chit-page .card,
 .new-chit-terms .card {
-  overflow: hidden;
+  overflow: visible;
   min-width: 0;
 }
 .new-chit-page .field,
@@ -2723,5 +2728,18 @@ body.native-app {
 @media (max-width: 760px) {
   .members-wizard .member-source-fields { grid-template-columns: 1fr; }
   .mobile-create { display: none; }
+  .type-row.type-row-2,
+  .type-row.type-row-3 {
+    grid-template-columns: 1fr;
+  }
+  .new-chit-page {
+    padding-bottom: calc(128px + env(safe-area-inset-bottom));
+  }
+  .new-chit-page .wizard-actions {
+    margin-bottom: 12px;
+  }
+  .members-wizard-head {
+    padding-top: 4px;
+  }
 }
 

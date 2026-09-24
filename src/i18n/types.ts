@@ -885,6 +885,12 @@ export type Messages = {
     confirmCreate: string;
     pageSubtitle: string;
     createStepsAria: string;
+    stepType: string;
+    stepVariant: string;
+    stepAuctionStyle: string;
+    stepSettlement: string;
+    stepTerms: string;
+    stepMembers: string;
     fillSlotsAlert: string;
     haptasMustMatchHands: string;
     confirmAlert: string;

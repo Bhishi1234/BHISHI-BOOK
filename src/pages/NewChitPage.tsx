@@ -174,17 +174,18 @@ export function NewChitPage() {
     style: styleLabel,
   }), [n, months, instalment, commMonth, styleLabel, m, tx]);
 
-  function phaseLabel(p: Phase) {
-    if (p === "type") return m.newChit.pickType;
-    if (p === "variant") return m.newChit.fixedStyle;
+  /** Short labels for the segmented stepper (long titles truncate on mobile). */
+  function phaseTabLabel(p: Phase) {
+    if (p === "type") return m.newChitExtra.stepType;
+    if (p === "variant") return m.newChitExtra.stepVariant;
     if (p === "collect") {
-      return type === "auction" ? m.newChit.auctionStyle : m.settlementStyle.title;
+      return type === "auction" ? m.newChitExtra.stepAuctionStyle : m.newChitExtra.stepSettlement;
     }
-    if (p === "terms") return m.newChit.terms;
-    return m.newChit.membersStep;
+    if (p === "terms") return m.newChitExtra.stepTerms;
+    return m.newChitExtra.stepMembers;
   }
 
-  const stepper = phases.map(phaseLabel);
+  const stepper = phases.map(phaseTabLabel);
 
   function goToTab(i: number) {
     if (i <= step) {
@@ -361,7 +362,7 @@ export function NewChitPage() {
         {phase === "type" && (
           <div className="card">
             <div className="row-head"><h2>{m.newChit.pickType}</h2><span className="muted">1 / {stepper.length}</span></div>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="type-row type-row-3">
               {TYPES.map((t) => (
                 <button
                   key={t.id}
@@ -386,7 +387,7 @@ export function NewChitPage() {
         {phase === "variant" && type === "fixed" && (
           <div className="card">
             <div className="row-head"><h2>{m.newChit.fixedStyle}</h2><span className="muted">{step + 1} / {stepper.length}</span></div>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="type-row type-row-1">
               {FIXED_STYLES.map((s) => (
                 <button
                   key={s.id}
@@ -415,7 +416,7 @@ export function NewChitPage() {
             <p className="muted block">
               {type === "auction" ? m.auctionStyle.collect_first : m.settlementStyle.collect_first}
             </p>
-            <div className="type-row" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="type-row type-row-2">
               {(type === "auction" ? AUCTION_STYLES : SETTLEMENT_STYLES).map((s) => (
                 <button
                   key={s.id}

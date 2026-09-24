@@ -93,7 +93,11 @@ export function AppShell({
     return () => { document.body.style.overflow = prev; };
   }, [sheetOpen]);
 
-  const moreActive = MORE_NAV.some((n) => loc.pathname === n.to || (n.to !== "/" && loc.pathname.startsWith(n.to)));
+  // Highlight More for sheet destinations only — /chits/new stays under the Bhishi tab.
+  const moreActive = MORE_NAV.some((n) => {
+    if (n.to === "/chits/new" || n.to.startsWith("/chits/")) return false;
+    return loc.pathname === n.to || (n.to !== "/" && loc.pathname.startsWith(`${n.to}/`));
+  });
 
   const side = (
     <>
@@ -145,19 +149,18 @@ export function AppShell({
                 <div className="muted">{user?.phone ? `+91 ${user.phone}` : m.common.notSet}</div>
               </div>
             </div>
-            <div className="sheet-label">{m.nav.more}</div>
             <div className="sheet-list">
               {MORE_NAV.map((n) => (
                 <NavLink
                   key={n.to}
                   to={n.to}
-                  className={({ isActive }) => `sheet-link${isActive ? " active" : ""}`}
+                  className={({ isActive }) => `sheet-item${isActive ? " active" : ""}`}
                   onClick={() => setSheetOpen(false)}
                 >
-                  <n.icon size={18} />
-                  <span>
+                  <span className="sheet-item-icon"><n.icon size={18} strokeWidth={2.2} /></span>
+                  <span className="grow">
                     <strong>{n.label}</strong>
-                    <em>{n.hint}</em>
+                    <span className="muted">{n.hint}</span>
                   </span>
                 </NavLink>
               ))}
