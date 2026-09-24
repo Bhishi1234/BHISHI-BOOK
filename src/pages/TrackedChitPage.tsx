@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
+import { ModalPortal } from "../components/ModalPortal";
 import { AppShell } from "../layout/AppShell";
 import { baseInstalment, paidInCycle } from "../lib/chitMath";
 import { useI18n } from "../i18n";
@@ -228,32 +229,34 @@ export function TrackedChitPage() {
       </div>
 
       {logMonth != null && (
-        <div className="modal-back" onClick={() => setLogMonth(null)}>
-          <form
-            className="modal"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => { e.preventDefault(); void saveLog(); }}
-          >
-            <h2>{m.tracked.logPayment}</h2>
-            <p className="muted">{tx(m.tracked.monthN, { n: logMonth })}</p>
-            <label className="label">{m.payModal.amount}</label>
-            <input className="field" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} />
-            <label className="label">{m.common.date}</label>
-            <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <label className="label">{m.payModal.mode}</label>
-            <div className="seg">
-              {(["cash", "upi", "bank", "cheque"] as PayMode[]).map((payModeId) => (
-                <button key={payModeId} type="button" className={`chip ${payMode === payModeId ? "on" : ""}`} onClick={() => setPayMode(payModeId)}>
-                  {modeLabel(payModeId)}
-                </button>
-              ))}
-            </div>
-            <div className="toolbar" style={{ marginTop: 16 }}>
-              <button type="button" className="btn ghost" onClick={() => setLogMonth(null)}>{m.common.cancel}</button>
-              <button className="btn" disabled={logging || !Number(amount)}>{logging ? m.common.loading : m.common.save}</button>
-            </div>
-          </form>
-        </div>
+        <ModalPortal>
+          <div className="modal-back" onClick={() => setLogMonth(null)}>
+            <form
+              className="modal"
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => { e.preventDefault(); void saveLog(); }}
+            >
+              <h2>{m.tracked.logPayment}</h2>
+              <p className="muted">{tx(m.tracked.monthN, { n: logMonth })}</p>
+              <label className="label">{m.payModal.amount}</label>
+              <input className="field" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} />
+              <label className="label">{m.common.date}</label>
+              <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <label className="label">{m.payModal.mode}</label>
+              <div className="seg">
+                {(["cash", "upi", "bank", "cheque"] as PayMode[]).map((payModeId) => (
+                  <button key={payModeId} type="button" className={`chip ${payMode === payModeId ? "on" : ""}`} onClick={() => setPayMode(payModeId)}>
+                    {modeLabel(payModeId)}
+                  </button>
+                ))}
+              </div>
+              <div className="seg modal-actions" style={{ marginTop: 16 }}>
+                <button type="button" className="btn ghost" onClick={() => setLogMonth(null)}>{m.common.cancel}</button>
+                <button type="submit" className="btn" disabled={logging || !Number(amount)}>{logging ? m.common.loading : m.common.save}</button>
+              </div>
+            </form>
+          </div>
+        </ModalPortal>
       )}
     </AppShell>
   );

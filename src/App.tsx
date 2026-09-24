@@ -7,6 +7,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ChitsPage, CustomersPage } from "./pages/ChitsCustomers";
 import { CustomerDetailPage } from "./pages/CustomerDetailPage";
+import { MemberInChitPage } from "./pages/MemberInChitPage";
 import { NewChitPage } from "./pages/NewChitPage";
 import { ChitDetailPage } from "./pages/ChitDetailPage";
 import { LuckyDrawPage } from "./pages/LuckyDrawPage";
@@ -51,6 +52,7 @@ export default function App() {
       <Route path="/chits" element={<Guard><ChitsPage /></Guard>} />
       <Route path="/chits/new" element={<Guard><NewChitPage /></Guard>} />
       <Route path="/chits/:id" element={<Guard><ChitDetailPage /></Guard>} />
+      <Route path="/chits/:id/members/:customerId" element={<Guard><MemberInChitPage /></Guard>} />
       <Route path="/chits/:id/lucky-draw" element={<Guard><LuckyDrawPage /></Guard>} />
       <Route path="/tracked/:id" element={<Guard><TrackedChitPage /></Guard>} />
       <Route path="/member/:id" element={<Guard><MemberChitPage /></Guard>} />

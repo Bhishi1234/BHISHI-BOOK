@@ -1468,16 +1468,18 @@ button.stat {
 .modal-back {
   position: fixed;
   inset: 0;
-  background: rgb(17 24 39 / 0.28);
+  background: rgb(17 24 39 / 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 120;
+  z-index: 1000;
   padding: 20px;
   padding-bottom: max(20px, env(safe-area-inset-bottom));
   -webkit-overflow-scrolling: touch;
   overflow-y: auto;
   overscroll-behavior: contain;
+  isolation: isolate;
+  touch-action: manipulation;
 }
 .modal {
   width: min(560px, 100%);
@@ -1490,14 +1492,34 @@ button.stat {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   box-shadow: 0 18px 48px rgb(15 23 42 / 0.18);
+  touch-action: manipulation;
+  pointer-events: auto;
+  flex-shrink: 0;
 }
 .modal .btn,
 .modal .link,
+.modal .chip,
+.modal .tab,
 .loan-share-row .btn {
   position: relative;
   z-index: 2;
   touch-action: manipulation;
   min-height: 44px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.modal-actions {
+  position: relative;
+  z-index: 3;
+}
+.modal-actions .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+html.modal-open .bottom-tabs,
+html.modal-open .bottom-tabs-inner {
+  pointer-events: none !important;
+  visibility: hidden;
 }
 .modal h2 { margin: 0 0 8px; }
 .pay-row { display: flex; gap: 8px; margin: 12px 0; }
@@ -1729,18 +1751,24 @@ body.native-app {
   .stats.home-stats,
   .stats.four { grid-template-columns: 1fr 1fr; }
   .modal-back {
-    align-items: flex-end;
-    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    align-items: center;
+    justify-content: center;
+    padding: 16px 12px calc(24px + env(safe-area-inset-bottom));
   }
   .modal {
     width: 100%;
-    border-radius: 18px 18px 14px 14px;
-    max-height: min(78dvh, 720px);
-    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    border-radius: 16px;
+    max-height: min(82dvh, 720px);
+    padding: 16px;
   }
-  .modal .btn { width: 100%; justify-content: center; }
+  .modal .btn.wide,
+  .loan-share-row .btn { width: 100%; justify-content: center; }
   .loan-share-row { flex-direction: column; align-items: stretch; }
-  .loan-share-row .btn { width: 100%; }
+  .modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .modal-actions .btn { width: 100%; }
   .stats.three .stat,
   .stats.four .stat,
   .stats.six .stat,
@@ -2399,12 +2427,22 @@ body.native-app {
   line-height: 1;
   margin: 4px 0 10px;
   display: block;
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+.celebrate-modal h2,
+.celebrate-modal p,
+.celebrate-modal .loan-share-row {
+  position: relative;
+  z-index: 3;
 }
 .celebrate-burst {
   position: absolute;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+  z-index: 0;
 }
 .celebrate-burst i {
   position: absolute;
@@ -2429,3 +2467,154 @@ body.native-app {
 @media (prefers-reduced-motion: reduce) {
   .celebrate-burst i { animation: none; opacity: 0; }
 }
+
+/* Member detail (People + bhishi-scoped) */
+.member-page .member-hero-card {
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.member-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.member-chit-chip {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f3f6fb;
+  border: 1px solid #e8ecf3;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+.member-chit-chip:hover { background: #eaf0fa; }
+.member-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.member-all-details-btn {
+  width: 100%;
+  margin-top: 14px;
+  justify-content: center;
+  gap: 6px;
+}
+.member-insight-card h2 { margin: 0; font-size: 14px; }
+.member-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+.member-card-head svg { color: var(--blue); flex-shrink: 0; }
+.member-chit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.member-chit-card { padding: 14px; margin: 0; }
+.member-chit-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.member-chit-card-top .btn { flex-shrink: 0; gap: 2px; }
+.member-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #eef1f6;
+}
+.member-mini-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.member-mini-stats .muted { font-size: 10.5px; letter-spacing: 0.02em; }
+.member-mini-stats strong { font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.member-win-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e8ecf3;
+  font-size: 12px;
+  color: var(--muted);
+}
+.member-win-strip svg { color: #d97706; }
+@media (max-width: 760px) {
+  .member-chit-grid { grid-template-columns: 1fr; }
+  .member-mini-stats strong { font-size: 12.5px; }
+}
+
+/* People directory list */
+.people-list-card { overflow: hidden; }
+.people-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.people-list-row:first-child { border-top: 0; }
+.people-list-row:hover { background: #f8fafc; }
+.people-list-row:active { background: #f1f5f9; }
+.people-list-body { min-width: 0; }
+.people-list-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.people-list-name {
+  font-weight: 650;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.people-list-wa { flex-shrink: 0; display: inline-flex; }
+.people-list-meta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.people-due-chip {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.people-list-chevron {
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+

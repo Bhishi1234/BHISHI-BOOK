@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useI18n } from "../i18n";
 import { inr } from "../lib/format";
 import type { PayMode, PaymentKind } from "../types";
+import { ModalPortal } from "./ModalPortal";
 
 const NOTES = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
@@ -32,84 +33,98 @@ export function PayModal({
   const cashOk = !cash || cashTotal === value;
 
   return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="row-head" style={{ marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>{m.detail.recordPayment} — {name}</h2>
-          <button type="button" className="btn ghost btn-sm" onClick={onClose} aria-label={m.common.close}>
-            {m.common.cancel}
-          </button>
-        </div>
-        <p className="muted">{m.terms.haptaRound} {cycle}</p>
-        {cash ? (
-          <>
-            <div className="row-head" style={{ marginBottom: 8 }}>
-              <strong>{m.payModal.countCash}</strong>
+    <ModalPortal>
+      <div
+        className="modal-back"
+        onClick={onClose}
+        role="presentation"
+      >
+        <div
+          className="modal"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${m.detail.recordPayment} — ${name}`}
+        >
+          <div className="row-head" style={{ marginBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>{m.detail.recordPayment} — {name}</h2>
+            <button type="button" className="btn ghost btn-sm" onClick={onClose} aria-label={m.common.close}>
+              {m.common.cancel}
+            </button>
+          </div>
+          <p className="muted">{m.terms.haptaRound} {cycle}</p>
+          {cash ? (
+            <>
+              <div className="row-head" style={{ marginBottom: 8 }}>
+                <strong>{m.payModal.countCash}</strong>
+                <button
+                  type="button"
+                  className="btn ghost btn-sm"
+                  onClick={() => { setCash(false); setNotes({}); }}
+                >
+                  {m.common.back}
+                </button>
+              </div>
+              <div className="cash-grid">
+                {NOTES.map((n) => (
+                  <label key={n} className="cash-row">
+                    <span>₹{n}</span>
+                    <input
+                      className="field"
+                      inputMode="numeric"
+                      value={notes[n] || ""}
+                      onChange={(e) => setNotes((prev) => ({ ...prev, [n]: Number(e.target.value) || 0 }))}
+                    />
+                  </label>
+                ))}
+                <p className={cashOk ? "muted" : "due"}>
+                  {tx(m.payModal.countedMustEqual, { counted: inr(cashTotal), amount: inr(value) })}
+                </p>
+              </div>
               <button
                 type="button"
-                className="btn ghost btn-sm"
-                onClick={() => { setCash(false); setNotes({}); }}
+                className="btn wide"
+                disabled={!value || !cashOk}
+                onClick={() => onSave(value, kind, mode)}
               >
-                {m.common.back}
+                {m.common.save}
               </button>
-            </div>
-            <div className="cash-grid">
-              {NOTES.map((n) => (
-                <label key={n} className="cash-row">
-                  <span>₹{n}</span>
-                  <input
-                    className="field"
-                    inputMode="numeric"
-                    value={notes[n] || ""}
-                    onChange={(e) => setNotes((prev) => ({ ...prev, [n]: Number(e.target.value) || 0 }))}
-                  />
-                </label>
-              ))}
-              <p className={cashOk ? "muted" : "due"}>
-                {tx(m.payModal.countedMustEqual, { counted: inr(cashTotal), amount: inr(value) })}
-              </p>
-            </div>
-            <button
-              className="btn wide"
-              disabled={!value || !cashOk}
-              onClick={() => onSave(value, kind, mode)}
-            >
-              {m.common.save}
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="pay-row">
-              <button className={`tab ${kind === "partial" ? "on" : ""}`} onClick={() => { setKind("partial"); setAmount(String(Math.max(0, Math.round(due / 2)))); }}>{payKindLabel("partial")}</button>
-              <button className={`tab ${kind === "full" ? "on" : ""}`} onClick={() => { setKind("full"); setAmount(String(due)); }}>
-                {inr(due)}
-              </button>
-              <button className={`tab ${kind === "advance" ? "on" : ""}`} onClick={() => { setKind("advance"); setAmount(String(due * 2)); }}>{payKindLabel("advance")}</button>
-            </div>
-            <label className="label">{m.payModal.mode}</label>
-            <div className="seg" style={{ marginBottom: 12 }}>
-              {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((payModeId) => (
-                <button key={payModeId} type="button" className={`chip ${mode === payModeId ? "on" : ""}`} onClick={() => setMode(payModeId)}>
-                  {modeLabel(payModeId)}
+            </>
+          ) : (
+            <>
+              <div className="pay-row">
+                <button type="button" className={`tab ${kind === "partial" ? "on" : ""}`} onClick={() => { setKind("partial"); setAmount(String(Math.max(0, Math.round(due / 2)))); }}>{payKindLabel("partial")}</button>
+                <button type="button" className={`tab ${kind === "full" ? "on" : ""}`} onClick={() => { setKind("full"); setAmount(String(due)); }}>
+                  {inr(due)}
                 </button>
-              ))}
-            </div>
-            <label className="label">{m.payModal.amount}</label>
-            <input className="field" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={kind === "full"} />
-            <label className="check">
-              <input type="checkbox" checked={cash} onChange={(e) => setCash(e.target.checked)} />
-              {m.payModal.countCash}
-            </label>
-            <button
-              className="btn wide"
-              disabled={!value || !cashOk}
-              onClick={() => onSave(value, kind, mode)}
-            >
-              {m.common.save}
-            </button>
-          </>
-        )}
+                <button type="button" className={`tab ${kind === "advance" ? "on" : ""}`} onClick={() => { setKind("advance"); setAmount(String(due * 2)); }}>{payKindLabel("advance")}</button>
+              </div>
+              <label className="label">{m.payModal.mode}</label>
+              <div className="seg" style={{ marginBottom: 12 }}>
+                {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((payModeId) => (
+                  <button key={payModeId} type="button" className={`chip ${mode === payModeId ? "on" : ""}`} onClick={() => setMode(payModeId)}>
+                    {modeLabel(payModeId)}
+                  </button>
+                ))}
+              </div>
+              <label className="label">{m.payModal.amount}</label>
+              <input className="field" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={kind === "full"} />
+              <label className="check">
+                <input type="checkbox" checked={cash} onChange={(e) => setCash(e.target.checked)} />
+                {m.payModal.countCash}
+              </label>
+              <button
+                type="button"
+                className="btn wide"
+                disabled={!value || !cashOk}
+                onClick={() => onSave(value, kind, mode)}
+              >
+                {m.common.save}
+              </button>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

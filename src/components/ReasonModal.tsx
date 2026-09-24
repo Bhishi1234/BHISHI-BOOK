@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ModalPortal } from "./ModalPortal";
 
 export type ReasonOption = { id: string; label: string };
 
@@ -52,60 +53,68 @@ export function ReasonModal({
   const canSubmit = picked.length > 0 && (!otherOn || note.trim().length > 0);
 
   return (
-    <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="reason-modal-title">
-      <div className="modal reason-modal">
-        <h2 id="reason-modal-title">{title}</h2>
-        <p className="muted">{hint}</p>
-        <div className="reason-list">
-          {options.map((opt) => (
-            <label key={opt.id} className={`reason-option${picked.includes(opt.id) ? " on" : ""}`}>
-              <input
-                type={multi ? "checkbox" : "radio"}
-                name="reason"
-                checked={picked.includes(opt.id)}
-                onChange={() => toggle(opt.id)}
-              />
-              <span>{opt.label}</span>
-            </label>
-          ))}
-        </div>
-        {otherOn && (
-          <div style={{ marginTop: 10 }}>
-            <label className="label">{otherLabel}</label>
-            <textarea
-              className="field"
-              rows={3}
-              value={note}
-              placeholder={otherPlaceholder}
-              onChange={(e) => setNote(e.target.value)}
-            />
+    <ModalPortal>
+      <div
+        className="modal-back"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reason-modal-title"
+        onClick={onClose}
+      >
+        <div className="modal reason-modal" onClick={(e) => e.stopPropagation()}>
+          <h2 id="reason-modal-title">{title}</h2>
+          <p className="muted">{hint}</p>
+          <div className="reason-list">
+            {options.map((opt) => (
+              <label key={opt.id} className={`reason-option${picked.includes(opt.id) ? " on" : ""}`}>
+                <input
+                  type={multi ? "checkbox" : "radio"}
+                  name="reason"
+                  checked={picked.includes(opt.id)}
+                  onChange={() => toggle(opt.id)}
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
           </div>
-        )}
-        <div className="seg" style={{ marginTop: 16 }}>
-          <button
-            type="button"
-            className={danger ? "btn danger" : "btn"}
-            disabled={!canSubmit || busy}
-            onClick={() => {
-              void onConfirm(picked, note.trim());
-            }}
-          >
-            {busy ? "…" : confirmLabel}
-          </button>
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={busy}
-            onClick={() => {
-              setPicked([]);
-              setNote("");
-              onClose();
-            }}
-          >
-            {cancelLabel}
-          </button>
+          {otherOn && (
+            <div style={{ marginTop: 10 }}>
+              <label className="label">{otherLabel}</label>
+              <textarea
+                className="field"
+                rows={3}
+                value={note}
+                placeholder={otherPlaceholder}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+          )}
+          <div className="seg modal-actions" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className={danger ? "btn danger" : "btn"}
+              disabled={!canSubmit || busy}
+              onClick={() => {
+                void onConfirm(picked, note.trim());
+              }}
+            >
+              {busy ? "…" : confirmLabel}
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={busy}
+              onClick={() => {
+                setPicked([]);
+                setNote("");
+                onClose();
+              }}
+            >
+              {cancelLabel}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

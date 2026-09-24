@@ -1,6 +1,6 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BookUser, Plus, UserRound, Users } from "lucide-react";
+import { ArrowUpRight, BookUser, ChevronRight, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
 import { useI18n } from "../i18n";
@@ -250,12 +250,11 @@ export function CustomersPage() {
 
   const rows = customers.map((c) => {
     const inChits = chits.filter((ch) => ch.members.some((mem) => mem.customerId === c.id) && ch.status !== "cancelled");
-    const contributed = chits.reduce((s, ch) => s + ch.payments.filter((p) => p.memberId === c.id).reduce((a, p) => a + p.amount, 0), 0);
     const outstanding = chits.reduce((s, ch) => {
       if (!ch.members.some((mem) => mem.customerId === c.id)) return s;
       return s + memberBalance(ch, c.id).outstanding;
     }, 0);
-    return { ...c, inChits, contributed, outstanding };
+    return { ...c, inChits, outstanding };
   }).filter((r) => {
     if (q && !r.name.toLowerCase().includes(q.toLowerCase()) && !r.phone.includes(q)) return false;
     if (filter === "in") return r.inChits.length > 0;
@@ -298,44 +297,54 @@ export function CustomersPage() {
             <button className={`chip ${filter === "dues" ? "on" : ""}`} onClick={() => setFilter("dues")}>{m.customersPage.filterDues}</button>
           </div>
         </div>
-        <div className="card flush">
-          <div className="table-wrap">
-          <table className="table">
-            <thead><tr><th>{m.customersPage.person}</th><th>{m.customersPage.chitsCol}</th><th>{m.customersPage.contributed}</th><th>{m.terms.outstanding}</th></tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="clickable" onClick={() => nav(`/customers/${r.id}`)}>
-                  <td>
-                    <div className="person">
-                      <div className="avatar">{initials(r.name)}</div>
-                      <div>
-                        <div className="member-name-row">
-                          <strong>{r.name}</strong>
-                          {r.phone && !isOnApp(r.phone) ? (
-                            <InviteWhatsAppButton
-                              phone={r.phone}
-                              message={inviteMemberWhatsAppMessage({
-                                memberName: r.name,
-                                phone: r.phone,
-                                organiserName: user?.name,
-                              })}
-                            />
-                          ) : null}
-                        </div>
-                        <div className="muted">{r.phone || m.customersPage.noPhone}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="people-chits-cell">
-                    {r.inChits.length ? r.inChits.map((c) => c.name).join(", ") : m.customersPage.notInAny}
-                  </td>
-                  <td>{r.contributed ? inr(r.contributed) : "—"}</td>
-                  <td>{r.outstanding ? inr(r.outstanding) : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+        <div className="card flush people-list-card">
+          {!rows.length && (
+            <p className="empty" style={{ margin: 0, padding: "20px 14px" }}>{m.customersPage.emptyList}</p>
+          )}
+          {rows.map((r, i) => (
+            <button
+              key={r.id}
+              type="button"
+              className="people-list-row"
+              onClick={() => nav(`/customers/${r.id}`)}
+            >
+              <div className={`avatar tone-${toneAt(i)}`}>{initials(r.name)}</div>
+              <div className="grow people-list-body">
+                <div className="people-list-name-row">
+                  <strong className="people-list-name">{r.name}</strong>
+                  {r.phone && !isOnApp(r.phone) ? (
+                    <span
+                      className="people-list-wa"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <InviteWhatsAppButton
+                        phone={r.phone}
+                        message={inviteMemberWhatsAppMessage({
+                          memberName: r.name,
+                          phone: r.phone,
+                          organiserName: user?.name,
+                        })}
+                      />
+                    </span>
+                  ) : null}
+                </div>
+                <div className="muted people-list-meta">
+                  {r.phone || m.customersPage.noPhone}
+                  {" · "}
+                  {r.inChits.length
+                    ? tx(m.customersPage.groupsMeta, { n: r.inChits.length })
+                    : m.customersPage.notInAny}
+                </div>
+              </div>
+              {r.outstanding > 0 ? (
+                <span className="people-due-chip" title={m.terms.outstanding}>
+                  {inr(r.outstanding)}
+                </span>
+              ) : null}
+              <ChevronRight className="people-list-chevron" size={18} strokeWidth={2.2} aria-hidden />
+            </button>
+          ))}
         </div>
       </div>
     </AppShell>

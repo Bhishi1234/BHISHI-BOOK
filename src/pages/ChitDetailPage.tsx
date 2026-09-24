@@ -16,6 +16,7 @@ import {
 import { PayModal } from "../components/PayModal";
 import { MemberReachButtons } from "../components/MemberReachButtons";
 import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
+import { ModalPortal } from "../components/ModalPortal";
 import { PromptBox } from "../components/PromptBox";
 import { ReasonModal } from "../components/ReasonModal";
 import { AppShell } from "../layout/AppShell";
@@ -650,73 +651,6 @@ export function ChitDetailPage() {
                 )}
               </div>
             </div>
-            {(data.type === "auction" || handSacrifice || data.type === "loan") && (
-              <div className="card flush block">
-                <div className="card-pad">
-                  <h2>{copy.chit.memberLedger}</h2>
-                  <p className="muted">
-                    {data.type === "loan"
-                      ? copy.chit.ledgerLoanHint
-                      : handSacrifice
-                      ? copy.chit.ledgerSacrificeHint
-                      : copy.chit.ledgerDefaultHint}
-                  </p>
-                </div>
-                <div className="table-wrap member-ledger-wrap">
-                  <table className="table member-ledger-table">
-                    <thead>
-                      <tr>
-                        <th>{copy.common.member}</th>
-                        <th>{copy.chit.paidIn}</th>
-                        {data.type === "loan" ? (
-                          <>
-                            <th>{copy.chit.loanReceived}</th>
-                            <th>{copy.chit.interestPaid}</th>
-                            <th>{copy.chit.interestDividend}</th>
-                          </>
-                        ) : (
-                          <>
-                            <th>{copy.chit.gotFromPot}</th>
-                            <th>{handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}</th>
-                          </>
-                        )}
-                        <th>{copy.chit.net}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {memberLedgerRows(data).map((row) => (
-                        <tr key={`${row.customerId}-${row.slot}`}>
-                          <td data-label={copy.common.member}>
-                            <strong>
-                              {handLabel(
-                                names[row.customerId] || "Member",
-                                row.slot,
-                                data.members.filter((m) => m.customerId === row.customerId).length,
-                              )}
-                            </strong>
-                            {row.prizedCycle ? <div className="muted">{tx(copy.chit.prizedMonth, { n: row.prizedCycle })}</div> : null}
-                          </td>
-                          <td data-label={copy.chit.paidIn}>{inr(row.paid)}</td>
-                          {data.type === "loan" ? (
-                            <>
-                              <td data-label={copy.chit.loanReceived}>{inr(row.loanOut || 0)}</td>
-                              <td data-label={copy.chit.interestPaid}>{inr(row.interestPaid || 0)}</td>
-                              <td data-label={copy.chit.interestDividend}>{inr(row.dividend)}</td>
-                            </>
-                          ) : (
-                            <>
-                              <td data-label={copy.chit.gotFromPot}>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
-                              <td data-label={handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}>{inr(row.dividend)}</td>
-                            </>
-                          )}
-                          <td data-label={copy.chit.net} className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
             {data.type === "loan" && !!loanDetailRows(data).length && (
               <div className="card flush block">
                 <div className="card-pad">
@@ -881,6 +815,76 @@ export function ChitDetailPage() {
             </div>
               </>
             )}
+
+            {/* Member ledger always visible on Overview — all bhishi types */}
+            <div className="card flush block">
+              <div className="card-pad">
+                <h2>{copy.chit.memberLedger}</h2>
+                <p className="muted">
+                  {data.type === "loan"
+                    ? copy.chit.ledgerLoanHint
+                    : handSacrifice
+                    ? copy.chit.ledgerSacrificeHint
+                    : copy.chit.ledgerDefaultHint}
+                </p>
+              </div>
+              <div className="table-wrap member-ledger-wrap">
+                <table className="table member-ledger-table">
+                  <thead>
+                    <tr>
+                      <th>{copy.common.member}</th>
+                      <th>{copy.chit.paidIn}</th>
+                      {data.type === "loan" ? (
+                        <>
+                          <th>{copy.chit.loanReceived}</th>
+                          <th>{copy.chit.interestPaid}</th>
+                          <th>{copy.chit.interestDividend}</th>
+                        </>
+                      ) : (
+                        <>
+                          <th>{copy.chit.gotFromPot}</th>
+                          <th>{handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}</th>
+                        </>
+                      )}
+                      <th>{copy.chit.net}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {memberLedgerRows(data).map((row) => (
+                      <tr key={`${row.customerId}-${row.slot}`}>
+                        <td data-label={copy.common.member}>
+                          <strong>
+                            {handLabel(
+                              names[row.customerId] || "Member",
+                              row.slot,
+                              data.members.filter((m) => m.customerId === row.customerId).length,
+                            )}
+                          </strong>
+                          {row.prizedCycle ? <div className="muted">{tx(copy.chit.prizedMonth, { n: row.prizedCycle })}</div> : null}
+                        </td>
+                        <td data-label={copy.chit.paidIn}>{inr(row.paid)}</td>
+                        {data.type === "loan" ? (
+                          <>
+                            <td data-label={copy.chit.loanReceived}>{inr(row.loanOut || 0)}</td>
+                            <td data-label={copy.chit.interestPaid}>{inr(row.interestPaid || 0)}</td>
+                            <td data-label={copy.chit.interestDividend}>{inr(row.dividend)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td data-label={copy.chit.gotFromPot}>{inr(row.received - (handSacrifice ? row.dividend : 0))}</td>
+                            <td data-label={handSacrifice ? copy.chit.cashDividends : copy.chit.dividends}>{inr(row.dividend)}</td>
+                          </>
+                        )}
+                        <td data-label={copy.chit.net} className={row.net < 0 ? "neg" : ""}>{inr(row.net)}</td>
+                      </tr>
+                    ))}
+                    {!memberLedgerRows(data).length && (
+                      <tr><td colSpan={6}><p className="empty">{copy.chit.ledgerEmpty}</p></td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </>
         )}
 
@@ -1134,7 +1138,7 @@ export function ChitDetailPage() {
                           <button
                             type="button"
                             className="member-list-name"
-                            onClick={() => nav(`/customers/${m.customerId}`)}
+                            onClick={() => nav(`/chits/${data.id}/members/${m.customerId}`)}
                           >
                             {handLabel(names[m.customerId] || copy.common.member, m.slot, hands)}
                             {isWinner ? <span className="muted">{copy.chit.winnerSuffix}</span> : null}
@@ -2129,7 +2133,7 @@ export function ChitDetailPage() {
                           <button
                             type="button"
                             className="member-list-name"
-                            onClick={() => nav(`/customers/${m.customerId}`)}
+                            onClick={() => nav(`/chits/${data.id}/members/${m.customerId}`)}
                           >
                             {names[m.customerId]}
                           </button>
@@ -2492,93 +2496,99 @@ export function ChitDetailPage() {
       </div>
 
       {editOpen && (
-        <div className="modal-back" onClick={() => setEditOpen(false)}>
-          <form
-            className="modal"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!editName.trim()) return;
-              setEditSaving(true);
-              void updateChitSettings(data.id, { name: editName.trim(), title: editTitle.trim() })
-                .finally(() => { setEditSaving(false); setEditOpen(false); });
-            }}
-          >
-            <h2>{copy.chit.editChit}</h2>
-            <label className="label">{copy.chit.editName}</label>
-            <input className="field" value={editName} onChange={(e) => setEditName(e.target.value)} />
-            <label className="label">{copy.chit.titleOptional}</label>
-            <input className="field" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-            <div className="toolbar" style={{ marginTop: 12 }}>
-              <button type="button" className="btn ghost" onClick={() => setEditOpen(false)}>{copy.common.cancel}</button>
-              <button className="btn" disabled={editSaving || !editName.trim()}>{editSaving ? copy.chit.saving : copy.common.save}</button>
-            </div>
-          </form>
-        </div>
+        <ModalPortal>
+          <div className="modal-back" onClick={() => setEditOpen(false)}>
+            <form
+              className="modal"
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editName.trim()) return;
+                setEditSaving(true);
+                void updateChitSettings(data.id, { name: editName.trim(), title: editTitle.trim() })
+                  .finally(() => { setEditSaving(false); setEditOpen(false); });
+              }}
+            >
+              <h2>{copy.chit.editChit}</h2>
+              <label className="label">{copy.chit.editName}</label>
+              <input className="field" value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <label className="label">{copy.chit.titleOptional}</label>
+              <input className="field" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+              <div className="seg modal-actions" style={{ marginTop: 12 }}>
+                <button type="button" className="btn ghost" onClick={() => setEditOpen(false)}>{copy.common.cancel}</button>
+                <button type="submit" className="btn" disabled={editSaving || !editName.trim()}>{editSaving ? copy.chit.saving : copy.common.save}</button>
+              </div>
+            </form>
+          </div>
+        </ModalPortal>
       )}
 
       {awardShare && (
-        <div className="modal-back" onClick={() => { setAwardShare(null); if (celebrate === "award") setCelebrate(null); }}>
-          <div
-            className="modal loan-share-banner celebrate-modal"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="award-share-title"
-          >
-            <div className="celebrate-burst" aria-hidden><i /><i /><i /><i /><i /><i /></div>
-            <span className="celebrate-emoji" aria-hidden>🎉</span>
-            <h2 id="award-share-title" style={{ margin: "0 0 6px" }}>
-              {data.type === "loan" ? copy.chit.loanShareTitle : copy.chit.awardShareTitle}
-            </h2>
-            <p className="muted" style={{ margin: "0 0 12px" }}>
-              {data.type === "loan" ? copy.chit.loanShareHint : copy.chit.awardShareHint}
-            </p>
-            <div className="loan-share-row">
-              <button type="button" className="btn" onClick={() => shareAwardPdfWhatsApp(awardShare)}>
-                <Share2 size={15} /> {copy.chit.sharePdfWhatsApp}
-              </button>
-              <button type="button" className="btn ghost" onClick={() => shareAwardPdfOnly(awardShare)}>
-                {copy.chit.pdfOnly}
-              </button>
-              <button type="button" className="btn ghost" onClick={() => { setAwardShare(null); if (celebrate === "award") setCelebrate(null); }}>
-                {copy.chit.dismiss}
-              </button>
+        <ModalPortal>
+          <div className="modal-back" onClick={() => { setAwardShare(null); if (celebrate === "award") setCelebrate(null); }}>
+            <div
+              className="modal loan-share-banner celebrate-modal"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="award-share-title"
+            >
+              <div className="celebrate-burst" aria-hidden><i /><i /><i /><i /><i /><i /></div>
+              <span className="celebrate-emoji" aria-hidden>🎉</span>
+              <h2 id="award-share-title" style={{ margin: "0 0 6px" }}>
+                {data.type === "loan" ? copy.chit.loanShareTitle : copy.chit.awardShareTitle}
+              </h2>
+              <p className="muted" style={{ margin: "0 0 12px" }}>
+                {data.type === "loan" ? copy.chit.loanShareHint : copy.chit.awardShareHint}
+              </p>
+              <div className="loan-share-row">
+                <button type="button" className="btn" onClick={() => shareAwardPdfWhatsApp(awardShare)}>
+                  <Share2 size={15} /> {copy.chit.sharePdfWhatsApp}
+                </button>
+                <button type="button" className="btn ghost" onClick={() => shareAwardPdfOnly(awardShare)}>
+                  {copy.chit.pdfOnly}
+                </button>
+                <button type="button" className="btn ghost" onClick={() => { setAwardShare(null); if (celebrate === "award") setCelebrate(null); }}>
+                  {copy.chit.dismiss}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {celebrate === "completed" && (
-        <div className="modal-back" onClick={() => setCelebrate(null)}>
-          <div
-            className="modal celebrate-modal"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="bhishi-done-title"
-          >
-            <div className="celebrate-burst" aria-hidden><i /><i /><i /><i /><i /><i /></div>
-            <span className="celebrate-emoji" aria-hidden>🎊</span>
-            <h2 id="bhishi-done-title" style={{ margin: "0 0 6px" }}>{copy.chit.completedTitle}</h2>
-            <p className="muted" style={{ margin: "0 0 14px" }}>{copy.chit.completedHint}</p>
-            <div className="loan-share-row">
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setCelebrate(null);
-                  setTab("settings");
-                }}
-              >
-                {copy.chit.goToReports}
-              </button>
-              <button type="button" className="btn ghost" onClick={() => setCelebrate(null)}>
-                {copy.chit.dismiss}
-              </button>
+        <ModalPortal>
+          <div className="modal-back" onClick={() => setCelebrate(null)}>
+            <div
+              className="modal celebrate-modal"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bhishi-done-title"
+            >
+              <div className="celebrate-burst" aria-hidden><i /><i /><i /><i /><i /><i /></div>
+              <span className="celebrate-emoji" aria-hidden>🎊</span>
+              <h2 id="bhishi-done-title" style={{ margin: "0 0 6px" }}>{copy.chit.completedTitle}</h2>
+              <p className="muted" style={{ margin: "0 0 14px" }}>{copy.chit.completedHint}</p>
+              <div className="loan-share-row">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setCelebrate(null);
+                    setTab("settings");
+                  }}
+                >
+                  {copy.chit.goToReports}
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setCelebrate(null)}>
+                  {copy.chit.dismiss}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {payFor && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ModalPortal } from "../components/ModalPortal";
 import { ReasonModal } from "../components/ReasonModal";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
@@ -31,19 +32,21 @@ export function SupportPage() {
         ))}
         </div>
         {open && (
-          <div className="modal-back" onClick={() => setOpen(false)}>
-            <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={(e) => {
-              e.preventDefault();
-              if (!subject.trim() || !message.trim()) return;
-              void addTicket(subject.trim(), message.trim());
-              setSubject(""); setMessage(""); setOpen(false);
-            }}>
-              <h2>{m.support.newConversation}</h2>
-              <input className="field" placeholder={m.support.subject} value={subject} onChange={(e) => setSubject(e.target.value)} />
-              <textarea className="field" rows={5} placeholder={m.support.message} value={message} onChange={(e) => setMessage(e.target.value)} />
-              <button className="btn wide">{m.support.send}</button>
-            </form>
-          </div>
+          <ModalPortal>
+            <div className="modal-back" onClick={() => setOpen(false)}>
+              <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={(e) => {
+                e.preventDefault();
+                if (!subject.trim() || !message.trim()) return;
+                void addTicket(subject.trim(), message.trim());
+                setSubject(""); setMessage(""); setOpen(false);
+              }}>
+                <h2>{m.support.newConversation}</h2>
+                <input className="field" placeholder={m.support.subject} value={subject} onChange={(e) => setSubject(e.target.value)} />
+                <textarea className="field" rows={5} placeholder={m.support.message} value={message} onChange={(e) => setMessage(e.target.value)} />
+                <button type="submit" className="btn wide">{m.support.send}</button>
+              </form>
+            </div>
+          </ModalPortal>
         )}
       </div>
     </AppShell>
@@ -309,7 +312,7 @@ export function SearchPage() {
   return (
     <AppShell crumb={m.nav.search}>
       <div className="page">
-        <div className="modal-back" style={{ position: "relative", background: "transparent", padding: 0, display: "block" }}>
+        <div className="search-panel">
           <div className="search-pop" style={{ margin: "0 auto" }}>
             <div className="row-head" style={{ marginBottom: 8 }}>
               <h2 style={{ margin: 0 }}>{m.nav.search}</h2>

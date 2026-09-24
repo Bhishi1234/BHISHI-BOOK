@@ -743,6 +743,8 @@ export type Messages = {
     notInAny: string;
     noPhone: string;
     fromContacts: string;
+    groupsMeta: string;
+    emptyList: string;
   };
   customerDetail: {
     contributed: string;
@@ -752,6 +754,37 @@ export type Messages = {
     settled: string;
     gotAmount: string;
     cyclePrized: string;
+    viewAllDetails: string;
+    inThisBhishi: string;
+    winsAndLoans: string;
+    haptaPaid: string;
+    cyclesCleared: string;
+    winsCard: string;
+    noWinsYet: string;
+    snapshotCard: string;
+    handInChit: string;
+    netPosition: string;
+    passbook: string;
+    passbookHint: string;
+    ledgerThisBhishi: string;
+    ledgerAllHint: string;
+    due: string;
+    paidCol: string;
+    balanceCol: string;
+    entry: string;
+    inCol: string;
+    outCol: string;
+    cycleContribution: string;
+    cycleAuction: string;
+    cycleLucky: string;
+    cycleLoan: string;
+    cycleAward: string;
+    haptaN: string;
+    bhishiCards: string;
+    thisBhishi: string;
+    openInBhishi: string;
+    groupsCount: string;
+    statusLabel: string;
   };
   support: {
     title: string;

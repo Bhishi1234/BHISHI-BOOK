@@ -1,6 +1,15 @@
 import { useState } from "react";
-import { AlertCircle, ChevronLeft, Layers, PiggyBank, Wallet } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  PiggyBank,
+  Trophy,
+  Wallet,
+} from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { MemberReachButtons } from "../components/MemberReachButtons";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { displayCycle, memberBalance, paidInCycle, rawCycleDue } from "../lib/chitMath";
@@ -8,11 +17,12 @@ import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard } from "../ui/StatCard";
 
+/** Full People profile — every bhishi this member is in. */
 export function CustomerDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { customers, chits, updateCustomer, error } = useStore();
-  const { m, tx, typeLabel, modeLabel } = useI18n();
+  const { m, tx, typeLabel, modeLabel, statusLabel, locale } = useI18n();
   const customer = customers.find((c) => c.id === id);
   const [editPhone, setEditPhone] = useState(false);
   const [phoneVal, setPhoneVal] = useState("");
@@ -35,25 +45,25 @@ export function CustomerDetailPage() {
   }
 
   const memberships = chits
-    .filter((ch) => ch.members.some((m) => m.customerId === customer.id) && ch.status !== "cancelled")
+    .filter((ch) => ch.members.some((mem) => mem.customerId === customer.id) && ch.status !== "cancelled")
     .map((ch) => {
       const bal = memberBalance(ch, customer.id);
-      const member = ch.members.find((m) => m.customerId === customer.id)!;
-      const payouts = ch.auctions
-        .filter((a) => a.winnerId === customer.id)
-        .reduce((s, a) => s + a.payout, 0);
+      const member = ch.members.find((mem) => mem.customerId === customer.id)!;
+      const awards = ch.auctions.filter((a) => a.winnerId === customer.id && a.method !== "settlement");
+      const payouts = awards.reduce((s, a) => s + a.payout, 0);
       const receipts = ch.payments
         .filter((p) => p.memberId === customer.id)
         .slice()
         .sort((a, b) => a.cycle - b.cycle || a.date.localeCompare(b.date));
-      return { ch, bal, member, payouts, receipts };
+      return { ch, bal, member, payouts, receipts, awards };
     });
 
-  const contributed = memberships.reduce((s, m) => s + m.bal.paid, 0);
-  const outstanding = memberships.reduce((s, m) => s + m.bal.outstanding, 0);
-  const received = memberships.reduce((s, m) => s + m.payouts, 0);
+  const contributed = memberships.reduce((s, mem) => s + mem.bal.paid, 0);
+  const outstanding = memberships.reduce((s, mem) => s + mem.bal.outstanding, 0);
+  const received = memberships.reduce((s, mem) => s + mem.payouts, 0);
+  const running = memberships.filter((mem) => mem.ch.status === "running").length;
 
-  const ledger = memberships.flatMap(({ ch, receipts, member }) => {
+  const ledger = memberships.flatMap(({ ch, receipts }) => {
     const rows: {
       key: string;
       when: string;
@@ -70,7 +80,7 @@ export function CustomerDetailPage() {
         when: p.date,
         chitName: ch.name,
         chitId: ch.id,
-        label: `Cycle ${p.cycle} · contribution`,
+        label: tx(m.customerDetail.cycleContribution, { n: p.cycle }),
         credit: 0,
         debit: p.amount,
         mode: p.mode,
@@ -85,78 +95,89 @@ export function CustomerDetailPage() {
         chitName: ch.name,
         chitId: ch.id,
         label: a.method === "auction"
-          ? `Cycle ${a.cycle} · auction payout`
+          ? tx(m.customerDetail.cycleAuction, { n: a.cycle })
           : a.method === "lucky_draw"
-            ? `Cycle ${a.cycle} · lucky draw`
+            ? tx(m.customerDetail.cycleLucky, { n: a.cycle })
             : ch.type === "loan"
-              ? `Cycle ${a.cycle} · loan received`
-              : `Cycle ${a.cycle} · pot awarded`,
+              ? tx(m.customerDetail.cycleLoan, { n: a.cycle })
+              : tx(m.customerDetail.cycleAward, { n: a.cycle }),
         credit: a.payout,
         debit: 0,
       });
-    }
-    if (member.prizedCycle) {
-      /* prized marker already covered by auction row */
     }
     return rows;
   }).sort((a, b) => b.when.localeCompare(a.when));
 
   return (
     <AppShell crumb={m.nav.customers} crumb2={customer.name}>
-      <div className="page">
+      <div className="page member-page">
         <div className="page-back-row">
-          <button type="button" className="page-back-btn" onClick={() => nav(-1)}>
+          <button type="button" className="page-back-btn" onClick={() => nav("/customers")}>
             <ChevronLeft size={18} strokeWidth={2.4} /> {m.common.back}
           </button>
         </div>
-        <div className="row-head top">
-          <div className="person" style={{ gap: 14 }}>
-            <div className="avatar" style={{ width: 52, height: 52, fontSize: 16 }}>{initials(customer.name)}</div>
-            <div>
-              <h1>{customer.name}</h1>
-              <p className="page-sub">{customer.phone || m.customersPage.noPhone} · {memberships.length} {memberships.length === 1 ? m.common.member : m.common.members}</p>
-              {editPhone ? (
-                <div className="phone-edit-row" style={{ marginTop: 8 }}>
-                  <input
-                    className="field"
-                    inputMode="tel"
-                    value={phoneVal}
-                    onChange={(e) => setPhoneVal(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={savingPhone || phoneVal.length !== 10}
-                    onClick={() => {
-                      setSavingPhone(true);
-                      void updateCustomer(customer.id, { phone: phoneVal })
-                        .then(() => setEditPhone(false))
-                        .finally(() => setSavingPhone(false));
-                    }}
-                  >
-                    {m.chit.savePhone}
-                  </button>
-                  <button type="button" className="btn ghost btn-sm" onClick={() => setEditPhone(false)}>
-                    {m.common.cancel}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="btn ghost btn-sm"
-                  style={{ marginTop: 6 }}
-                  onClick={() => {
-                    setPhoneVal(customer.phone || "");
-                    setEditPhone(true);
-                  }}
-                >
-                  {m.chit.editPhone}
-                </button>
-              )}
-              {error && editPhone && <p className="due" style={{ marginTop: 6 }}>{error}</p>}
+
+        <div className="card member-hero-card">
+          <div className="member-hero">
+            <div className="avatar tone-teal" style={{ width: 56, height: 56, fontSize: 18 }}>
+              {initials(customer.name)}
+            </div>
+            <div className="grow">
+              <h1 style={{ margin: 0 }}>{customer.name}</h1>
+              <p className="page-sub" style={{ margin: "4px 0 0" }}>
+                {customer.phone || m.customersPage.noPhone}
+                {" · "}
+                {tx(m.customerDetail.groupsCount, { n: memberships.length })}
+              </p>
             </div>
           </div>
-          <button className="btn ghost" onClick={() => nav("/customers")}>{m.customerDetail.allCustomers}</button>
+          {editPhone ? (
+            <div className="phone-edit-row" style={{ marginTop: 12 }}>
+              <input
+                className="field"
+                inputMode="tel"
+                value={phoneVal}
+                onChange={(e) => setPhoneVal(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              />
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={savingPhone || phoneVal.length !== 10}
+                onClick={() => {
+                  setSavingPhone(true);
+                  void updateCustomer(customer.id, { phone: phoneVal })
+                    .then(() => setEditPhone(false))
+                    .finally(() => setSavingPhone(false));
+                }}
+              >
+                {m.chit.savePhone}
+              </button>
+              <button type="button" className="btn ghost btn-sm" onClick={() => setEditPhone(false)}>
+                {m.common.cancel}
+              </button>
+            </div>
+          ) : (
+            <div className="member-hero-actions">
+              <button
+                type="button"
+                className="btn ghost btn-sm"
+                onClick={() => {
+                  setPhoneVal(customer.phone || "");
+                  setEditPhone(true);
+                }}
+              >
+                {m.chit.editPhone}
+              </button>
+              {customer.phone ? (
+                <MemberReachButtons
+                  phone={customer.phone}
+                  whatsappText={`Hi ${customer.name}`}
+                  compact
+                />
+              ) : null}
+            </div>
+          )}
+          {error && editPhone && <p className="due" style={{ marginTop: 6 }}>{error}</p>}
         </div>
 
         <div className="stats four">
@@ -169,54 +190,89 @@ export function CustomerDetailPage() {
             tone="rose"
             icon={AlertCircle}
           />
-          <StatCard label={m.chit.activeChits} value={memberships.filter((mem) => mem.ch.status === "running").length} hint={m.chit.runningNow} tone="green" icon={Layers} />
+          <StatCard label={m.chit.activeChits} value={running} hint={m.chit.runningNow} tone="green" icon={Layers} />
         </div>
 
-        <div className="grid-2 block">
-          <div className="card">
-            <h2>{m.chit.details}</h2>
-            <div className="kv"><span>Name</span><strong>{customer.name}</strong></div>
-            <div className="kv"><span>Phone</span><strong>{customer.phone || "—"}</strong></div>
-            <div className="kv"><span>Customer id</span><strong className="muted" style={{ fontSize: 12 }}>{customer.id}</strong></div>
+        <div className="block">
+          <div className="row-head" style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 16 }}>{m.customerDetail.bhishiCards}</h2>
+            <span className="muted">{memberships.length}</span>
           </div>
-          <div className="card">
-            <h2>Chits</h2>
-            {!memberships.length && <p className="muted">{m.chit.notMapped}</p>}
-            {memberships.map(({ ch, bal, member, payouts }) => (
-              <div key={ch.id} className="kv">
-                <span>
-                  <Link className="link" to={chitPath(ch)}>{ch.name}</Link>
-                  <div className="muted">{typeLabel(ch.type)} · {m.terms.hand} {member.slot}{member.prizedCycle ? ` · ${m.terms.prized} ${member.prizedCycle}` : ""}</div>
-                </span>
-                <strong style={{ textAlign: "right" }}>
-                  Paid {inr(bal.paid)}
-                  <div className="muted">{payouts ? tx(m.customerDetail.gotAmount, { amount: inr(payouts) }) : bal.outstanding ? `${inr(bal.outstanding)} due` : m.customerDetail.settled}</div>
-                </strong>
+          {!memberships.length && (
+            <div className="card"><p className="muted" style={{ margin: 0 }}>{m.chit.notMapped}</p></div>
+          )}
+          <div className="member-chit-grid">
+            {memberships.map(({ ch, bal, member, payouts, awards }) => (
+              <div key={ch.id} className="card member-chit-card">
+                <div className="member-chit-card-top">
+                  <div>
+                    <Link className="link" to={chitPath(ch)} style={{ fontWeight: 650, fontSize: 15 }}>
+                      {ch.name}
+                    </Link>
+                    <div className="muted" style={{ marginTop: 2 }}>
+                      {typeLabel(ch.type)} · {statusLabel(ch.status)} · {m.terms.hand} {member.slot}
+                      {member.prizedCycle ? ` · ${tx(m.customerDetail.cyclePrized, { n: member.prizedCycle })}` : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn ghost btn-sm"
+                    onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
+                  >
+                    {m.customerDetail.thisBhishi}
+                    <ChevronRight size={14} strokeWidth={2.4} />
+                  </button>
+                </div>
+                <div className="member-mini-stats">
+                  <div>
+                    <span className="muted">{m.customerDetail.contributed}</span>
+                    <strong>{inr(bal.paid)}</strong>
+                  </div>
+                  <div>
+                    <span className="muted">{m.customerDetail.received}</span>
+                    <strong>{inr(payouts)}</strong>
+                  </div>
+                  <div>
+                    <span className="muted">{m.terms.outstanding}</span>
+                    <strong className={bal.outstanding ? "neg" : undefined}>{inr(bal.outstanding)}</strong>
+                  </div>
+                </div>
+                {!!awards.length && (
+                  <div className="member-win-strip">
+                    <Trophy size={13} strokeWidth={2.2} />
+                    {awards.map((a) => (
+                      <span key={a.cycle}>
+                        {tx(m.customerDetail.haptaN, { n: a.cycle })} · {inr(a.payout)}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
         <div className="card flush block">
-          <div className="card-pad"><h2>{m.customerDetail.ledger}</h2>
-            <p className="muted">Every contribution and every amount this person received across your books.</p>
+          <div className="card-pad">
+            <h2>{m.customerDetail.ledger}</h2>
+            <p className="muted">{m.customerDetail.ledgerAllHint}</p>
           </div>
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Chit</th>
-                  <th>Entry</th>
-                  <th>Mode</th>
-                  <th>In</th>
-                  <th>Out</th>
+                  <th>{m.common.date}</th>
+                  <th>{m.nav.chits}</th>
+                  <th>{m.customerDetail.entry}</th>
+                  <th>{m.payModal.mode}</th>
+                  <th>{m.customerDetail.inCol}</th>
+                  <th>{m.customerDetail.outCol}</th>
                 </tr>
               </thead>
               <tbody>
                 {ledger.map((row) => (
                   <tr key={row.key}>
-                    <td>{new Date(row.when).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</td>
+                    <td>{new Date(row.when).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}</td>
                     <td><Link className="link" to={`/chits/${row.chitId}`}>{row.chitName}</Link></td>
                     <td>{row.label}</td>
                     <td>{row.mode ? modeLabel(row.mode) || row.mode : "—"}</td>
@@ -235,22 +291,41 @@ export function CustomerDetailPage() {
         {memberships.map(({ ch, member }) => (
           <div key={`pass-${ch.id}`} className="card flush block">
             <div className="card-pad">
-              <h2>Passbook · {ch.name}</h2>
-              <p className="muted">Cycle-by-cycle due vs paid for this member.</p>
+              <div className="row-head" style={{ margin: 0 }}>
+                <div>
+                  <h2 style={{ margin: 0 }}>{m.customerDetail.passbook} · {ch.name}</h2>
+                  <p className="muted" style={{ margin: "4px 0 0" }}>{m.customerDetail.passbookHint}</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn ghost btn-sm"
+                  onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
+                >
+                  {m.customerDetail.openInBhishi}
+                </button>
+              </div>
             </div>
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Cycle</th><th>Due</th><th>Paid</th><th>Balance</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>{m.chit.cycle}</th>
+                    <th>{m.customerDetail.due}</th>
+                    <th>{m.customerDetail.paidCol}</th>
+                    <th>{m.customerDetail.balanceCol}</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {Array.from({ length: displayCycle(ch) }, (_, i) => i + 1).map((cyc) => {
                     const due = rawCycleDue(ch, customer.id, cyc);
                     const paid = paidInCycle(ch, customer.id, cyc);
+                    const left = Math.max(0, due - paid);
                     return (
                       <tr key={cyc}>
                         <td>{member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : `${m.terms.haptaRound} ${cyc}`}</td>
                         <td>{inr(due)}</td>
                         <td>{inr(paid)}</td>
-                        <td>{paid >= due ? "—" : inr(due - paid)}</td>
+                        <td className={left ? "neg" : ""}>{left ? inr(left) : "—"}</td>
                       </tr>
                     );
                   })}
