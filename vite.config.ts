@@ -14,10 +14,11 @@ export default defineConfig(({ mode }) => {
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     "";
 
+  // Absolute "/" for Vercel/web deep links. Relative "./" only for Capacitor (`vite build --mode capacitor`).
+  const base = mode === "capacitor" || env.CAPACITOR === "1" ? "./" : "/";
+
   return {
-    // Relative base so Capacitor Android WebView can load assets from dist/.
-    // Web hosting (Vercel etc.) still works with relative asset URLs.
-    base: "./",
+    base,
     plugins: [react()],
     define: {
       __BHISHI_SUPABASE_URL__: JSON.stringify(supabaseUrl),

@@ -198,6 +198,17 @@ export function ChitDetailPage() {
     setWinnerSlot(next?.slot);
   }, [chit?.id, chit?.currentCycle, chit?.auctions?.length]);
 
+  useEffect(() => {
+    if (!awardShare && celebrate !== "completed") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setAwardShare(null);
+      setCelebrate(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [awardShare, celebrate]);
+
   function pickHand(value: string) {
     if (!value) {
       setWinnerId("");
@@ -303,11 +314,35 @@ export function ChitDetailPage() {
   }
 
   function afterAwardRecorded(rec: AuctionRecord | null | undefined) {
-    if (rec) {
-      setAwardShare(rec);
-      setCelebrate("award");
+    if (!rec) {
+      setAwardShare(null);
+      setCelebrate(null);
+      return;
     }
+    setAwardShare(rec);
+    setCelebrate("award");
     goAfterAward();
+  }
+
+  /** Always clear share overlay if award RPC fails mid-flight. */
+  function runAward(task: Promise<AuctionRecord | null | undefined | void>) {
+    void task
+      .then((rec) => {
+        if (rec) afterAwardRecorded(rec);
+        else {
+          setAwardShare(null);
+          setCelebrate(null);
+        }
+      })
+      .catch(() => {
+        setAwardShare(null);
+        setCelebrate(null);
+      });
+  }
+
+  function dismissAwardShare() {
+    setAwardShare(null);
+    setCelebrate(null);
   }
 
   function awardMemberLabel(rec: AuctionRecord) {
@@ -1339,8 +1374,7 @@ export function ChitDetailPage() {
                               onClick={() => {
                                 const who = winnerId || lastMember?.customerId || "";
                                 const slot = winnerSlot ?? lastMember?.slot;
-                                void recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot)
-                                  .then((rec) => afterAwardRecorded(rec));
+                                runAward(recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot));
                               }}
                             >
                               {copy.chit.awardFullPot}
@@ -1399,7 +1433,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !bid || !Number(bid)}
-                              onClick={() => void recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot).then((rec) => afterAwardRecorded(rec))}
+                              onClick={() => runAward(recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot))}
                             >
                               {copy.chit.recordAuctionBtn}
                             </button>
@@ -1550,13 +1584,13 @@ export function ChitDetailPage() {
                               onClick={() => {
                                 const amount = Number(bid);
                                 const rate = Number(loanInterest);
-                                void recordAuction(data.id, winnerId, amount, "fixed", winnerSlot, rate).then((rec) => {
+                                runAward(recordAuction(data.id, winnerId, amount, "fixed", winnerSlot, rate).then((rec) => {
                                   setBid(String(Math.min(data.pot, loanMaxFace)));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
                                   setLoanSkipped(false);
-                                  afterAwardRecorded(rec);
-                                });
+                                  return rec;
+                                }));
                               }}
                             >
                               {copy.chit.giveLoan}
@@ -1683,7 +1717,7 @@ export function ChitDetailPage() {
                                 onClick={() => {
                                   const who = winnerId || unprized[0]?.customerId || "";
                                   const slot = winnerSlot ?? unprized[0]?.slot;
-                                  void recordAuction(data.id, who, data.pot, "lucky_draw", slot).then((rec) => afterAwardRecorded(rec));
+                                  runAward(recordAuction(data.id, who, data.pot, "lucky_draw", slot));
                                 }}
                               >
                                 {copy.chit.awardLastPot}
@@ -1712,7 +1746,7 @@ export function ChitDetailPage() {
                                 <button
                                   className="btn ghost"
                                   disabled={!canSettleCycle(data) || !winnerId}
-                                  onClick={() => void recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot).then((rec) => afterAwardRecorded(rec))}
+                                  onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot))}
                                 >
                                   {copy.chit.awardPot}
                                 </button>
@@ -1745,7 +1779,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then((rec) => afterAwardRecorded(rec))}
+                              onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot))}
                             >
                               {copy.chit.awardPot}
                             </button>
@@ -1796,7 +1830,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => void recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot).then((rec) => afterAwardRecorded(rec))}
+                              onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot))}
                             >
                               {copy.chit.awardPot}
                             </button>
@@ -2542,7 +2576,7 @@ export function ChitDetailPage() {
 
       {awardShare && (
         <ModalPortal>
-          <div className="modal-back" onClick={() => { setAwardShare(null); if (celebrate === "award") setCelebrate(null); }}>
+          <div className="modal-back" onClick={() => dismissAwardShare()}>
             <div
               className="modal loan-share-banner celebrate-modal"
               onClick={(e) => e.stopPropagation()}
@@ -2570,7 +2604,7 @@ export function ChitDetailPage() {
                 <button type="button" className="btn ghost" onClick={() => shareAwardPdfOnly(awardShare)}>
                   {copy.chit.pdfOnly}
                 </button>
-                <button type="button" className="btn ghost" onClick={() => { setAwardShare(null); if (celebrate === "award") setCelebrate(null); }}>
+                <button type="button" className="btn ghost" onClick={() => dismissAwardShare()}>
                   {copy.chit.dismiss}
                 </button>
               </div>

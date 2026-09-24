@@ -9,7 +9,7 @@
     "dev:full": "concurrently -k \"npm:dev:api\" \"npm:dev\"",
     "build": "tsc && vite build",
     "build:web": "tsc && vite build",
-    "build:android": "tsc && vite build && npx cap sync android",
+    "build:android": "tsc && vite build --mode capacitor && npx cap sync android",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "assets:android": "npx capacitor-assets generate --android",
