@@ -24,14 +24,13 @@ export type LandingCopy = {
   heroSecondary: string;
   heroTrust: string;
   trustLabel: string;
-  demoEyebrow: string;
-  demoTitle: string;
-  demoSub: string;
-  demoCards: { title: string; body: string }[];
-  flowEyebrow: string;
-  flowTitle: string;
-  flowSub: string;
-  flowItems: { title: string; body: string; points: string[] }[];
+  demosEyebrow: string;
+  demosTitle: string;
+  demosSub: string;
+  demos: { id: string; short: string; title: string; body: string; points: string[] }[];
+  walkEyebrow: string;
+  walkTitle: string;
+  walkSub: string;
   typesEyebrow: string;
   typesTitle: string;
   typesSub: string;
@@ -73,7 +72,7 @@ const en: LandingCopy = {
   langEn: "English",
   langHi: "हिन्दी",
   langMr: "मराठी",
-  navHow: "Product",
+  navHow: "Demos",
   navFeatures: "Features",
   navTypes: "Bhishi types",
   navLogin: "Log in",
@@ -85,37 +84,59 @@ const en: LandingCopy = {
   heroSub:
     "Create groups, collect hapta, spin lucky draws, award pots and share PDF proof — one intelligent ledger for organisers who want transparent books.",
   heroCta: "Get started free",
-  heroSecondary: "See the product",
+  heroSecondary: "Watch the demos",
   heroTrust: "Always free · English · Hindi · Marathi",
   trustLabel: "Built for Maharashtra-style circles & pan-India organisers",
-  demoEyebrow: "Product demo",
-  demoTitle: "Everything an organiser needs — on one screen",
-  demoSub: "Live home cards, hapta registers and group overviews — captured from the real Bhishi Circle app.",
-  demoCards: [
-    { title: "Instant group setup", body: "Pick the style, set pot & hands, add members from directory or phonebook." },
-    { title: "Hapta that stays honest", body: "Cash, UPI, bank or adjusted — with gates so cash-on-hand never goes negative." },
-    { title: "Proof you can forward", body: "Award and loan PDFs share to WhatsApp the moment you close a round." },
+  demosEyebrow: "Live product demos",
+  demosTitle: "See the real app move — not static screenshots",
+  demosSub: "Six guided animations from the Bhishi Circle product. Tap a step, watch the phone.",
+  demos: [
+    {
+      id: "create",
+      short: "Create",
+      title: "How to create a bhishi",
+      body: "Guided wizard from style to hapta order — auction, fixed, lucky draw, sacrifice or loan in a few taps.",
+      points: ["Step-by-step setup", "Pot, hands & hapta", "Award-first or collect-first"],
+    },
+    {
+      id: "award",
+      short: "Award",
+      title: "How to award bhishi",
+      body: "Spin the lucky-draw wheel or allot a winner, then move into collect and close with clear books.",
+      points: ["Live chitthi wheel", "Fair spin & land", "Change before you close"],
+    },
+    {
+      id: "payments",
+      short: "Payments",
+      title: "How to record payments",
+      body: "Mark cash, UPI or bank against each hand. Expected vs collected stays honest as you go.",
+      points: ["One-tap record", "Partial & full hapta", "Cash-on-hand gates"],
+    },
+    {
+      id: "reports",
+      short: "Reports",
+      title: "How to share reports",
+      body: "Day-book PDF and per-receipt slips — share proof to WhatsApp the moment you need it.",
+      points: ["Day book PDF", "Receipt PDFs", "Forward-ready proof"],
+    },
+    {
+      id: "members",
+      short: "Members",
+      title: "How to see members",
+      body: "Every seat, remaining balance and WhatsApp invite — swap hands when someone needs to change.",
+      points: ["Seat overview", "WhatsApp invites", "Swap hands easily"],
+    },
+    {
+      id: "collections",
+      short: "Collections",
+      title: "How to see collections",
+      body: "Register across groups with cash / UPI splits, member totals and hapta filters.",
+      points: ["Cross-group register", "Cash vs UPI", "Filter by day or week"],
+    },
   ],
-  flowEyebrow: "Workflow",
-  flowTitle: "From empty books to a finished cycle",
-  flowSub: "Three moments organisers live in every month — each matched to the real screen.",
-  flowItems: [
-    {
-      title: "Create a bhishi",
-      body: "Auction, fixed, lucky draw, sacrifice or loan. Set pot, hands, hapta and commission in a guided wizard.",
-      points: ["Multi-hand seats with +/−", "Phonebook & directory import", "Member-visible passbooks"],
-    },
-    {
-      title: "Collect every hapta",
-      body: "Day-book register across groups. Filter by cash / UPI, search members, download receipt PDFs.",
-      points: ["Partial & advance payments", "WhatsApp dues reminders", "Undo when you mistype"],
-    },
-    {
-      title: "Award & close cleanly",
-      body: "Overview cards for outstanding, cash on hand and commission — then award with shareable slips.",
-      points: ["Award-first or collect-first", "Commission & dividends booked", "PDF via WhatsApp or download"],
-    },
-  ],
+  walkEyebrow: "Full walkthrough",
+  walkTitle: "From create to collections — every move on a phone",
+  walkSub: "Scroll the story. Each section plays the matching animation inside a freestanding device.",
   typesEyebrow: "Bhishi types",
   typesTitle: "Every popular style. One clear ledger.",
   typesSub: "Choose the rules once — Bhishi Circle keeps kasr, dividends, interest and settlement consistent.",
@@ -198,7 +219,7 @@ const hi: LandingCopy = {
   langTitle: "अपनी भाषा चुनें",
   langHint: "Bhishi Circle अंग्रेज़ी, हिन्दी और मराठी में चलता है। कभी भी बदल सकते हैं।",
   langContinue: "आगे बढ़ें",
-  navHow: "प्रॉडक्ट",
+  navHow: "डेमो",
   navFeatures: "सुविधाएँ",
   navTypes: "भिसी प्रकार",
   navLogin: "लॉग इन",
@@ -210,37 +231,59 @@ const hi: LandingCopy = {
   heroSub:
     "समूह बनाएँ, हप्ता वसूलें, लकी ड्रॉ घुमाएँ, पॉट अवॉर्ड करें और PDF प्रमाण भेजें — आयोजकों के लिए एक पारदर्शी लेजर।",
   heroCta: "मुफ़्त शुरू करें",
-  heroSecondary: "प्रॉडक्ट देखें",
+  heroSecondary: "डेमो देखें",
   heroTrust: "हमेशा मुफ़्त · अंग्रेज़ी · हिन्दी · मराठी",
   trustLabel: "महाराष्ट्र शैली के वृत्त और भारत भर के आयोजकों के लिए",
-  demoEyebrow: "प्रॉडक्ट डेमो",
-  demoTitle: "आयोजक को जो चाहिए — एक स्क्रीन पर",
-  demoSub: "लाइव होम कार्ड, हप्ता रजिस्टर और समूह ओवरव्यू — असली Bhishi Circle ऐप से।",
-  demoCards: [
-    { title: "तुरंत समूह सेटअप", body: "शैली चुनें, पॉट व हाथ सेट करें, डायरेक्टरी या फोनबुक से सदस्य जोड़ें।" },
-    { title: "ईमानदार हप्ता", body: "कैश, UPI, बैंक या एडजस्टेड — गेट्स से कैश-ऑन-हैंड ऋण नहीं होता।" },
-    { title: "आगे भेजने लायक प्रमाण", body: "अवॉर्ड/लोन PDF राउंड बंद होते ही WhatsApp पर।" },
+  demosEyebrow: "लाइव प्रॉडक्ट डेमो",
+  demosTitle: "असली ऐप की हरकत देखें — स्थिर स्क्रीनशॉट नहीं",
+  demosSub: "Bhishi Circle से छह गाइडेड एनिमेशन। स्टेप चुनें, फ़ोन में देखें।",
+  demos: [
+    {
+      id: "create",
+      short: "बनाएँ",
+      title: "भिसी कैसे बनाएँ",
+      body: "शैली से हप्ता क्रम तक गाइडेड विज़ार्ड — नीलामी, फिक्स्ड, लकी ड्रॉ, बलिदान या लोन।",
+      points: ["स्टेप-बाय-स्टेप सेटअप", "पॉट, हाथ व हप्ता", "अवॉर्ड-फर्स्ट या कलेक्ट-फर्स्ट"],
+    },
+    {
+      id: "award",
+      short: "अवॉर्ड",
+      title: "भिसी कैसे अवॉर्ड करें",
+      body: "लकी-ड्रॉ व्हील घुमाएँ या विजेता चुनें — फिर वसूली और साफ़ बंद।",
+      points: ["लाइव चिट्ठी व्हील", "निष्पक्ष स्पिन", "बंद से पहले बदलाव"],
+    },
+    {
+      id: "payments",
+      short: "पेमेंट",
+      title: "पेमेंट कैसे रिकॉर्ड करें",
+      body: "हर हाथ पर कैश, UPI या बैंक मार्क करें। अपेक्षित बनाम वसूली साफ़ रहती है।",
+      points: ["वन-टैप रिकॉर्ड", "आंशिक व पूर्ण", "कैश-ऑन-हैंड गेट्स"],
+    },
+    {
+      id: "reports",
+      short: "रिपोर्ट",
+      title: "रिपोर्ट कैसे शेयर करें",
+      body: "डे-बुक PDF और रसीद स्लिप — ज़रूरत होते ही WhatsApp पर।",
+      points: ["डे-बुक PDF", "रसीद PDF", "आगे भेजने लायक"],
+    },
+    {
+      id: "members",
+      short: "सदस्य",
+      title: "सदस्य कैसे देखें",
+      body: "हर सीट, बाकी रकम और WhatsApp आमंत्रण — ज़रूरत पर हाथ स्वैप करें।",
+      points: ["सीट ओवरव्यू", "WhatsApp आमंत्रण", "आसानी से स्वैप"],
+    },
+    {
+      id: "collections",
+      short: "वसूली",
+      title: "वसूली कैसे देखें",
+      body: "सभी समूहों का रजिस्टर — कैश/UPI विभाजन, सदस्य कुल और फ़िल्टर।",
+      points: ["क्रॉस-ग्रुप रजिस्टर", "कैश बनाम UPI", "दिन/सप्ताह फ़िल्टर"],
+    },
   ],
-  flowEyebrow: "वर्कफ़्लो",
-  flowTitle: "खाली किताब से पूरे चक्र तक",
-  flowSub: "तीन पल जो हर महीने आते हैं — हर एक असली स्क्रीन से मिलाया गया।",
-  flowItems: [
-    {
-      title: "भिसी बनाएँ",
-      body: "नीलामी, फिक्स्ड, लकी ड्रॉ, बलिदान या लोन। गाइडेड विज़ार्ड में पॉट, हाथ, हप्ता, कमीशन।",
-      points: ["+/− से मल्टी-हैंड", "फोनबुक व डायरेक्टरी", "सदस्य-दृश्य पासबुक"],
-    },
-    {
-      title: "हर हप्ता वसूलें",
-      body: "सभी समूहों का डे-बुक। कैश/UPI फ़िल्टर, सदस्य खोज, रसीद PDF।",
-      points: ["आंशिक व एडवांस", "WhatsApp रिमाइंडर", "गलती पर अनडू"],
-    },
-    {
-      title: "अवॉर्ड व साफ़ बंद",
-      body: "बकाया, कैश-ऑन-हैंड, कमीशन कार्ड — फिर शेयर करने योग्य स्लिप।",
-      points: ["अवॉर्ड-फर्स्ट या कलेक्ट-फर्स्ट", "कमीशन व डिविडेंड", "WhatsApp या PDF"],
-    },
-  ],
+  walkEyebrow: "पूरा वॉकथ्रू",
+  walkTitle: "बनाएँ से वसूली तक — हर कदम फ़ोन पर",
+  walkSub: "स्क्रॉल करें। हर सेक्शन में मैचिंग एनिमेशन चलती है।",
   typesEyebrow: "भिसी प्रकार",
   typesTitle: "हर लोकप्रिय शैली। एक साफ़ लेजर।",
   typesSub: "नियम एक बार चुनें — कसर, डिविडेंड, ब्याज और सेटलमेंट सुसंगत रहें।",
@@ -322,7 +365,7 @@ const mr: LandingCopy = {
   langTitle: "तुमची भाषा निवडा",
   langHint: "Bhishi Circle इंग्रजी, हिंदी आणि मराठीत चालते. कधीही बदलू शकता.",
   langContinue: "पुढे जा",
-  navHow: "प्रॉडक्ट",
+  navHow: "डेमो",
   navFeatures: "वैशिष्ट्ये",
   navTypes: "भिशी प्रकार",
   navLogin: "लॉग इन",
@@ -334,37 +377,59 @@ const mr: LandingCopy = {
   heroSub:
     "गट तयार करा, हप्ता वसूल करा, लकी ड्रॉ फिरवा, पॉट अवॉर्ड करा आणि PDF पुरावा पाठवा — आयोजकांसाठी पारदर्शक लेजर.",
   heroCta: "मोफत सुरू करा",
-  heroSecondary: "प्रॉडक्ट पहा",
+  heroSecondary: "डेमो पहा",
   heroTrust: "नेहमी मोफत · इंग्रजी · हिंदी · मराठी",
   trustLabel: "महाराष्ट्र शैलीची वर्तुळे आणि भारतभरातील आयोजकांसाठी",
-  demoEyebrow: "प्रॉडक्ट डेमो",
-  demoTitle: "आयोजकाला हवे ते — एका स्क्रीनवर",
-  demoSub: "लाइव्ह होम कार्ड, हप्ता रजिस्टर आणि गट ओव्हरव्ह्यू — खऱ्या Bhishi Circle अॅपमधून.",
-  demoCards: [
-    { title: "त्वरित गट सेटअप", body: "शैली निवडा, पॉट व हात सेट करा, डिरेक्टरी किंवा फोनबुकमधून सदस्य जोडा." },
-    { title: "प्रामाणिक हप्ता", body: "रोख, UPI, बँक किंवा अॅडजस्टेड — गेट्सने कॅश-ऑन-हँड ऋण होत नाही." },
-    { title: "पुढे पाठवता येणारा पुरावा", body: "अवॉर्ड/कर्ज PDF राउंड बंद होताच WhatsApp वर." },
+  demosEyebrow: "लाइव्ह प्रॉडक्ट डेमो",
+  demosTitle: "खरे अॅप हलताना पहा — स्थिर स्क्रीनशॉट नाही",
+  demosSub: "Bhishi Circle मधील सहा गाइडेड अॅनिमेशन. स्टेप निवडा, फोनमध्ये पहा.",
+  demos: [
+    {
+      id: "create",
+      short: "तयार",
+      title: "भिशी कशी तयार करावी",
+      body: "शैली ते हप्ता क्रम — लिलाव, फिक्स्ड, लकी ड्रॉ, बलिदान किंवा कर्ज काही टॅपमध्ये.",
+      points: ["स्टेप-बाय-स्टेप सेटअप", "पॉट, हात व हप्ता", "अवॉर्ड-फर्स्ट किंवा कलेक्ट-फर्स्ट"],
+    },
+    {
+      id: "award",
+      short: "अवॉर्ड",
+      title: "भिशी कशी अवॉर्ड करावी",
+      body: "लकी-ड्रॉ चाक फिरवा किंवा विजेता निवडा — नंतर वसुली आणि स्वच्छ बंद.",
+      points: ["लाइव्ह चिट्ठी चाक", "निष्पक्ष स्पिन", "बंद होण्यापूर्वी बदला"],
+    },
+    {
+      id: "payments",
+      short: "पेमेंट",
+      title: "पेमेंट कसे नोंदवावे",
+      body: "प्रत्येक हातावर रोख, UPI किंवा बँक मार्क करा. अपेक्षित विरुद्ध वसूल स्पष्ट राहते.",
+      points: ["वन-टॅप रेकॉर्ड", "अंशतः व पूर्ण", "कॅश-ऑन-हँड गेट्स"],
+    },
+    {
+      id: "reports",
+      short: "अहवाल",
+      title: "अहवाल कसे शेअर करावे",
+      body: "डे-बुक PDF आणि पावती स्लिप — गरज लागताच WhatsApp वर.",
+      points: ["डे-बुक PDF", "पावती PDF", "पुढे पाठवता येणारे"],
+    },
+    {
+      id: "members",
+      short: "सदस्य",
+      title: "सदस्य कसे पाहावे",
+      body: "प्रत्येक सीट, बाकी रक्कम आणि WhatsApp आमंत्रण — गरज असल्यास हात स्वॅप करा.",
+      points: ["सीट ओव्हरव्ह्यू", "WhatsApp आमंत्रण", "सुलभ स्वॅप"],
+    },
+    {
+      id: "collections",
+      short: "वसुली",
+      title: "वसुली कशी पाहावी",
+      body: "सर्व गटांचे रजिस्टर — रोख/UPI विभागणी, सदस्य एकूण आणि फिल्टर.",
+      points: ["क्रॉस-ग्रुप रजिस्टर", "रोख विरुद्ध UPI", "दिवस/आठवडा फिल्टर"],
+    },
   ],
-  flowEyebrow: "वर्कफ्लो",
-  flowTitle: "रिकाम्या वहीपासून पूर्ण चक्रापर्यंत",
-  flowSub: "दर महिन्याचे तीन क्षण — प्रत्येक खऱ्या स्क्रीनशी जुळवलेला.",
-  flowItems: [
-    {
-      title: "भिशी तयार करा",
-      body: "लिलाव, फिक्स्ड, लकी ड्रॉ, बलिदान किंवा कर्ज. गाइडेड विझार्डमध्ये पॉट, हात, हप्ता, कमिशन.",
-      points: ["+/− मल्टी-हँड", "फोनबुक व डिरेक्टरी", "सदस्य-दृश्य पासबुक"],
-    },
-    {
-      title: "प्रत्येक हप्ता वसूल करा",
-      body: "सर्व गटांचे डे-बुक. रोख/UPI फिल्टर, सदस्य शोध, पावती PDF.",
-      points: ["अंशतः व अॅडव्हान्स", "WhatsApp रिमाइंडर", "चूक झाली तर अनडू"],
-    },
-    {
-      title: "अवॉर्ड व स्वच्छ बंद",
-      body: "थकबाकी, कॅश-ऑन-हँड, कमिशन कार्ड — नंतर शेअर करता येणारी स्लिप.",
-      points: ["अवॉर्ड-फर्स्ट किंवा कलेक्ट-फर्स्ट", "कमिशन व डिव्हिडंड", "WhatsApp किंवा PDF"],
-    },
-  ],
+  walkEyebrow: "पूर्ण वॉकथ्रू",
+  walkTitle: "तयार करण्यापासून वसुलीपर्यंत — प्रत्येक पाऊल फोनवर",
+  walkSub: "स्क्रोल करा. प्रत्येक विभागात जुळणारे अॅनिमेशन चालते.",
   typesEyebrow: "भिशी प्रकार",
   typesTitle: "प्रत्येक लोकप्रिय शैली. एक स्वच्छ लेजर.",
   typesSub: "नियम एकदा निवडा — कसर, डिव्हिडंड, व्याज आणि सेटलमेंट सुसंगत राहतील.",

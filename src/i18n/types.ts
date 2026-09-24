@@ -904,5 +904,6 @@ export type Messages = {
     monthsCount: string;
     monthsZero: string;
     noOfHands: string;
+    membersInfoAria: string;
   };
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -16,13 +16,48 @@ import { getGuestLang, hasChosenGuestLang, setGuestLang, type GuestLang } from "
 import { useStore } from "../store";
 import "../landing.css";
 
+const BASE = "/landing/demos";
+
+const DEMOS = [
+  {
+    id: "create",
+    webm: `${BASE}/01-how-to-create-bhishi.webm`,
+    mp4: `${BASE}/01-how-to-create-bhishi.mp4`,
+    poster: `${BASE}/01-how-to-create-bhishi.png`,
+  },
+  {
+    id: "award",
+    webm: `${BASE}/02-how-to-award-bhishi.webm`,
+    mp4: `${BASE}/02-how-to-award-bhishi.mp4`,
+    poster: `${BASE}/02-how-to-award-bhishi.png`,
+  },
+  {
+    id: "payments",
+    webm: `${BASE}/03-how-to-record-payments.webm`,
+    mp4: `${BASE}/03-how-to-record-payments.mp4`,
+    poster: `${BASE}/03-how-to-record-payments.png`,
+  },
+  {
+    id: "reports",
+    webm: `${BASE}/04-how-to-share-reports.webm`,
+    mp4: `${BASE}/04-how-to-share-reports.mp4`,
+    poster: `${BASE}/04-how-to-share-reports.png`,
+  },
+  {
+    id: "members",
+    webm: `${BASE}/05-how-to-see-members.webm`,
+    mp4: `${BASE}/05-how-to-see-members.mp4`,
+    poster: `${BASE}/05-how-to-see-members.png`,
+  },
+  {
+    id: "collections",
+    webm: `${BASE}/06-how-to-see-collections.webm`,
+    mp4: `${BASE}/06-how-to-see-collections.mp4`,
+    poster: `${BASE}/06-how-to-see-collections.png`,
+  },
+] as const;
+
 const SHOTS = {
-  home: "/landing/shot-home.jpg",
-  detail: "/landing/shot-bhishi-detail.jpg",
-  create: "/landing/shot-create.jpg",
-  createTerms: "/landing/shot-create-terms.jpg",
-  collect: "/landing/shot-collect.jpg",
-  people: "/landing/shot-people.jpg",
   auction: "/landing/shot-type-auction.jpg",
   fixed: "/landing/shot-type-fixed.jpg",
   loan: "/landing/shot-type-loan.jpg",
@@ -30,10 +65,76 @@ const SHOTS = {
   wheel: "/landing/shot-lucky-wheel.jpg",
 } as const;
 
-const HERO_FRAMES = [SHOTS.home, SHOTS.detail, SHOTS.collect] as const;
 const TYPE_FRAMES = [SHOTS.auction, SHOTS.fixed, SHOTS.wheel, SHOTS.sacrifice, SHOTS.loan] as const;
 const WHEEL_NAMES = ["Anita", "Ravi", "Sneha", "Priya", "Karan"] as const;
 const WHEEL_COLORS = ["#2f6fed", "#0f9f6e", "#0d9488", "#4f46e5", "#0284c8"] as const;
+
+/** Freestanding phone video — assets already include device chrome. */
+function DemoPhone({
+  webm,
+  mp4,
+  poster,
+  alt,
+  size = "md",
+  className = "",
+  priority = false,
+}: {
+  webm: string;
+  mp4: string;
+  poster: string;
+  alt: string;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+  priority?: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    const vid = ref.current;
+    if (!el || !vid) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting && entry.intersectionRatio > 0.35) {
+          void vid.play().catch(() => {});
+        } else {
+          vid.pause();
+        }
+      },
+      { threshold: [0, 0.35, 0.6] },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={wrapRef}
+      className={`lp-demo-phone-wrap lp-demo-phone-${size} ${ready ? "is-ready" : ""} ${className}`.trim()}
+    >
+      <div className="lp-demo-phone">
+        <video
+          ref={ref}
+          className="lp-demo-video"
+          poster={poster}
+          muted
+          loop
+          playsInline
+          preload={priority ? "auto" : "metadata"}
+          aria-label={alt}
+          onLoadedData={() => setReady(true)}
+        >
+          <source src={webm} type="video/webm" />
+          <source src={mp4} type="video/mp4" />
+        </video>
+      </div>
+    </div>
+  );
+}
 
 function Media({
   frames,
@@ -159,9 +260,8 @@ export function LandingPage() {
   const [lang, setLang] = useState<GuestLang>(() => getGuestLang());
   const [langOpen, setLangOpen] = useState(() => !hasChosenGuestLang());
   const [pendingLang, setPendingLang] = useState<GuestLang>(() => getGuestLang());
-  const [heroIdx, setHeroIdx] = useState(0);
-  const [flowIdx, setFlowIdx] = useState(0);
   const [typeIdx, setTypeIdx] = useState(0);
+  const [activeDemo, setActiveDemo] = useState(0);
   const t = useMemo(() => landingCopy(lang), [lang]);
 
   useEffect(() => {
@@ -171,14 +271,26 @@ export function LandingPage() {
   }, [t, lang]);
 
   useEffect(() => {
-    const a = window.setInterval(() => setHeroIdx((i) => (i + 1) % HERO_FRAMES.length), 4000);
-    const b = window.setInterval(() => setFlowIdx((i) => (i + 1) % 3), 4800);
     const c = window.setInterval(() => setTypeIdx((i) => (i + 1) % TYPE_FRAMES.length), 4200);
-    return () => {
-      window.clearInterval(a);
-      window.clearInterval(b);
-      window.clearInterval(c);
-    };
+    return () => window.clearInterval(c);
+  }, []);
+
+  useEffect(() => {
+    const nodes = DEMOS.map((d) => document.getElementById(`demo-${d.id}`)).filter(Boolean) as HTMLElement[];
+    if (!nodes.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible?.target.id) return;
+        const idx = DEMOS.findIndex((d) => `demo-${d.id}` === visible.target.id);
+        if (idx >= 0) setActiveDemo(idx);
+      },
+      { threshold: [0.35, 0.55], rootMargin: "-15% 0px -35% 0px" },
+    );
+    nodes.forEach((n) => io.observe(n));
+    return () => io.disconnect();
   }, []);
 
   function applyLang(next: GuestLang) {
@@ -191,11 +303,8 @@ export function LandingPage() {
     nav(user ? "/" : "/login");
   }
 
-  const flowShots = [
-    [SHOTS.create, SHOTS.createTerms],
-    [SHOTS.collect, SHOTS.people],
-    [SHOTS.detail, SHOTS.home],
-  ] as const;
+  const heroDemo = DEMOS[1]!; // award / lucky spin — most cinematic
+  const demos = t.demos;
 
   return (
     <div className="lp">
@@ -230,7 +339,7 @@ export function LandingPage() {
           <strong>BhishiCircle</strong>
         </a>
         <nav className="lp-nav-links">
-          <a href="#product">{t.navHow}</a>
+          <a href="#demos">{t.navHow}</a>
           <a href="#types">{t.navTypes}</a>
           <a href="#features">{t.navFeatures}</a>
         </nav>
@@ -251,7 +360,6 @@ export function LandingPage() {
       </header>
 
       <main id="top">
-        {/* HERO */}
         <section className="lp-hero">
           <div className="lp-hero-grid">
             <div className="lp-hero-copy">
@@ -264,12 +372,20 @@ export function LandingPage() {
                 <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={goAuth}>
                   {t.heroCta} <ArrowRight size={18} />
                 </button>
-                <a className="lp-btn lp-btn-outline lp-btn-lg" href="#product">{t.heroSecondary}</a>
+                <a className="lp-btn lp-btn-outline lp-btn-lg" href="#demos">{t.heroSecondary}</a>
               </div>
               <p className="lp-meta">{t.heroTrust}</p>
             </div>
             <div className="lp-hero-visual">
-              <Phone frames={HERO_FRAMES} active={heroIdx} size="lg" alt="Bhishi Circle home" className="lp-phone-main" />
+              <DemoPhone
+                webm={heroDemo.webm}
+                mp4={heroDemo.mp4}
+                poster={heroDemo.poster}
+                alt={demos[1]?.title ?? "Award bhishi"}
+                size="lg"
+                className="lp-phone-main"
+                priority
+              />
               <div className="lp-chip lp-chip-a"><Wallet size={14} /> {t.demoCollect}</div>
               <div className="lp-chip lp-chip-b"><FileText size={14} /> PDF</div>
             </div>
@@ -286,59 +402,95 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* PRODUCT — clean media panels, no phone-in-card */}
-        <section className="lp-block" id="product">
-          <div className="lp-block-head">
-            <p className="lp-kicker lp-kicker-blue">{t.demoEyebrow}</p>
-            <h2>{t.demoTitle}</h2>
-            <p>{t.demoSub}</p>
+        {/* Demo picker + animated phones */}
+        <section className="lp-block lp-demos-block" id="demos">
+          <div className="lp-block-head lp-block-head-center">
+            <p className="lp-kicker lp-kicker-blue">{t.demosEyebrow}</p>
+            <h2>{t.demosTitle}</h2>
+            <p>{t.demosSub}</p>
           </div>
-          <div className="lp-showcase">
-            <figure className="lp-shot lp-shot-tall">
-              <Media frames={[SHOTS.home, SHOTS.detail]} active={heroIdx % 2} alt="Dashboard" />
-            </figure>
-            <figure className="lp-shot">
-              <Media frames={[SHOTS.collect]} active={0} alt="Collections" />
-              <figcaption>
-                <strong>{t.demoCards[1]!.title}</strong>
-                <span>{t.demoCards[1]!.body}</span>
-              </figcaption>
-            </figure>
-            <figure className="lp-shot">
-              <Media frames={[SHOTS.people, SHOTS.create]} active={flowIdx % 2} alt="People" />
-              <figcaption>
-                <strong>{t.demoCards[2]!.title}</strong>
-                <span>{t.demoCards[2]!.body}</span>
-              </figcaption>
-            </figure>
+
+          <div className="lp-demo-tabs" role="tablist" aria-label={t.demosTitle}>
+            {demos.map((d, i) => (
+              <button
+                key={d.id}
+                type="button"
+                role="tab"
+                aria-selected={activeDemo === i}
+                className={activeDemo === i ? "on" : ""}
+                onClick={() => {
+                  setActiveDemo(i);
+                  document.getElementById(`demo-${d.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+              >
+                <span className="lp-demo-tab-num">{String(i + 1).padStart(2, "0")}</span>
+                <span>{d.short}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="lp-demo-stage">
+            <div className="lp-demo-stage-copy">
+              <span className="lp-step">{String(activeDemo + 1).padStart(2, "0")}</span>
+              <h3>{demos[activeDemo]!.title}</h3>
+              <p>{demos[activeDemo]!.body}</p>
+              <ul>
+                {demos[activeDemo]!.points.map((p) => (
+                  <li key={p}><Check size={15} /> {p}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="lp-demo-stage-phone" key={DEMOS[activeDemo]!.id}>
+              <DemoPhone
+                webm={DEMOS[activeDemo]!.webm}
+                mp4={DEMOS[activeDemo]!.mp4}
+                poster={DEMOS[activeDemo]!.poster}
+                alt={demos[activeDemo]!.title}
+                size="lg"
+                priority
+              />
+            </div>
           </div>
         </section>
 
-        {/* WORKFLOW — phone free, no glass card */}
-        <section className="lp-workflow" id="flow">
-          {t.flowItems.map((item, i) => (
-            <div key={item.title} className={`lp-workflow-row${i % 2 ? " flip" : ""}`}>
-              <div className="lp-workflow-copy">
-                <span className="lp-step">{String(i + 1).padStart(2, "0")}</span>
-                <h2>{item.title}</h2>
-                <p>{item.body}</p>
-                <ul>
-                  {item.points.map((p) => (
-                    <li key={p}><Check size={15} /> {p}</li>
-                  ))}
-                </ul>
+        {/* Full walkthrough — each animation as its own section */}
+        <section className="lp-walkthrough" id="walkthrough" aria-label={t.walkTitle}>
+          <div className="lp-block-head lp-block-head-center lp-walk-head">
+            <p className="lp-kicker lp-kicker-blue">{t.walkEyebrow}</p>
+            <h2>{t.walkTitle}</h2>
+            <p>{t.walkSub}</p>
+          </div>
+
+          {demos.map((item, i) => {
+            const media = DEMOS[i]!;
+            return (
+              <div
+                key={item.id}
+                id={`demo-${item.id}`}
+                className={`lp-walk-row${i % 2 ? " flip" : ""}${activeDemo === i ? " is-active" : ""}`}
+              >
+                <div className="lp-walk-copy">
+                  <span className="lp-step">{String(i + 1).padStart(2, "0")}</span>
+                  <h2>{item.title}</h2>
+                  <p>{item.body}</p>
+                  <ul>
+                    {item.points.map((p) => (
+                      <li key={p}><Check size={15} /> {p}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="lp-walk-media">
+                  <DemoPhone
+                    webm={media.webm}
+                    mp4={media.mp4}
+                    poster={media.poster}
+                    alt={item.title}
+                    size="md"
+                  />
+                </div>
               </div>
-              <div className="lp-workflow-media">
-                <Phone
-                  frames={flowShots[i]!}
-                  active={flowIdx % 2}
-                  size="md"
-                  alt={item.title}
-                  className={i === flowIdx ? "lp-phone-active" : ""}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
 
         {/* TYPES */}
@@ -378,7 +530,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* LUCKY DRAW — live wheel */}
+        {/* LUCKY DRAW */}
         <section className="lp-lucky" id="lucky">
           <div className="lp-lucky-copy">
             <p className="lp-kicker lp-kicker-blue">{t.luckyEyebrow}</p>
@@ -393,7 +545,17 @@ export function LandingPage() {
               {t.luckyCta} <ArrowRight size={16} />
             </button>
           </div>
-          <LuckyWheel winnerLabel={lang === "hi" ? "विजेता" : lang === "mr" ? "विजेता" : "Winner"} />
+          <div className="lp-lucky-duo">
+            <LuckyWheel winnerLabel={lang === "hi" ? "विजेता" : lang === "mr" ? "विजेता" : "Winner"} />
+            <DemoPhone
+              webm={DEMOS[1]!.webm}
+              mp4={DEMOS[1]!.mp4}
+              poster={DEMOS[1]!.poster}
+              alt={demos[1]!.title}
+              size="sm"
+              className="lp-lucky-phone"
+            />
+          </div>
         </section>
 
         {/* FEATURES */}

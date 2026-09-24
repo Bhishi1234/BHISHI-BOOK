@@ -906,5 +906,6 @@ export const hi: Messages = {
     monthsCount: "{n} महीने",
     monthsZero: "0 महीने",
     noOfHands: "हाथ की संख्या",
+    membersInfoAria: "सदस्य जोड़ने का तरीका",
   },
 };

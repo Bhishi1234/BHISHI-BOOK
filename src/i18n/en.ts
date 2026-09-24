@@ -906,5 +906,6 @@ export const en: Messages = {
     monthsCount: "{n} months",
     monthsZero: "0 months",
     noOfHands: "No. of hands",
+    membersInfoAria: "How adding members works",
   },
 };

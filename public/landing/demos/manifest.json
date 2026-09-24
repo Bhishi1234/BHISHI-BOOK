@@ -1,0 +1,44 @@
+[
+  {
+    "id": "create",
+    "title": "How to create a bhishi",
+    "webm": "01-how-to-create-bhishi.webm",
+    "mp4": "01-how-to-create-bhishi.mp4",
+    "poster": "01-how-to-create-bhishi.png"
+  },
+  {
+    "id": "award",
+    "title": "How to award bhishi",
+    "webm": "02-how-to-award-bhishi.webm",
+    "mp4": "02-how-to-award-bhishi.mp4",
+    "poster": "02-how-to-award-bhishi.png"
+  },
+  {
+    "id": "payments",
+    "title": "How to record payments",
+    "webm": "03-how-to-record-payments.webm",
+    "mp4": "03-how-to-record-payments.mp4",
+    "poster": "03-how-to-record-payments.png"
+  },
+  {
+    "id": "reports",
+    "title": "How to share reports",
+    "webm": "04-how-to-share-reports.webm",
+    "mp4": "04-how-to-share-reports.mp4",
+    "poster": "04-how-to-share-reports.png"
+  },
+  {
+    "id": "members",
+    "title": "How to see members",
+    "webm": "05-how-to-see-members.webm",
+    "mp4": "05-how-to-see-members.mp4",
+    "poster": "05-how-to-see-members.png"
+  },
+  {
+    "id": "collections",
+    "title": "How to see collections",
+    "webm": "06-how-to-see-collections.webm",
+    "mp4": "06-how-to-see-collections.mp4",
+    "poster": "06-how-to-see-collections.png"
+  }
+]

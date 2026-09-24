@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookUser, Plus, Trash2, UserPlus } from "lucide-react";
+import { BookUser, Info, Plus, Trash2, UserPlus } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
@@ -55,6 +55,7 @@ export function NewChitPage() {
   const [existingHands, setExistingHands] = useState(1);
   const [saving, setSaving] = useState(false);
   const [pickingContacts, setPickingContacts] = useState(false);
+  const [memberHelpOpen, setMemberHelpOpen] = useState(false);
 
   const { isOnApp } = usePhonesOnApp(customers.map((c) => c.phone));
 
@@ -555,16 +556,32 @@ export function NewChitPage() {
             <div className="new-chit-terms-side">
               <div className="card live-preview-card">
                 <div className="row-head"><h2>{m.newChit.summary}</h2></div>
-                {preview.style && (
-                  <div className="kv">
-                    <span>{type === "auction" ? m.newChit.auctionStyle : type === "fixed" ? m.newChit.fixedStyle : m.settlementStyle.title}</span>
-                    <strong>{preview.style}</strong>
+                <div className="summary-grid">
+                  {preview.style && (
+                    <div className="summary-cell summary-cell-wide">
+                      <span className="summary-label">
+                        {type === "auction" ? m.newChit.auctionStyle : type === "fixed" ? m.newChit.fixedStyle : m.settlementStyle.title}
+                      </span>
+                      <strong className="summary-value">{preview.style}</strong>
+                    </div>
+                  )}
+                  <div className="summary-cell">
+                    <span className="summary-label">{m.nav.customers}</span>
+                    <strong className="summary-value">{preview.members}</strong>
                   </div>
-                )}
-                <div className="kv"><span>{m.nav.customers}</span><strong>{preview.members}</strong></div>
-                <div className="kv"><span>{m.newChit.duration}</span><strong>{preview.duration}</strong></div>
-                <div className="kv"><span>{m.terms.perHapta}</span><strong>{preview.per}</strong></div>
-                <div className="kv"><span>{m.terms.commission}</span><strong>{preview.commission}</strong></div>
+                  <div className="summary-cell">
+                    <span className="summary-label">{m.newChit.duration}</span>
+                    <strong className="summary-value">{preview.duration}</strong>
+                  </div>
+                  <div className="summary-cell">
+                    <span className="summary-label">{m.terms.perHapta}</span>
+                    <strong className="summary-value">{preview.per}</strong>
+                  </div>
+                  <div className="summary-cell">
+                    <span className="summary-label">{m.terms.commission}</span>
+                    <strong className="summary-value">{preview.commission}</strong>
+                  </div>
+                </div>
               </div>
               <div className="card">
                 <h2>{m.newChit.settings}</h2>
@@ -600,11 +617,28 @@ export function NewChitPage() {
 
         {phase === "members" && (
           <div className="card members-wizard">
-            <div className="row-head">
-              <h2>{m.newChit.membersStep}</h2>
+            <div className="row-head members-wizard-head">
+              <div className="members-title-row">
+                <h2>{m.newChit.membersStep}</h2>
+                <button
+                  type="button"
+                  className={`info-chip${memberHelpOpen ? " on" : ""}`}
+                  aria-expanded={memberHelpOpen}
+                  aria-controls="members-help-panel"
+                  aria-label={m.newChitExtra.membersInfoAria}
+                  title={m.newChitExtra.membersInfoAria}
+                  onClick={() => setMemberHelpOpen((v) => !v)}
+                >
+                  <Info size={15} strokeWidth={2.4} />
+                </button>
+              </div>
               <span className="muted">{step + 1} / {stepper.length}</span>
             </div>
-            <p className="muted block">{memberHelp}</p>
+            {memberHelpOpen && (
+              <div id="members-help-panel" className="members-help-panel">
+                <PromptBox tone="blue">{memberHelp}</PromptBox>
+              </div>
+            )}
             <p className="members-slot-meta">
               {tx(m.newChitExtra.slotsFilled, { filled: picked.length, total: n || 0 })}
               {n > 0 && picked.length < n ? ` · ${m.newChitExtra.useHandBelow}` : ""}
@@ -651,56 +685,62 @@ export function NewChitPage() {
               </div>
             )}
 
-            <div className="add-member-box">
-              <strong className="add-member-title">{m.newChitExtra.addNewMember}</strong>
-              <div className="grid-2" style={{ marginTop: 10 }}>
-                <input className="field" placeholder={m.profile.name} value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <input className="field" placeholder={m.profile.phone} value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
-              </div>
-              <div className="hands-stepper">
-                <span className="hands-stepper-label">{m.newChitExtra.noOfHands}</span>
-                <div className="hands-stepper-controls">
-                  <button
-                    type="button"
-                    className="btn ghost hands-stepper-btn"
-                    disabled={slotsFull || manualHands <= 1}
-                    onClick={() => bumpHands("manual", -1)}
-                    aria-label="−"
-                  >
-                    −
-                  </button>
-                  <input
-                    className="field hands-stepper-input"
-                    inputMode="numeric"
-                    value={manualHands}
-                    disabled={slotsFull}
-                    onChange={(e) => setHands("manual", e.target.value)}
-                    aria-label={m.newChitExtra.noOfHands}
-                  />
-                  <button
-                    type="button"
-                    className="btn ghost hands-stepper-btn"
-                    disabled={slotsFull || manualHands >= maxHandsPick}
-                    onClick={() => bumpHands("manual", 1)}
-                    aria-label="+"
-                  >
-                    +
-                  </button>
+            <div className="member-source-cards">
+              <div className="member-source-card tone-new">
+                <div className="member-source-head">
+                  <span className="member-source-icon" aria-hidden><Plus size={16} /></span>
+                  <strong className="add-member-title">{m.newChitExtra.addNewMember}</strong>
                 </div>
+                <div className="member-source-fields">
+                  <input className="field" placeholder={m.profile.name} value={newName} onChange={(e) => setNewName(e.target.value)} />
+                  <input className="field" placeholder={m.profile.phone} value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+                </div>
+                <div className="hands-stepper">
+                  <span className="hands-stepper-label">{m.newChitExtra.noOfHands}</span>
+                  <div className="hands-stepper-controls">
+                    <button
+                      type="button"
+                      className="btn ghost hands-stepper-btn"
+                      disabled={slotsFull || manualHands <= 1}
+                      onClick={() => bumpHands("manual", -1)}
+                      aria-label="−"
+                    >
+                      −
+                    </button>
+                    <input
+                      className="field hands-stepper-input"
+                      inputMode="numeric"
+                      value={manualHands}
+                      disabled={slotsFull}
+                      onChange={(e) => setHands("manual", e.target.value)}
+                      aria-label={m.newChitExtra.noOfHands}
+                    />
+                    <button
+                      type="button"
+                      className="btn ghost hands-stepper-btn"
+                      disabled={slotsFull || manualHands >= maxHandsPick}
+                      onClick={() => bumpHands("manual", 1)}
+                      aria-label="+"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <button
+                  className="btn wide"
+                  type="button"
+                  disabled={!newName.trim() || slotsFull}
+                  onClick={() => void addManualMember()}
+                >
+                  <Plus size={15} /> {m.newChit.addMember}
+                </button>
               </div>
-              <button
-                className="btn wide"
-                type="button"
-                disabled={!newName.trim() || slotsFull}
-                onClick={() => void addManualMember()}
-              >
-                <Plus size={15} /> {m.newChit.addMember}
-              </button>
-            </div>
 
-            <div className="member-add-row">
-              <div className="member-add-block">
-                <label className="label">{m.newChitExtra.addFromExisting}</label>
+              <div className="member-source-card tone-existing">
+                <div className="member-source-head">
+                  <span className="member-source-icon" aria-hidden><UserPlus size={16} /></span>
+                  <strong className="add-member-title">{m.newChitExtra.addFromExisting}</strong>
+                </div>
                 <div className="member-add-stack">
                   <select
                     className="field"
@@ -755,21 +795,18 @@ export function NewChitPage() {
                     <UserPlus size={15} /> {m.newChit.addHand}
                   </button>
                 </div>
-              </div>
 
-              <div className="member-add-block">
-                <label className="label">{m.newChitExtra.fromPhonebook}</label>
-                <button
-                  className="btn ghost wide"
-                  type="button"
-                  disabled={pickingContacts || slotsFull}
-                  onClick={() => void addFromContacts()}
-                >
-                  <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromPhonebook}
-                </button>
-                <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
-                  {m.newChitExtra.fromContacts}
-                </p>
+                <div className="member-phonebook">
+                  <button
+                    className="btn ghost wide"
+                    type="button"
+                    disabled={pickingContacts || slotsFull}
+                    onClick={() => void addFromContacts()}
+                  >
+                    <BookUser size={15} /> {pickingContacts ? m.newChitExtra.opening : m.newChitExtra.fromPhonebook}
+                  </button>
+                  <p className="member-phonebook-hint">{m.newChitExtra.fromContacts}</p>
+                </div>
               </div>
             </div>
 
