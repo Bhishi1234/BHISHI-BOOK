@@ -3,18 +3,22 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   Crown,
+  Download,
   Headset,
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
   Plus,
   Search,
+  Smartphone,
   UserRound,
   Users,
   Wallet,
   X,
 } from "lucide-react";
+import { ModalPortal } from "../components/ModalPortal";
 import { useI18n } from "../i18n";
+import { useAddToHomeScreen } from "../lib/useAddToHomeScreen";
 import { useStore } from "../store";
 
 export function AppShell({
@@ -31,6 +35,7 @@ export function AppShell({
   const nav = useNavigate();
   const loc = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const a2hs = useAddToHomeScreen();
 
   const NAV = [
     { to: "/", label: m.nav.dashboard, icon: LayoutDashboard },
@@ -202,10 +207,12 @@ export function AppShell({
               <em>{m.brandTagline}</em>
             </span>
           </Link>
-          <Link to="/chits/new" className="mobile-create">
-            <Plus size={14} strokeWidth={2.6} />
-            <span>{m.nav.createBhishi}</span>
-          </Link>
+          {a2hs.showInstall ? (
+            <button type="button" className="mobile-a2hs" onClick={() => void a2hs.promptInstall()}>
+              <Smartphone size={14} strokeWidth={2.4} />
+              <span>{m.nav.addToHome}</span>
+            </button>
+          ) : null}
         </div>
         <div className="main-scroll">{children}</div>
         <nav className="bottom-tabs" aria-label="Primary">
@@ -232,6 +239,27 @@ export function AppShell({
           </div>
         </nav>
       </div>
+      {a2hs.hintOpen && (
+        <ModalPortal>
+          <div className="modal-back" onClick={() => a2hs.setHintOpen(false)}>
+            <div className="modal a2hs-hint-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <div className="modal-head-row">
+                <h2 style={{ margin: 0 }}>{m.nav.addToHome}</h2>
+                <button type="button" className="modal-close-x" onClick={() => a2hs.setHintOpen(false)} aria-label={m.common.close}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="a2hs-hint-icon" aria-hidden>
+                <Download size={28} strokeWidth={2.2} />
+              </div>
+              <p className="muted">{a2hs.isIos ? m.nav.addToHomeIosHint : m.nav.addToHomeHint}</p>
+              <button type="button" className="btn wide" onClick={() => a2hs.setHintOpen(false)}>
+                {m.common.close}
+              </button>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }

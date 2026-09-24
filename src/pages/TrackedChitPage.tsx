@@ -11,7 +11,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
 import { ModalPortal } from "../components/ModalPortal";
 import { AppShell } from "../layout/AppShell";
-import { baseInstalment, paidInCycle } from "../lib/chitMath";
+import { baseInstalment, paidInCycle, chitEndDate } from "../lib/chitMath";
 import { useI18n } from "../i18n";
 import { initials, inr, todayIso } from "../lib/format";
 import { useStore } from "../store";
@@ -59,8 +59,7 @@ export function TrackedChitPage() {
   const monthLogged = selfId ? paidInCycle(data, selfId, cycle) >= instalment && instalment > 0 : false;
   const canAdvance = monthLogged && data.status === "running" && cycle < data.duration;
   const isRunning = data.status === "running";
-  const ended = new Date(data.startDate);
-  ended.setMonth(ended.getMonth() + data.duration);
+  const ended = chitEndDate(data);
   const pct = totalDue > 0 ? Math.min(100, Math.round((paid / totalDue) * 100)) : 0;
   const monthFmt = { month: "short" as const, year: "numeric" as const };
 

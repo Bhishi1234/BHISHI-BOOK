@@ -443,7 +443,7 @@ export function LuckyDrawPage() {
             <div className="ld-verified">{copy.luckyDraw.verified}</div>
             <div className="ld-done-row">
               <button className="btn" type="button" disabled={sharing} onClick={() => void onShare()}>
-                <Share2 size={16} /> {copy.luckyDraw.shareWhatsApp}
+                <Share2 size={16} /> {copy.chit.sharePdf}
               </button>
               <button className="btn ghost" type="button" onClick={startChange}>
                 {copy.luckyDraw.changeWinner}

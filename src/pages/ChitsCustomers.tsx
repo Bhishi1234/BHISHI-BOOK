@@ -6,7 +6,7 @@ import { CancelChitButton } from "../components/CancelChitButton";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
-import { chitProgress, displayCycle, memberBalance } from "../lib/chitMath";
+import { chitProgress, displayCycle, customerOutstanding } from "../lib/chitMath";
 import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
 import { chitPath, initials, inr } from "../lib/format";
 import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
@@ -250,10 +250,7 @@ export function CustomersPage() {
 
   const rows = customers.map((c) => {
     const inChits = chits.filter((ch) => ch.members.some((mem) => mem.customerId === c.id) && ch.status !== "cancelled");
-    const outstanding = chits.reduce((s, ch) => {
-      if (!ch.members.some((mem) => mem.customerId === c.id)) return s;
-      return s + memberBalance(ch, c.id).outstanding;
-    }, 0);
+    const outstanding = customerOutstanding(chits, c.id);
     return { ...c, inChits, outstanding };
   }).filter((r) => {
     if (q && !r.name.toLowerCase().includes(q.toLowerCase()) && !r.phone.includes(q)) return false;

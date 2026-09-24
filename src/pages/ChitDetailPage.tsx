@@ -74,6 +74,8 @@ import {
   settleWinner,
   auctionFirstShare,
   treasuryOf,
+  cycleStartDate,
+  chitEndDate,
 } from "../lib/chitMath";
 import {
   downloadAwardReportPdf,
@@ -83,7 +85,6 @@ import {
   downloadReceiptPdf,
 } from "../lib/reportsPdf";
 import { pickContactsFromBook } from "../lib/contacts";
-import { isNativeApp } from "../lib/native";
 import {
   awardWinnerWhatsAppMessage,
   canMessagePhone,
@@ -114,8 +115,14 @@ export function ChitDetailPage() {
   const [booksOpen, setBooksOpen] = useState(false);
   const [collectHelpOpen, setCollectHelpOpen] = useState(false);
   const [awardTouched, setAwardTouched] = useState(false);
+  const reportsRef = useRef<HTMLDivElement | null>(null);
+  const skipScrollTopRef = useRef(false);
 
   useEffect(() => {
+    if (skipScrollTopRef.current) {
+      skipScrollTopRef.current = false;
+      return;
+    }
     scrollPageToTop();
     const t = window.setTimeout(scrollPageToTop, 80);
     return () => window.clearTimeout(t);
@@ -244,8 +251,7 @@ export function ChitDetailPage() {
     : 0;
   const unprized = [...data.members].filter((m) => !m.prizedCycle).sort((a, b) => a.slot - b.slot);
   const expectedLife = expectedLifeCollections(data);
-  const ended = new Date(data.startDate);
-  ended.setMonth(ended.getMonth() + data.duration);
+  const ended = chitEndDate(data);
   const fixedLike = isFixedLike(data);
   const luckyDrawChit = isLuckyDrawChit(data);
   const handSacrifice = isHandSacrifice(data);
@@ -378,27 +384,30 @@ export function ChitDetailPage() {
     }
   }
 
-  function shareAwardPdfWhatsApp(rec: AuctionRecord) {
+  /** Always opens the system share sheet (PDF). WhatsApp is optional when a phone exists. */
+  async function shareAwardPdf(rec: AuctionRecord) {
     const caption = awardShareCaption(rec);
     const title = data.type === "loan" ? copy.chit.loanReportPdf : copy.chit.awardReportPdf;
     if (data.type === "loan") {
-      downloadLoanReportPdf(data, rec, names, user?.name, {
+      await downloadLoanReportPdf(data, rec, names, user?.name, {
         mode: "share",
         title,
         text: caption,
       });
     } else {
-      downloadAwardReportPdf(data, rec, names, user?.name, {
+      await downloadAwardReportPdf(data, rec, names, user?.name, {
         mode: "share",
         title,
         text: caption,
       });
     }
+  }
+
+  async function shareAwardPdfWhatsApp(rec: AuctionRecord) {
+    await shareAwardPdf(rec);
     const phone = customers.find((c) => c.id === rec.winnerId)?.phone;
-    // On native the share sheet can send the PDF to WhatsApp.
-    // On web, also open WhatsApp with the summary so the organiser can attach the downloaded PDF.
-    if (!isNativeApp() && canMessagePhone(phone)) {
-      window.setTimeout(() => openWhatsApp(phone!, caption), 400);
+    if (canMessagePhone(phone)) {
+      window.setTimeout(() => openWhatsApp(phone!, awardShareCaption(rec)), 400);
     }
   }
 
@@ -406,32 +415,30 @@ export function ChitDetailPage() {
     downloadLoanReportPdf(data, rec, names, user?.name, { mode: "download" });
   }
 
-  function shareLoanToBorrower(rec: AuctionRecord) {
+  async function shareLoanToBorrower(rec: AuctionRecord) {
     const p = loanSharePayload(rec);
-    if (!canMessagePhone(p.phone)) {
-      window.alert(copy.chit.borrowerNeedsPhone);
+    const msg = loanBorrowerWhatsAppMessage({
+      memberName: p.memberName,
+      chitName: data.name,
+      cycle: rec.cycle,
+      duration: data.duration,
+      face: p.face,
+      interestCut: p.interestCut,
+      netPaid: p.netPaid,
+      interestRate: p.interestRate,
+      tenure: p.tenure,
+      repayFrom: p.repayFrom,
+      repayTo: p.repayTo,
+      deposit: p.deposit,
+      interestPerMonth: p.interestPerMonth,
+      principalPerMonth: p.principalPerMonth,
+      organiserName: user?.name,
+    });
+    if (canMessagePhone(p.phone)) {
+      openWhatsApp(p.phone!, msg);
       return;
     }
-    openWhatsApp(
-      p.phone!,
-      loanBorrowerWhatsAppMessage({
-        memberName: p.memberName,
-        chitName: data.name,
-        cycle: rec.cycle,
-        duration: data.duration,
-        face: p.face,
-        interestCut: p.interestCut,
-        netPaid: p.netPaid,
-        interestRate: p.interestRate,
-        tenure: p.tenure,
-        repayFrom: p.repayFrom,
-        repayTo: p.repayTo,
-        deposit: p.deposit,
-        interestPerMonth: p.interestPerMonth,
-        principalPerMonth: p.principalPerMonth,
-        organiserName: user?.name,
-      }),
-    );
+    await shareText(copy.chit.loanReportPdf, msg);
   }
 
   async function shareLoanToGroup(rec: AuctionRecord) {
@@ -546,11 +553,15 @@ export function ChitDetailPage() {
               </div>
               <div className="chit-details-cell">
                 <span>{copy.chit.started}</span>
-                <strong>{new Date(data.startDate).toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
+                <strong>{new Date(data.startDate).toLocaleDateString(locale, data.frequency === "monthly"
+                  ? { month: "short", year: "numeric" }
+                  : { day: "numeric", month: "short", year: "numeric" })}</strong>
               </div>
               <div className="chit-details-cell">
                 <span>{copy.chit.ends}</span>
-                <strong>{ended.toLocaleString(locale, { month: "short", year: "numeric" })}</strong>
+                <strong>{ended.toLocaleDateString(locale, data.frequency === "monthly"
+                  ? { month: "short", year: "numeric" }
+                  : { day: "numeric", month: "short", year: "numeric" })}</strong>
               </div>
               <div className="chit-details-cell">
                 <span>{copy.terms.commission}</span>
@@ -796,11 +807,14 @@ export function ChitDetailPage() {
                   <tbody>
                     {Array.from({ length: cycle }, (_, i) => i + 1).reverse().map((cyc) => {
                       const row = cycleLedger(data, cyc);
-                      const when = new Date(data.startDate);
-                      when.setMonth(when.getMonth() + cyc - 1);
+                      const when = cycleStartDate(data, cyc);
+                      const dateOpts: Intl.DateTimeFormatOptions =
+                        data.frequency === "biweekly" || data.frequency === "weekly" || data.frequency === "daily"
+                          ? { day: "numeric", month: "short", year: "numeric" }
+                          : { month: "short", year: "numeric" };
                       return (
                         <tr key={cyc}>
-                          <td>{when.toLocaleDateString(locale, { month: "short", year: "numeric" })}</td>
+                          <td>{when.toLocaleDateString(locale, dateOpts)}</td>
                           <td>{inr(row.collected)}</td>
                           <td>{inr(row.payout)}</td>
                           <td>{inr(row.commission)}</td>
@@ -813,10 +827,7 @@ export function ChitDetailPage() {
                 </table>
               </div>
             </div>
-              </>
-            )}
 
-            {/* Member ledger always visible on Overview — all bhishi types */}
             <div className="card flush block">
               <div className="card-pad">
                 <h2>{copy.chit.memberLedger}</h2>
@@ -885,6 +896,8 @@ export function ChitDetailPage() {
                 </table>
               </div>
             </div>
+              </>
+            )}
           </>
         )}
 
@@ -920,8 +933,11 @@ export function ChitDetailPage() {
               {cycles.map((cyc) => {
                 const rows = byCycle.get(cyc) || [];
                 const monthTotal = rows.reduce((s, p) => s + p.amount, 0);
-                const when = new Date(data.startDate);
-                when.setMonth(when.getMonth() + cyc - 1);
+                const when = cycleStartDate(data, cyc);
+                const dateOpts: Intl.DateTimeFormatOptions =
+                  data.frequency === "biweekly" || data.frequency === "weekly" || data.frequency === "daily"
+                    ? { day: "numeric", month: "short", year: "numeric" }
+                    : { month: "short", year: "numeric" };
                 return (
                   <div key={cyc} className="card flush">
                     <div className="card-pad" style={{ paddingBottom: 10 }}>
@@ -929,7 +945,7 @@ export function ChitDetailPage() {
                         <div>
                           <strong>{copy.chit.month} {cyc}</strong>
                           <div className="muted">
-                            {when.toLocaleDateString(locale, { month: "short", year: "numeric" })} · {rows.length} receipt{rows.length === 1 ? "" : "s"}
+                            {when.toLocaleDateString(locale, dateOpts)} · {rows.length} receipt{rows.length === 1 ? "" : "s"}
                           </div>
                         </div>
                         <strong className="num">{inr(monthTotal)}</strong>
@@ -2417,25 +2433,26 @@ export function ChitDetailPage() {
                 void updateChitSettings(data.id, { memberVisible: next });
               }} /> {copy.chit.memberVisibilityLabel}</label>
             </div>
-            <div className="card">
+            <div className="card" ref={reportsRef} id="chit-reports">
               <h2>{copy.chit.reports}</h2>
               <p className="muted block">
                 {copy.chit.reportsHint}
               </p>
               <div className="toolbar" style={{ margin: 0, flexWrap: "wrap", gap: 8 }}>
-                <button className="btn" onClick={() => downloadChitReportPdf(data, names)}>{copy.chit.fullLedgerPdf}</button>
+                <button className="btn" onClick={() => void downloadChitReportPdf(data, names, { mode: "share", title: copy.chit.fullLedgerPdf })}>{copy.chit.sharePdf}</button>
+                <button className="btn ghost" onClick={() => downloadChitReportPdf(data, names)}>{copy.chit.fullLedgerPdf}</button>
                 <button className="btn ghost" onClick={() => downloadMonthDuesPdf(data, names)}>{copy.chit.monthDuesPdf}</button>
                 {data.type === "loan" ? (
                   <button className="btn ghost" onClick={() => {
                     const last = [...data.auctions].reverse().find((a) => a.method === "fixed");
-                    if (last) downloadLoanReportPdf(data, last, names, user?.name, { mode: "download" });
-                    else downloadChitReportPdf(data, names);
+                    if (last) void downloadLoanReportPdf(data, last, names, user?.name, { mode: "share", title: copy.chit.loanReportPdf });
+                    else void downloadChitReportPdf(data, names, { mode: "share" });
                   }}>{copy.chit.loanReportPdf}</button>
                 ) : (
                   <button className="btn ghost" onClick={() => {
                     const last = [...data.auctions].reverse().find((a) => a.method !== "settlement");
-                    if (last) downloadAwardReportPdf(data, last, names, user?.name, { mode: "download" });
-                    else downloadChitReportPdf(data, names);
+                    if (last) void downloadAwardReportPdf(data, last, names, user?.name, { mode: "share", title: copy.chit.awardReportPdf });
+                    else void downloadChitReportPdf(data, names, { mode: "share" });
                   }}>{copy.chit.awardReportPdf}</button>
                 )}
               </div>
@@ -2542,9 +2559,14 @@ export function ChitDetailPage() {
                 {data.type === "loan" ? copy.chit.loanShareHint : copy.chit.awardShareHint}
               </p>
               <div className="loan-share-row">
-                <button type="button" className="btn" onClick={() => shareAwardPdfWhatsApp(awardShare)}>
-                  <Share2 size={15} /> {copy.chit.sharePdfWhatsApp}
+                <button type="button" className="btn" onClick={() => void shareAwardPdf(awardShare)}>
+                  <Share2 size={15} /> {copy.chit.sharePdf}
                 </button>
+                {canMessagePhone(customers.find((c) => c.id === awardShare.winnerId)?.phone) ? (
+                  <button type="button" className="btn ghost" onClick={() => void shareAwardPdfWhatsApp(awardShare)}>
+                    {copy.chit.sharePdfWhatsApp}
+                  </button>
+                ) : null}
                 <button type="button" className="btn ghost" onClick={() => shareAwardPdfOnly(awardShare)}>
                   {copy.chit.pdfOnly}
                 </button>
@@ -2577,7 +2599,11 @@ export function ChitDetailPage() {
                   className="btn"
                   onClick={() => {
                     setCelebrate(null);
+                    skipScrollTopRef.current = true;
                     setTab("settings");
+                    window.setTimeout(() => {
+                      reportsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }, 80);
                   }}
                 >
                   {copy.chit.goToReports}

@@ -12,7 +12,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { MemberReachButtons } from "../components/MemberReachButtons";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
-import { displayCycle, memberBalance, paidInCycle, rawCycleDue } from "../lib/chitMath";
+import { displayCycle, memberBalance, paidInCycle, rawCycleDue, customerOutstanding, cycleStartDate } from "../lib/chitMath";
 import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard } from "../ui/StatCard";
@@ -47,19 +47,24 @@ export function CustomerDetailPage() {
   const memberships = chits
     .filter((ch) => ch.members.some((mem) => mem.customerId === customer.id) && ch.status !== "cancelled")
     .map((ch) => {
-      const bal = memberBalance(ch, customer.id);
-      const member = ch.members.find((mem) => mem.customerId === customer.id)!;
+      const hands = ch.members.filter((mem) => mem.customerId === customer.id);
+      const bal = {
+        paid: hands.reduce((s, h) => s + memberBalance(ch, customer.id, h.slot).paid, 0),
+        outstanding: hands.reduce((s, h) => s + memberBalance(ch, customer.id, h.slot).outstanding, 0),
+        due: hands.reduce((s, h) => s + memberBalance(ch, customer.id, h.slot).due, 0),
+      };
+      const member = hands[0]!;
       const awards = ch.auctions.filter((a) => a.winnerId === customer.id && a.method !== "settlement");
       const payouts = awards.reduce((s, a) => s + a.payout, 0);
       const receipts = ch.payments
         .filter((p) => p.memberId === customer.id)
         .slice()
         .sort((a, b) => a.cycle - b.cycle || a.date.localeCompare(b.date));
-      return { ch, bal, member, payouts, receipts, awards };
+      return { ch, bal, member, hands, payouts, receipts, awards };
     });
 
   const contributed = memberships.reduce((s, mem) => s + mem.bal.paid, 0);
-  const outstanding = memberships.reduce((s, mem) => s + mem.bal.outstanding, 0);
+  const outstanding = customerOutstanding(chits, customer.id);
   const received = memberships.reduce((s, mem) => s + mem.payouts, 0);
   const running = memberships.filter((mem) => mem.ch.status === "running").length;
 
@@ -87,8 +92,7 @@ export function CustomerDetailPage() {
       });
     }
     for (const a of ch.auctions.filter((x) => x.winnerId === customer.id)) {
-      const when = new Date(ch.startDate);
-      when.setMonth(when.getMonth() + a.cycle - 1);
+      const when = cycleStartDate(ch, a.cycle);
       rows.push({
         key: `a-${ch.id}-${a.cycle}`,
         when: when.toISOString().slice(0, 10),
@@ -202,7 +206,7 @@ export function CustomerDetailPage() {
             <div className="card"><p className="muted" style={{ margin: 0 }}>{m.chit.notMapped}</p></div>
           )}
           <div className="member-chit-grid">
-            {memberships.map(({ ch, bal, member, payouts, awards }) => (
+            {memberships.map(({ ch, bal, member, hands, payouts, awards }) => (
               <div key={ch.id} className="card member-chit-card">
                 <div className="member-chit-card-top">
                   <div>
@@ -210,7 +214,7 @@ export function CustomerDetailPage() {
                       {ch.name}
                     </Link>
                     <div className="muted" style={{ marginTop: 2 }}>
-                      {typeLabel(ch.type)} · {statusLabel(ch.status)} · {m.terms.hand} {member.slot}
+                      {typeLabel(ch.type)} · {statusLabel(ch.status)} · {hands.length > 1 ? `${hands.length} ${m.terms.hands}` : `${m.terms.hand} ${member.slot}`}
                       {member.prizedCycle ? ` · ${tx(m.customerDetail.cyclePrized, { n: member.prizedCycle })}` : ""}
                     </div>
                   </div>

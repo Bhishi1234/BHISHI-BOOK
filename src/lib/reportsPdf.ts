@@ -65,7 +65,7 @@ function safeName(s: string) {
 }
 
 function downloadBlob(doc: jsPDF, filename: string, opts?: SavePdfOpts) {
-  void savePdf(doc, filename, opts);
+  return savePdf(doc, filename, opts);
 }
 
 export type SavePdfOpts = {
@@ -422,7 +422,7 @@ function drawDataTable(
  * Full chit books PDF: cover KPIs, member ledger, cycle summary,
  * collections, payouts, loan details, charts.
  */
-export function downloadChitReportPdf(chit: Chit, names: Record<string, string>) {
+export function downloadChitReportPdf(chit: Chit, names: Record<string, string>, opts?: SavePdfOpts) {
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as Doc;
   const cycle = displayCycle(chit);
   const typeLabel = TYPE_LABEL[chit.type] || chit.type;
@@ -641,7 +641,7 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>)
   });
 
   footer(doc);
-  downloadBlob(doc, `${safeName(chit.name)}-ledger-report.pdf`);
+  downloadBlob(doc, `${safeName(chit.name)}-ledger-report.pdf`, opts);
 }
 
 /** Single receipt PDF — printable slip matching app blue cards. */

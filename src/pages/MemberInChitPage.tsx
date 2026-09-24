@@ -14,6 +14,7 @@ import { MemberReachButtons } from "../components/MemberReachButtons";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import {
+  cycleStartDate,
   displayCycle,
   memberBalance,
   paidInCycle,
@@ -74,8 +75,7 @@ export function MemberInChitPage() {
       mode: p.mode,
     })),
     ...awards.map((a) => {
-      const when = new Date(chit.startDate);
-      when.setMonth(when.getMonth() + a.cycle - 1);
+      const when = cycleStartDate(chit, a.cycle);
       const label =
         a.method === "auction"
           ? tx(m.customerDetail.cycleAuction, { n: a.cycle })

@@ -519,6 +519,61 @@ export function memberBalance(chit: Chit, memberId: string, slot?: number) {
   return { due, paid, outstanding: Math.max(0, due - paid) };
 }
 
+/**
+ * Calendar start of hapta `cycle` (1-based), honouring frequency.
+ * 15-day (biweekly) advances by 15 days; monthly by calendar month.
+ */
+export function cycleStartDate(
+  chit: Pick<Chit, "startDate" | "frequency">,
+  cycle: number,
+): Date {
+  const d = new Date(chit.startDate);
+  if (Number.isNaN(d.getTime())) return d;
+  const n = Math.max(0, (cycle || 1) - 1);
+  switch (chit.frequency) {
+    case "daily":
+      d.setDate(d.getDate() + n);
+      break;
+    case "weekly":
+      d.setDate(d.getDate() + n * 7);
+      break;
+    case "biweekly":
+      d.setDate(d.getDate() + n * 15);
+      break;
+    case "monthly":
+    default:
+      d.setMonth(d.getMonth() + n);
+      break;
+  }
+  return d;
+}
+
+/** End date of the bhishi = start of the cycle after the last hapta. */
+export function chitEndDate(
+  chit: Pick<Chit, "startDate" | "frequency" | "duration">,
+): Date {
+  return cycleStartDate(chit, (chit.duration || 1) + 1);
+}
+
+/** Total outstanding for one person across non-cancelled groups (all hands). */
+export function customerOutstanding(
+  chits: Chit[],
+  customerId: string,
+  opts?: { runningOnly?: boolean },
+) {
+  return chits.reduce((sum, ch) => {
+    if (ch.status === "cancelled") return sum;
+    if (opts?.runningOnly && ch.status !== "running") return sum;
+    if (!ch.members.some((m) => m.customerId === customerId)) return sum;
+    return (
+      sum +
+      ch.members
+        .filter((m) => m.customerId === customerId)
+        .reduce((hs, m) => hs + memberBalance(ch, customerId, m.slot).outstanding, 0)
+    );
+  }, 0);
+}
+
 export function chitProgress(chit: Chit) {
   if (!chit.duration) return 0;
   if (chit.status === "completed") return 100;

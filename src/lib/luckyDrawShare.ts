@@ -65,7 +65,13 @@ function clip(s: string, n: number) {
 /** Build a WhatsApp-friendly result card (no DOM screenshot — lightweight canvas). */
 export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCanvasElement {
   const W = 1080;
-  const H = 1480;
+  const allotted =
+    payload.allottedName &&
+    payload.allottedName.trim() &&
+    payload.allottedName !== payload.winnerName
+      ? payload.allottedName
+      : "";
+  const H = allotted ? 1680 : 1480;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -76,18 +82,10 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   const winnerLabel = L.winner || "WINNER";
   const allottedLabel = L.allotted || "ALLOTTED TO";
   const verified = L.verified || "Verified random draw · Bhishi Circle";
-  const monthOf = (L.monthOf || "Month {cycle} of {duration}")
+  const monthOf = (L.monthOf || "Hapta {cycle} of {duration}")
     .replace("{cycle}", String(payload.cycle))
     .replace("{duration}", String(payload.duration));
 
-  const allotted =
-    payload.allottedName &&
-    payload.allottedName.trim() &&
-    payload.allottedName !== payload.winnerName
-      ? payload.allottedName
-      : "";
-
-  // Soft page background
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#eef3ff");
   bg.addColorStop(0.45, "#f7f9fc");
@@ -95,7 +93,6 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Top brand bar
   ctx.fillStyle = "#2f6fed";
   roundRect(ctx, 64, 56, W - 128, 72, 20);
   ctx.fill();
@@ -104,29 +101,23 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.textAlign = "center";
   ctx.fillText(brand, W / 2, 104);
 
-  // Title
   ctx.fillStyle = "#0f172a";
   ctx.font = "800 54px 'Plus Jakarta Sans', system-ui, sans-serif";
   ctx.fillText(title, W / 2, 200);
   ctx.fillStyle = "#64748b";
   ctx.font = "500 28px 'Plus Jakarta Sans', system-ui, sans-serif";
-  const sub = `${payload.chitName} — Round ${payload.cycle}`;
-  ctx.fillText(clip(sub, 42), W / 2, 248);
+  ctx.fillText(clip(`${payload.chitName} — ${monthOf}`, 42), W / 2, 248);
 
-  // Wheel — point at the drawn winner (not the allottee)
   const cx = W / 2;
   const cy = 560;
   const R = 280;
   const n = Math.max(payload.entrants.length, 1);
   const seg = (Math.PI * 2) / n;
-  const winnerIdx = Math.max(
-    0,
-    payload.entrants.findIndex((e) => e === payload.winnerName),
-  );
-  const start = -Math.PI / 2 - (winnerIdx + 0.5) * seg;
+  const winnerIdx = Math.max(0, payload.entrants.findIndex((e) => e === payload.winnerName));
+  const startAng = -Math.PI / 2 - (winnerIdx + 0.5) * seg;
 
   for (let i = 0; i < n; i++) {
-    const a0 = start + i * seg;
+    const a0 = startAng + i * seg;
     const a1 = a0 + seg;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -149,8 +140,7 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
     ctx.font = `700 ${n > 10 ? 18 : n > 6 ? 22 : 26}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const label = payload.entrants[i] || `P${i + 1}`;
-    ctx.fillText(clip(label, n > 8 ? 8 : 12), 0, 0);
+    ctx.fillText(clip(payload.entrants[i] || `P${i + 1}`, n > 8 ? 8 : 12), 0, 0);
     ctx.restore();
   }
 
@@ -193,61 +183,57 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.textBaseline = "middle";
   ctx.fillText("BC", cx, cy + 2);
 
-  // Result card — taller when admin allotted someone else
-  const cardH = allotted ? 340 : 280;
-  const cardY = allotted ? 880 : 900;
+  const cardH = allotted ? 420 : 280;
+  const cardY = 900;
   roundRect(ctx, 80, cardY, W - 160, cardH, 28);
   ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.strokeStyle = "rgba(47,111,237,0.12)";
   ctx.lineWidth = 2;
   ctx.stroke();
-
   ctx.fillStyle = "#2f6fed";
   roundRect(ctx, 80, cardY, W - 160, 10, 0);
   ctx.fill();
 
+  let y = cardY + 58;
   ctx.fillStyle = "#64748b";
-  ctx.font = "700 26px 'Plus Jakarta Sans', system-ui, sans-serif";
+  ctx.font = "700 24px 'Plus Jakarta Sans', system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(winnerLabel.toUpperCase(), W / 2, cardY + 58);
+  ctx.fillText(winnerLabel.toUpperCase(), W / 2, y);
 
+  y += 52;
   ctx.fillStyle = "#0f172a";
-  ctx.font = "800 52px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText(clip(payload.winnerName, 22), W / 2, cardY + 118);
+  ctx.font = "800 48px 'Plus Jakarta Sans', system-ui, sans-serif";
+  ctx.fillText(clip(payload.winnerName, 22), W / 2, y);
 
   if (allotted) {
+    y += 48;
     ctx.fillStyle = "#64748b";
     ctx.font = "700 22px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(allottedLabel.toUpperCase(), W / 2, cardY + 168);
+    ctx.fillText(allottedLabel.toUpperCase(), W / 2, y);
+    y += 46;
     ctx.fillStyle = "#0f172a";
     ctx.font = "800 36px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(clip(allotted, 24), W / 2, cardY + 214);
+    ctx.fillText(clip(allotted, 24), W / 2, y);
+    y += 40;
     const note = (L.adminAllotted || "Admin allotted this pot to {name}").replace("{name}", allotted);
     ctx.fillStyle = "#475569";
     ctx.font = "500 22px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(clip(note, 48), W / 2, cardY + 256);
-    ctx.fillStyle = "#0f9f6e";
-    ctx.font = "800 40px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(money(payload.payout), W / 2, cardY + 308);
-  } else {
-    ctx.fillStyle = "#0f9f6e";
-    ctx.font = "800 48px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(money(payload.payout), W / 2, cardY + 190);
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "500 24px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(monthOf, W / 2, cardY + 238);
+    ctx.fillText(clip(note, 46), W / 2, y);
   }
 
-  if (!allotted) {
-    /* month already drawn */
-  } else {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "500 22px 'Plus Jakarta Sans', system-ui, sans-serif";
-    ctx.fillText(monthOf, W / 2, cardY + cardH - 18);
-  }
+  y += 52;
+  ctx.fillStyle = "#0f9f6e";
+  ctx.font = `800 ${allotted ? 40 : 48}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillText(money(payload.payout), W / 2, y);
 
+  y += 40;
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "500 22px 'Plus Jakarta Sans', system-ui, sans-serif";
+  ctx.fillText(monthOf, W / 2, y);
+
+  const footerY = cardY + cardH + 48;
   const when = payload.drawnAt || new Date();
   const stamp = when.toLocaleString("en-IN", {
     day: "2-digit",
@@ -259,9 +245,9 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   });
   ctx.fillStyle = "#64748b";
   ctx.font = "500 24px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText(stamp, W / 2, 1240);
+  ctx.fillText(stamp, W / 2, footerY);
 
-  roundRect(ctx, W / 2 - 260, 1280, 520, 64, 32);
+  roundRect(ctx, W / 2 - 260, footerY + 36, 520, 64, 32);
   ctx.fillStyle = "#ecfdf5";
   ctx.fill();
   ctx.strokeStyle = "#a7f3d0";
@@ -269,7 +255,7 @@ export function renderLuckyDrawShareCard(payload: LuckyDrawSharePayload): HTMLCa
   ctx.stroke();
   ctx.fillStyle = "#047857";
   ctx.font = "700 26px 'Plus Jakarta Sans', system-ui, sans-serif";
-  ctx.fillText(verified, W / 2, 1322);
+  ctx.fillText(verified, W / 2, footerY + 78);
 
   return canvas;
 }

@@ -74,7 +74,7 @@ export function dueReminderWhatsAppMessage(opts: {
     "",
     `Friendly reminder from *${opts.chitName}* on Bhishi Circle.`,
     "",
-    `Your hapta for month *${opts.cycle}* of *${opts.duration}* is pending.`,
+    `Your hapta for *${opts.cycle}* of *${opts.duration}* is pending.`,
     `Amount due: *${inr(opts.amountDue)}*`,
     "",
     "Kindly pay at your earliest convenience so the books stay clear for everyone.",

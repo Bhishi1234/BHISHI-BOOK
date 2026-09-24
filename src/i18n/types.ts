@@ -24,6 +24,9 @@ export type Messages = {
     search: string;
     newChit: string;
     createBhishi: string;
+    addToHome: string;
+    addToHomeHint: string;
+    addToHomeIosHint: string;
     more: string;
     moreHint: string;
     signOut: string;
@@ -470,6 +473,7 @@ export type Messages = {
     awardShareHint: string;
     awardReportPdf: string;
     sharePdfWhatsApp: string;
+    sharePdf: string;
     pdfOnly: string;
     whatsappBorrower: string;
     shareToGroup: string;

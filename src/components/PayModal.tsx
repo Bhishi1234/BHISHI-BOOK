@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { useI18n } from "../i18n";
 import { inr } from "../lib/format";
 import type { PayMode, PaymentKind } from "../types";
@@ -40,19 +41,23 @@ export function PayModal({
         role="presentation"
       >
         <div
-          className="modal"
+          className="modal pay-modal"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-label={`${m.detail.recordPayment} — ${name}`}
         >
-          <div className="row-head" style={{ marginBottom: 8 }}>
-            <h2 style={{ margin: 0 }}>{m.detail.recordPayment} — {name}</h2>
-            <button type="button" className="btn ghost btn-sm" onClick={onClose} aria-label={m.common.close}>
-              {m.common.cancel}
+          <div className="modal-head-row">
+            <div className="modal-head-copy">
+              <h2>{m.detail.recordPayment}</h2>
+              <p className="muted pay-modal-sub">
+                {name} · {m.terms.haptaRound} {cycle}
+              </p>
+            </div>
+            <button type="button" className="modal-close-x" onClick={onClose} aria-label={m.common.close}>
+              <X size={18} strokeWidth={2.4} />
             </button>
           </div>
-          <p className="muted">{m.terms.haptaRound} {cycle}</p>
           {cash ? (
             <>
               <div className="row-head" style={{ marginBottom: 8 }}>

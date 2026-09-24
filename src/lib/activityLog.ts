@@ -1,5 +1,5 @@
 import type { AuctionRecord, Chit, Payment } from "../types";
-import { isAwardFirst } from "./chitMath";
+import { cycleStartDate, isAwardFirst } from "./chitMath";
 
 export type ActivityKind =
   | "payment"
@@ -41,9 +41,8 @@ function auctionStamp(a: AuctionRecord, chit: Chit) {
     // Award/loan usually after collections (or before in auction-first — still a real day).
     return sameCyclePays[sameCyclePays.length - 1];
   }
-  const d = new Date(chit.startDate);
+  const d = cycleStartDate(chit, a.cycle || 1);
   if (Number.isNaN(d.getTime())) return chit.startDate || "1970-01-01";
-  d.setMonth(d.getMonth() + Math.max(0, (a.cycle || 1) - 1));
   return d.toISOString().slice(0, 10);
 }
 

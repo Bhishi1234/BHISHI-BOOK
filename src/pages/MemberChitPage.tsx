@@ -12,6 +12,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { PromptBox } from "../components/PromptBox";
 import { AppShell } from "../layout/AppShell";
 import {
+  chitEndDate,
   displayCycle,
   memberBalance,
   paidInCycle,
@@ -63,8 +64,7 @@ export function MemberChitPage() {
   const monthStatus = selfId ? paymentStatus(data, selfId, cycle) : "due";
   const wins = data.auctions.filter((a) => a.method !== "settlement");
   const isRunning = data.status === "running";
-  const ended = new Date(data.startDate);
-  ended.setMonth(ended.getMonth() + data.duration);
+  const ended = chitEndDate(data);
   const monthFmt = { month: "short" as const, year: "numeric" as const };
 
   return (

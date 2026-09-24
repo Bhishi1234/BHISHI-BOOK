@@ -39,6 +39,17 @@ export function CollectionsPage() {
   const byMode = (modeId: PayMode) => receipts.filter((p) => (p.mode || "cash") === modeId).reduce((s, p) => s + p.amount, 0);
   const membersPaid = new Set(receipts.map((p) => p.memberId)).size;
 
+  const byBhishi = useMemo(() => {
+    const map = new Map<string, { chitId: string; chitName: string; rows: typeof receipts; total: number }>();
+    for (const p of receipts) {
+      const cur = map.get(p.chitId) || { chitId: p.chitId, chitName: p.chitName, rows: [], total: 0 };
+      cur.rows.push(p);
+      cur.total += p.amount;
+      map.set(p.chitId, cur);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total || a.chitName.localeCompare(b.chitName));
+  }, [receipts]);
+
   function exportDayBook() {
     const title =
       range === "today" ? m.common.today
@@ -90,50 +101,73 @@ export function CollectionsPage() {
           </select>
           <input className="field" style={{ margin: 0, maxWidth: 220 }} placeholder={m.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <div className="stats six">
+        <div className="stats four">
           <StatCard label={m.terms.collected} value={inr(collected)} hint={m.dash.collectedHint} tone="green" icon={Wallet} />
           <StatCard label={m.collections.register} value={receipts.length} hint={m.terms.hapta} tone="blue" icon={Receipt} />
           <StatCard label={m.collections.membersPaid} value={membersPaid} hint={m.collections.uniquePeople} tone="violet" icon={Users} />
-          <StatCard label={modeLabel("cash")} value={inr(byMode("cash"))} hint={modeLabel("cash")} tone="amber" icon={Banknote} />
-          <StatCard label="UPI" value={inr(byMode("upi") + byMode("bank"))} hint={modeLabel("bank")} tone="teal" icon={Landmark} />
-          <StatCard label={modeLabel("adjusted")} value={inr(byMode("adjusted"))} hint={modeLabel("adjusted")} tone="rose" icon={FileText} />
+          <StatCard label={modeLabel("cash")} value={inr(byMode("cash"))} hint={`UPI ${inr(byMode("upi"))}`} tone="amber" icon={Banknote} />
         </div>
-        <div className="grid-2">
-          <div className="card flush">
-            <div className="table-wrap">
-            {receipts.map((p) => {
-              const chit = owned.find((c) => c.id === p.chitId);
+
+        <div className="grid-2 block">
+          <div className="stack">
+            {!byBhishi.length && <div className="card"><p className="empty" style={{ margin: 0 }}>{m.chitsPage.empty}</p></div>}
+            {byBhishi.map((group) => {
+              const chit = owned.find((c) => c.id === group.chitId);
               return (
-                <div key={p.id} className="list-row">
-                  <div className="avatar">{initials(names[p.memberId] || "?")}</div>
-                  <div className="grow">
-                    <strong>{names[p.memberId]}</strong>
-                    <div className="muted">
-                      {p.chitName} · {m.terms.haptaRound} {p.cycle}
-                      {p.slot != null ? ` · ${m.terms.hand} ${p.slot}` : ""}
-                      {" · "}{modeLabel(p.mode || "cash")}
+                <div key={group.chitId} className="card flush collections-bhishi-card">
+                  <div className="card-pad collections-bhishi-head">
+                    <div>
+                      <strong>{group.chitName}</strong>
+                      <div className="muted">
+                        {group.rows.length} {group.rows.length === 1 ? "receipt" : "receipts"}
+                      </div>
                     </div>
+                    <strong className="num">{inr(group.total)}</strong>
                   </div>
-                  <strong className="num">{inr(p.amount)}</strong>
-                  {chit && (
-                    <button
-                      className="link"
-                      type="button"
-                      onClick={() => downloadReceiptPdf(chit, p, names)}
-                    >
-                      PDF
-                    </button>
-                  )}
+                  <div className="collections-bhishi-body">
+                    {group.rows
+                      .slice()
+                      .sort((a, b) => b.date.localeCompare(a.date) || b.cycle - a.cycle)
+                      .map((p) => (
+                        <div key={p.id} className="list-row">
+                          <div className="avatar">{initials(names[p.memberId] || "?")}</div>
+                          <div className="grow">
+                            <strong>{names[p.memberId]}</strong>
+                            <div className="muted">
+                              {m.terms.haptaRound} {p.cycle}
+                              {p.slot != null ? ` · ${m.terms.hand} ${p.slot}` : ""}
+                              {" · "}{modeLabel(p.mode || "cash")}
+                              {" · "}{new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                            </div>
+                          </div>
+                          <strong className="num">{inr(p.amount)}</strong>
+                          {chit && (
+                            <button
+                              className="link"
+                              type="button"
+                              onClick={() => downloadReceiptPdf(chit, p, names)}
+                            >
+                              PDF
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
                 </div>
               );
             })}
-            {!receipts.length && <p className="empty">{m.chitsPage.empty}</p>}
-            </div>
           </div>
-          <div className="card">
+          <div className="card collections-mode-card">
             <h2>{m.terms.collection}</h2>
+            <p className="muted" style={{ marginTop: 0 }}>{m.collections.subtitle}</p>
             {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((payMode) => (
-              <div className="kv" key={payMode}><span>{modeLabel(payMode)}</span><strong>{inr(byMode(payMode))}</strong></div>
+              <div className="kv" key={payMode}>
+                <span className="collections-mode-label">
+                  {payMode === "upi" ? <Landmark size={14} /> : payMode === "cash" ? <Banknote size={14} /> : <FileText size={14} />}
+                  {modeLabel(payMode)}
+                </span>
+                <strong>{inr(byMode(payMode))}</strong>
+              </div>
             ))}
           </div>
         </div>
