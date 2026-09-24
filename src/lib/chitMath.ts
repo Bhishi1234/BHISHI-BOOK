@@ -1268,9 +1268,13 @@ export function settleWinner(
     safeBid = Math.max(0, Number(bid) || 0);
   }
   // Auction peer: full bid is what the winner gets; peers settle bid ÷ N separately.
-  const arrearsWithheld = method === "settlement" || auctionPeer
-    ? 0
-    : memberBalance(chit, winnerId, winnerSlot).outstanding;
+  // Award-first (non-loan): pot is paid from organiser float; hapta (incl. prior arrears via
+  // cycleDue carry) is collected after the award — do not withhold unpaid dues from payout.
+  // Loans still net current outstanding against the disbursement (award-first or not).
+  const arrearsWithheld =
+    method === "settlement" || auctionPeer || (awardFirst && chit.type !== "loan")
+      ? 0
+      : memberBalance(chit, winnerId, winnerSlot).outstanding;
   let payout = Math.max(0, safeBid - arrearsWithheld);
   if (method === "fixed" && chit.type === "loan") {
     payout = Math.max(0, safeBid - discount - arrearsWithheld);

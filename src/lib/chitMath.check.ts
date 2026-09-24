@@ -674,4 +674,77 @@ assert(at4.discount === 800, `4% cut ${at4.discount}`);
 const at6 = settleWinner(rateChit, "x1", 20000, "fixed", 1, 6);
 assert(at6.discount === 1200, `6% cut ${at6.discount}`);
 
+// Fixed-order award-first: pot (minus commission) in full — do NOT withhold unpaid hapta.
+// Hapta is collected after the award; dues stay the base instalment for every hand.
+const fixedAf = chit({
+  members: members(5),
+  type: "fixed",
+  fixedStyle: "fixed_order",
+  auctionStyle: "auction_first",
+  pot: 100000,
+  instalment: 20000,
+  duration: 5,
+  commissionKind: "amount",
+  commissionValue: 0,
+});
+assert(canSettleCycle(fixedAf) === true, "fixed award-first can award before collect");
+assert(rawCycleDue(fixedAf, "m1", 1, 1) === 20000, `fixed af due before ${rawCycleDue(fixedAf, "m1", 1, 1)}`);
+const fixedAfRec = settleWinner(fixedAf, "m1", 100000, "fixed", 1);
+assert(fixedAfRec.arrearsWithheld === 0, `fixed af arrears ${fixedAfRec.arrearsWithheld}`);
+assert(fixedAfRec.payout === 100000, `fixed af payout ${fixedAfRec.payout}`);
+fixedAf.auctions.push(fixedAfRec);
+fixedAf.members = fixedAf.members.map((m) =>
+  m.customerId === "m1" ? { ...m, prizedCycle: 1 } : m,
+);
+assert(rawCycleDue(fixedAf, "m1", 1, 1) === 20000, "fixed af winner still owes base hapta");
+assert(rawCycleDue(fixedAf, "m2", 1, 2) === 20000, "fixed af peer hapta unchanged");
+assert(paidInCycle(fixedAf, "m1", 1, 1) === 0, "fixed af winner has no self-credit");
+assert(treasuryOf(fixedAf) === -100000, `fixed af till after award ${treasuryOf(fixedAf)}`);
+collectAll(fixedAf, 20000);
+assert(treasuryOf(fixedAf) === 0, `fixed af till after collect ${treasuryOf(fixedAf)}`);
+
+const fixedAfComm = chit({
+  members: members(5),
+  type: "fixed",
+  fixedStyle: "fixed_order",
+  auctionStyle: "auction_first",
+  pot: 100000,
+  instalment: 20000,
+  duration: 5,
+  commissionKind: "amount",
+  commissionValue: 5000,
+});
+const fixedAfCommRec = settleWinner(fixedAfComm, "m1", 100000, "fixed", 1);
+assert(fixedAfCommRec.commission === 5000, `fixed af commission ${fixedAfCommRec.commission}`);
+assert(fixedAfCommRec.bid === 95000, `fixed af bid after commission ${fixedAfCommRec.bid}`);
+assert(fixedAfCommRec.arrearsWithheld === 0, "fixed af+comm no arrears");
+assert(fixedAfCommRec.payout === 95000, `fixed af+comm payout ${fixedAfCommRec.payout}`);
+
+// Prior-month arrears on award-first fixed: still do not withhold — collect via hapta after.
+const fixedAfPrior = chit({
+  members: members(5),
+  type: "fixed",
+  fixedStyle: "fixed_order",
+  auctionStyle: "auction_first",
+  pot: 100000,
+  instalment: 20000,
+  duration: 5,
+  commissionKind: "amount",
+  commissionValue: 0,
+  currentCycle: 2,
+  payments: [2, 3, 4, 5].map((i) => ({
+    id: `fap${i}`,
+    memberId: `m${i}`,
+    slot: i,
+    cycle: 1,
+    amount: 20000,
+    kind: "full" as const,
+    date: "2026-01-01",
+    mode: "cash" as const,
+  })),
+});
+const fixedAfPriorRec = settleWinner(fixedAfPrior, "m1", 100000, "fixed", 1);
+assert(fixedAfPriorRec.arrearsWithheld === 0, `fixed af prior arrears withheld ${fixedAfPriorRec.arrearsWithheld}`);
+assert(fixedAfPriorRec.payout === 100000, `fixed af prior payout ${fixedAfPriorRec.payout}`);
+
 console.log("chit math ok");
