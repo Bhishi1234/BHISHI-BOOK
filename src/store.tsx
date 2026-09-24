@@ -35,6 +35,8 @@ type Store = {
     language?: string;
   }) => Promise<{ devOtp?: string }>;
   loginWithPassword: (phone: string, password: string) => Promise<void>;
+  beginPasswordReset: (phone: string) => Promise<{ devOtp?: string }>;
+  resetPassword: (phone: string, otp: string, newPassword: string) => Promise<void>;
   verifyOtp: (phone: string, otp: string, name?: string, opts?: { password?: string; language?: string }) => Promise<void>;
   logout: () => Promise<void>;
   deactivateAccount: (reasons?: string[], note?: string) => Promise<void>;
@@ -176,6 +178,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       loginWithPassword: async (phone, password) => {
         await guarded(() => api.loginWithPassword(phone, password));
         await reload();
+      },
+      beginPasswordReset: (phone) => guarded(() => api.beginPasswordReset(phone).then((r) => ({ devOtp: r.devOtp }))),
+      resetPassword: async (phone, otp, newPassword) => {
+        await guarded(() => api.resetPassword(phone, otp, newPassword));
       },
       verifyOtp: async (phone, otp, name, opts) => {
         await guarded(() => api.verifyOtp(phone, otp, name, opts));

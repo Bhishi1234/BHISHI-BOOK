@@ -16,6 +16,8 @@ type Backend = {
     language?: string;
   }) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
   loginWithPassword: (phone: string, password: string) => Promise<unknown>;
+  beginPasswordReset: (phone: string) => Promise<{ ok: true; provider?: string; devOtp?: string }>;
+  resetPassword: (phone: string, otp: string, newPassword: string) => Promise<{ ok: true }>;
   verifyOtp: (phone: string, otp: string, name?: string, opts?: { password?: string; language?: string }) => Promise<unknown>;
   logout: () => Promise<unknown>;
   profile: () => Promise<User>;
@@ -60,6 +62,8 @@ const mockApi: Backend = {
   sendOtp: (phone, name) => delay(mockServer.auth.sendOtp(phone, name)),
   beginSignup: (input) => delay(mockServer.auth.beginSignup(input)),
   loginWithPassword: (phone, password) => delay(mockServer.auth.loginWithPassword(phone, password)),
+  beginPasswordReset: (phone) => delay(mockServer.auth.beginPasswordReset(phone)),
+  resetPassword: (phone, otp, newPassword) => delay(mockServer.auth.resetPassword(phone, otp, newPassword)),
   verifyOtp: (phone, otp, name) => delay(mockServer.auth.verifyOtp(phone, otp, name)),
   logout: () => delay(mockServer.auth.logout()),
   profile: () => delay(mockServer.auth.profile()),
@@ -92,9 +96,16 @@ const mockApi: Backend = {
   tickets: () => delay(mockServer.support.list()),
   addTicket: (subject, message) => delay(mockServer.support.create(subject, message)),
   phonesOnApp: async (phones) => {
-    // Demo: treat no customer phones as registered (always show invite).
-    void phones;
-    return [];
+    try {
+      const raw = localStorage.getItem("bhishi-book-api-v8");
+      const db = raw ? JSON.parse(raw) as { accounts?: { phone: string }[] } : { accounts: [] };
+      const registered = new Set((db.accounts || []).map((a) => String(a.phone || "").replace(/\D/g, "").slice(-10)));
+      return phones
+        .map((p) => String(p || "").replace(/\D/g, "").slice(-10))
+        .filter((p) => p.length === 10 && registered.has(p));
+    } catch {
+      return [];
+    }
   },
   ensureActive: async () => undefined,
 };

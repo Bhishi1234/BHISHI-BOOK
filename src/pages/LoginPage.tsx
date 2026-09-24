@@ -192,6 +192,9 @@ export function LoginPage() {
                 onKeyDown={(e) => { if (e.key === "Enter") void doLogin(); }}
               />
               <p className="hint">{m.loginExtra.loginPasswordHint}</p>
+              <p style={{ margin: "0 0 10px", textAlign: "right" }}>
+                <Link className="link" to="/forgot-password">{m.login.forgotPassword}</Link>
+              </p>
               {(localError || error) && <p className="due">{localError || error}</p>}
               <button className="btn wide" disabled={busy || !canLogin} onClick={() => void doLogin()}>
                 {busy ? m.login.loggingIn : m.login.loginCta}

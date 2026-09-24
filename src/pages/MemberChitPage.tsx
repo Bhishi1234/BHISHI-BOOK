@@ -70,6 +70,11 @@ export function MemberChitPage() {
   return (
     <AppShell crumb={m.nav.chits} crumb2={data.name}>
       <div className="page">
+        <div className="page-back-row">
+          <button type="button" className="page-back-btn" onClick={() => nav(-1)}>
+            ← {m.common.back}
+          </button>
+        </div>
         <section className="chit-hero">
           <div className="chit-hero-top">
             <div className="chit-hero-avatar">{initials(data.name)}</div>

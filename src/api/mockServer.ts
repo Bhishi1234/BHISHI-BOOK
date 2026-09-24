@@ -16,12 +16,14 @@ const KEY = "bhishi-book-api-v8";
 type Session = { token: string; user: User };
 type Account = { phone: string; password: string; name: string; language: string };
 type PendingSignup = { phone: string; name: string; password: string; language: string };
+type PendingReset = { phone: string };
 
 type Db = {
   session: Session | null;
   pendingEmail: string | null;
   pendingPhone: string | null;
   pendingSignup: PendingSignup | null;
+  pendingReset: PendingReset | null;
   accounts: Account[];
   customers: Customer[];
   chits: Chit[];
@@ -38,6 +40,7 @@ function blankDb(): Db {
     pendingEmail: null,
     pendingPhone: null,
     pendingSignup: null,
+    pendingReset: null,
     accounts: [],
     tickets: [],
     customers: [],
@@ -54,6 +57,7 @@ function emptyDb(): Db {
     pendingEmail: null,
     pendingPhone: null,
     pendingSignup: null,
+    pendingReset: null,
     accounts: [],
     tickets: [],
     exitedSharedIds: [],
@@ -179,6 +183,7 @@ function read(): Db {
     if (!Array.isArray(db.deletionFeedback)) db.deletionFeedback = [];
     if (!Array.isArray(db.accounts)) db.accounts = [];
     if (db.pendingSignup === undefined) db.pendingSignup = null;
+    if (db.pendingReset === undefined) db.pendingReset = null;
     return db;
   } catch {
     return emptyDb();
@@ -307,6 +312,34 @@ export const mockServer = {
       };
       write(db);
       return db.session;
+    },
+    beginPasswordReset(phone: string) {
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      if (digits.length !== 10) throw new Error("phone must be 10 digits");
+      const db = read();
+      if (!db.accounts.some((a) => a.phone === digits)) {
+        throw new Error("No account found for this number");
+      }
+      db.pendingReset = { phone: digits };
+      db.pendingPhone = digits;
+      write(db);
+      return { ok: true as const, provider: "MOCK", devOtp: "123456" };
+    },
+    resetPassword(phone: string, otp: string, newPassword: string) {
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      if (otp.replace(/\D/g, "").length !== 6) throw new Error("otp must be 6 digits");
+      if ((newPassword || "").length < 6) throw new Error("Password must be at least 6 characters");
+      const db = read();
+      if (!db.pendingReset || db.pendingReset.phone !== digits) {
+        throw new Error("Request a new OTP first");
+      }
+      const acc = db.accounts.find((a) => a.phone === digits);
+      if (!acc) throw new Error("No account found for this number");
+      db.accounts = db.accounts.map((a) => (a.phone === digits ? { ...a, password: newPassword } : a));
+      db.pendingReset = null;
+      db.pendingPhone = null;
+      write(db);
+      return { ok: true as const };
     },
     verifyOtp(phone: string, otp: string, name?: string) {
       const digits = phone.replace(/\D/g, "").slice(-10);

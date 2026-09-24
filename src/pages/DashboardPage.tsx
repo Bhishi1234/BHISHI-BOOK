@@ -1,4 +1,4 @@
-import { ArrowUpRight, Layers, Wallet, AlertCircle } from "lucide-react";
+import { ArrowUpRight, Layers, Wallet, AlertCircle, Share2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
 import { useI18n } from "../i18n";
@@ -15,6 +15,7 @@ export function DashboardPage() {
   const active = chits.filter((c) => c.status === "running");
   const managed = active.filter((c) => c.mode === "organise" && c.members.length > 0 && c.viewerRole !== "member");
   const tracking = active.filter((c) => c.mode === "tracking" && c.viewerRole !== "member");
+  const shared = active.filter((c) => c.viewerRole === "member");
   const collected = managed.reduce((s, c) => s + collectedThisCycle(c), 0);
   const outstanding = managed.reduce((s, c) => s + outstandingOf(c), 0);
   const activeCount = managed.length;
@@ -24,10 +25,11 @@ export function DashboardPage() {
       <div className="page">
         <h1>{greetingNow()}, {user?.name}</h1>
         <p className="page-sub">{longDateNow()} · {managed.length} {m.dash.activeCount}</p>
-        <div className="stats three">
+        <div className="stats four home-stats">
           <StatCard label={m.dash.activeChits} value={activeCount} hint={m.dash.activeHint} tone="green" icon={Layers} onClick={() => nav("/chits")} />
           <StatCard label={m.dash.collectedCycle} value={inr(collected)} hint={m.dash.collectedHint} tone="teal" icon={Wallet} />
           <StatCard label={m.terms.outstanding} value={inr(outstanding)} hint={m.dash.outstandingHint} tone="rose" icon={AlertCircle} />
+          <StatCard label={m.dash.sharedWithMe} value={shared.length} hint={m.dash.onTrackHint} tone="blue" icon={Share2} onClick={() => nav("/chits")} />
         </div>
         <div className="row-head">
           <h2>{m.dash.managed}</h2>

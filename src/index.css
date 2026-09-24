@@ -534,25 +534,42 @@ button.stat {
   color: rgb(255 255 255 / 0.8);
 }
 .chit-details-card h2 {
-  font-size: 15px;
-  font-weight: 650;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: -0.02em;
+}
+.chit-details-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.chit-details-sub {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  font-weight: 500;
 }
 .chit-details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 14px;
+  gap: 12px 16px;
 }
 .chit-details-cell span {
   display: block;
   font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--muted);
   margin-bottom: 3px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .chit-details-cell strong {
   display: block;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 650;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -931,10 +948,18 @@ button.stat {
   align-items: center;
   gap: 12px;
   padding: 14px;
-  border-top: 1px solid var(--line);
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid #e8edf5;
+  background: #fff;
+  border-radius: 0;
 }
+.hapta-collect-row:last-child { border-bottom: 0; }
 .hapta-collect-row.due {
   background: #f5f9ff;
+}
+.hapta-collect-row.due + .hapta-collect-row.due {
+  border-bottom-color: #e4ecfa;
 }
 .hapta-collect-actions {
   display: flex;
@@ -950,15 +975,24 @@ button.stat {
   font-weight: 600;
   border-radius: 8px;
   padding: 7px 12px;
+  min-height: 36px;
+  position: relative;
+  z-index: 1;
 }
 .hapta-record-btn:hover {
   background: #dce8ff;
+}
+.hapta-paid-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
 }
 .hapta-paid-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
 }
 .hapta-paid-amount {
   font-weight: 700;
@@ -975,6 +1009,17 @@ button.stat {
   background: #ecfdf5;
   color: var(--green);
 }
+.hapta-undo-link {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 28px;
+}
+.hapta-undo-link:hover { color: var(--rose); }
 
 .stepper { display: none; }
 .step { display: flex; align-items: flex-start; gap: 10px; color: var(--muted); padding-right: 16px; }
@@ -1420,8 +1465,40 @@ button.stat {
 .cash-row .field { margin: 0; }
 .toggle { accent-color: var(--blue); margin-top: 3px; }
 
-.modal-back { position: fixed; inset: 0; background: rgb(17 24 39 / 0.28); display: grid; place-items: center; z-index: 50; padding: 20px; }
-.modal { width: min(560px, 100%); background: #fff; border-radius: 16px; padding: 18px; }
+.modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgb(17 24 39 / 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 120;
+  padding: 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal {
+  width: min(560px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px;
+  position: relative;
+  z-index: 1;
+  max-height: min(88dvh, 920px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 0.18);
+}
+.modal .btn,
+.modal .link,
+.loan-share-row .btn {
+  position: relative;
+  z-index: 2;
+  touch-action: manipulation;
+  min-height: 44px;
+}
 .modal h2 { margin: 0 0 8px; }
 .pay-row { display: flex; gap: 8px; margin: 12px 0; }
 .pay-row button { flex: 1; }
@@ -1649,6 +1726,21 @@ body.native-app {
     margin-bottom: 16px;
   }
   .stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stats.home-stats,
+  .stats.four { grid-template-columns: 1fr 1fr; }
+  .modal-back {
+    align-items: flex-end;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .modal {
+    width: 100%;
+    border-radius: 18px 18px 14px 14px;
+    max-height: min(78dvh, 720px);
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .modal .btn { width: 100%; justify-content: center; }
+  .loan-share-row { flex-direction: column; align-items: stretch; }
+  .loan-share-row .btn { width: 100%; }
   .stats.three .stat,
   .stats.four .stat,
   .stats.six .stat,
@@ -2265,4 +2357,75 @@ body.native-app {
   .stats .stat { padding: 12px; }
   .card-pad { padding: 12px 14px; }
   .page h1 { font-size: 22px; }
+}
+
+.stats.home-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stats.home-stats .stat-label {
+  white-space: normal;
+  line-height: 1.25;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.page-back-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.page-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: #eef2f7;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  min-height: 40px;
+  touch-action: manipulation;
+}
+.page-back-btn:hover { background: #e4eaf3; }
+
+.celebrate-modal { text-align: center; overflow: hidden; }
+.celebrate-modal .celebrate-emoji {
+  font-size: 42px;
+  line-height: 1;
+  margin: 4px 0 10px;
+  display: block;
+}
+.celebrate-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.celebrate-burst i {
+  position: absolute;
+  top: -8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: celebrate-fall 1.6s ease-out forwards;
+}
+.celebrate-burst i:nth-child(1) { left: 12%; background: #3b82f6; animation-delay: 0.05s; }
+.celebrate-burst i:nth-child(2) { left: 28%; background: #22c55e; animation-delay: 0.15s; width: 6px; height: 6px; }
+.celebrate-burst i:nth-child(3) { left: 44%; background: #f59e0b; animation-delay: 0.08s; }
+.celebrate-burst i:nth-child(4) { left: 58%; background: #ec4899; animation-delay: 0.22s; width: 7px; height: 7px; }
+.celebrate-burst i:nth-child(5) { left: 72%; background: #8b5cf6; animation-delay: 0.12s; }
+.celebrate-burst i:nth-child(6) { left: 86%; background: #06b6d4; animation-delay: 0.18s; width: 6px; height: 6px; }
+@keyframes celebrate-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(220px) rotate(220deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebrate-burst i { animation: none; opacity: 0; }
 }

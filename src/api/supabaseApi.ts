@@ -129,6 +129,32 @@ export const supabaseApi = {
     return { ok: true };
   },
 
+  async beginPasswordReset(phone: string) {
+    const digits = phone10(phone);
+    const sb = getSupabase();
+    const { error } = await sb.auth.signInWithOtp({ phone: e164in(digits) });
+    if (error) throw new Error(error.message || "Could not send OTP");
+    return { ok: true as const, provider: "supabase" };
+  },
+
+  async resetPassword(phone: string, otp: string, newPassword: string) {
+    const digits = phone10(phone);
+    const code = otp.replace(/\D/g, "");
+    if (code.length !== 6) throw new Error("otp must be 6 digits");
+    if ((newPassword || "").length < 6) throw new Error("Password must be at least 6 characters");
+    const sb = getSupabase();
+    const { error: vErr } = await sb.auth.verifyOtp({
+      phone: e164in(digits),
+      token: code,
+      type: "sms",
+    });
+    if (vErr) throw new Error(vErr.message || "Invalid OTP");
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) throw new Error(error.message || "Could not update password");
+    await sb.auth.signOut();
+    return { ok: true as const };
+  },
+
   async verifyOtp(
     phone: string,
     otp: string,

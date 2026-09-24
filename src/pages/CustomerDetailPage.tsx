@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, Layers, PiggyBank, Wallet } from "lucide-react";
+import { AlertCircle, ChevronLeft, Layers, PiggyBank, Wallet } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
@@ -22,6 +22,11 @@ export function CustomerDetailPage() {
     return (
       <AppShell crumb={m.nav.customers} crumb2="Not found">
         <div className="page">
+          <div className="page-back-row">
+            <button type="button" className="page-back-btn" onClick={() => nav(-1)}>
+              <ChevronLeft size={18} strokeWidth={2.4} /> {m.common.back}
+            </button>
+          </div>
           <p>{m.chit.customerNotFound}</p>
           <button className="btn ghost" onClick={() => nav("/customers")}>{m.common.cancel}</button>
         </div>
@@ -99,6 +104,11 @@ export function CustomerDetailPage() {
   return (
     <AppShell crumb={m.nav.customers} crumb2={customer.name}>
       <div className="page">
+        <div className="page-back-row">
+          <button type="button" className="page-back-btn" onClick={() => nav(-1)}>
+            <ChevronLeft size={18} strokeWidth={2.4} /> {m.common.back}
+          </button>
+        </div>
         <div className="row-head top">
           <div className="person" style={{ gap: 14 }}>
             <div className="avatar" style={{ width: 52, height: 52, fontSize: 16 }}>{initials(customer.name)}</div>

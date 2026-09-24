@@ -80,6 +80,22 @@ export const restApi = {
     return { ok: true };
   },
 
+  async beginPasswordReset(phone: string) {
+    const data = await request("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ phone: phone10(phone) }),
+    });
+    return { ok: true as const, provider: data.provider, devOtp: data.devOtp };
+  },
+
+  async resetPassword(phone: string, otp: string, newPassword: string) {
+    await request("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ phone: phone10(phone), otp, password: newPassword }),
+    });
+    return { ok: true as const };
+  },
+
   async verifyOtp(
     phone: string,
     otp: string,

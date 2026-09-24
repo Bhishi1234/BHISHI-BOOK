@@ -173,6 +173,16 @@ export type Messages = {
     passwordMismatch: string;
     passwordShort: string;
     wrongPassword: string;
+    forgotPassword: string;
+    forgotTitle: string;
+    forgotHint: string;
+    newPassword: string;
+    confirmNewPassword: string;
+    sendResetOtp: string;
+    resetPasswordCta: string;
+    resetSuccess: string;
+    backToLogin: string;
+    noAccountForPhone: string;
     firstNamePh: string;
     lastNamePh: string;
     legal: string;
@@ -532,6 +542,9 @@ export type Messages = {
     reports: string;
     reportsHint: string;
     csvExcel: string;
+    completedTitle: string;
+    completedHint: string;
+    goToReports: string;
     editChit: string;
     editChitHint: string;
     editNameBtn: string;
