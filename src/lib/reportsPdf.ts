@@ -29,6 +29,8 @@ import {
 } from "./chitMath";
 import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL } from "./format";
 import { isNativeApp } from "./native";
+import { BHISHI_MARK_PNG } from "./reportAssets/bhishiMark";
+import { drawReportIcon, type ReportIcon } from "./reportIcons";
 
 type Doc = jsPDF & { lastAutoTable?: { finalY: number } };
 type Cell = string | number;
@@ -154,19 +156,38 @@ function ensureY(doc: Doc, y: number, need = 40) {
   return y;
 }
 
-/** Compact brand mark — blue disc with people silhouettes. */
+/** Real brand mark image (fallback to blue disc). */
 function drawBrandMark(doc: Doc, x: number, y: number, size = 9) {
-  doc.setFillColor(...BLUE);
-  doc.circle(x + size / 2, y + size / 2, size / 2, "F");
-  doc.setFillColor(...WHITE);
-  const cx = x + size / 2;
-  const cy = y + size / 2;
-  doc.circle(cx - size * 0.16, cy - size * 0.08, size * 0.11, "F");
-  doc.circle(cx + size * 0.16, cy - size * 0.08, size * 0.11, "F");
-  doc.circle(cx, cy - size * 0.18, size * 0.1, "F");
-  doc.ellipse(cx - size * 0.16, cy + size * 0.18, size * 0.14, size * 0.12, "F");
-  doc.ellipse(cx + size * 0.16, cy + size * 0.18, size * 0.14, size * 0.12, "F");
-  doc.ellipse(cx, cy + size * 0.12, size * 0.12, size * 0.1, "F");
+  try {
+    doc.addImage(BHISHI_MARK_PNG, "PNG", x, y, size, size);
+  } catch {
+    doc.setFillColor(...BLUE);
+    doc.circle(x + size / 2, y + size / 2, size / 2, "F");
+  }
+}
+
+function glyphToIcon(glyph: string): ReportIcon {
+  const map: Record<string, ReportIcon> = {
+    "₹": "pot",
+    "⇄": "instalment",
+    "◉": "cash",
+    "!": "alert",
+    "↓": "in",
+    "↑": "out",
+    "%": "percent",
+    "★": "star",
+    "✓": "check",
+    "☰": "list",
+    "▦": "chart",
+    "⚙": "doc",
+    "=": "chart",
+    "#": "list",
+    "◷": "calendar",
+    "i": "info",
+    "·": "spark",
+    "•": "spark",
+  };
+  return map[glyph] || "spark";
 }
 
 function drawIconBubble(
@@ -177,48 +198,64 @@ function drawIconBubble(
   palette: { fg: Rgb; bg: Rgb },
   glyph: string,
 ) {
-  doc.setFillColor(...palette.bg);
-  doc.circle(x + size / 2, y + size / 2, size / 2, "F");
-  doc.setTextColor(...palette.fg);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(size * 0.55);
-  doc.text(glyph, x + size / 2, y + size / 2 + size * 0.18, { align: "center" });
-  doc.setTextColor(...INK);
-  doc.setFont("helvetica", "normal");
+  drawReportIcon(doc, x, y, size, glyphToIcon(glyph), palette.fg, palette.bg);
+}
+
+function prettyTitle(s: string) {
+  const t = (s || "").trim();
+  if (!t) return "Bhishi";
+  if (t === t.toUpperCase() && /[A-Z]/.test(t) && t.length > 3) {
+    return t
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+  return t;
+}
+
+function statusPillColors(label: string): { bg: Rgb; fg: Rgb } {
+  const l = label.toLowerCase();
+  if (l.includes("run") || l.includes("active")) return { bg: GREEN_SOFT, fg: [4, 120, 87] };
+  if (l.includes("complete") || l.includes("closed")) return { bg: BLUE_SOFT_2, fg: BLUE_DEEP };
+  if (l.includes("draft") || l.includes("pause")) return { bg: ORANGE_SOFT, fg: [154, 52, 18] };
+  return { bg: BLUE_SOFT, fg: BLUE_DEEP };
 }
 
 /** Top brand row + generated timestamp (mockup header). */
 function reportHeader(doc: Doc, stamp = generatedStamp()) {
-  drawBrandMark(doc, MARGIN, 10, 10);
+  drawBrandMark(doc, MARGIN, 9.2, 11.5);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(...BLUE_NAVY);
-  doc.text("Bhishi Circle", MARGIN + 13, 14.5);
+  doc.setFontSize(12);
+  doc.setTextColor(...BLUE);
+  doc.text("Bhishi Circle", MARGIN + 14.5, 14.2);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(...MUTED);
-  doc.text("Save Together. Grow Together.", MARGIN + 13, 18.5);
+  doc.text("Save Together. Grow Together.", MARGIN + 14.5, 18.8);
 
-  doc.setFontSize(7.5);
+  drawReportIcon(doc, PAGE_W - MARGIN - 56, 10.2, 6.5, "calendar", BLUE, BLUE_SOFT);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
   doc.setTextColor(...MUTED);
-  doc.text("Report Generated On", PAGE_W - MARGIN, 13.5, { align: "right" });
+  doc.text("Report Generated On", PAGE_W - MARGIN, 12.8, { align: "right" });
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...INK);
-  doc.setFontSize(8);
-  doc.text(stamp, PAGE_W - MARGIN, 18.5, { align: "right" });
+  doc.setFontSize(7.5);
+  doc.text(stamp, PAGE_W - MARGIN, 17.8, { align: "right" });
 
   doc.setDrawColor(...LINE);
-  doc.setLineWidth(0.4);
-  doc.line(MARGIN, 22.5, PAGE_W - MARGIN, 22.5);
+  doc.setLineWidth(0.35);
+  doc.line(MARGIN, 23.8, PAGE_W - MARGIN, 23.8);
   doc.setTextColor(...INK);
 }
 
 function quoteNote(doc: Doc, text: string, x: number, y: number) {
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(8);
-  doc.setTextColor(...BLUE_MID);
-  const lines = doc.splitTextToSize(text, 48);
-  doc.text(lines, x, y, { align: "right", angle: 8 });
+  doc.setFontSize(7);
+  doc.setTextColor(147, 197, 253);
+  const lines = doc.splitTextToSize(text.replace(/\n/g, " "), 44);
+  doc.text(lines, x, y, { align: "right", angle: 5 });
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...INK);
 }
@@ -235,12 +272,12 @@ function reportTitleBlock(
     quote?: string;
   },
 ) {
-  let y = 28;
+  let y = 29;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(17.5);
   doc.setTextColor(...BLUE_NAVY);
-  doc.text(opts.title.slice(0, 42), MARGIN, y + 8);
-  y += 12;
+  doc.text(prettyTitle(opts.title).slice(0, 40), MARGIN, y + 7);
+  y += 11;
 
   if (opts.subtitle) {
     doc.setFont("helvetica", "bold");
@@ -261,15 +298,16 @@ function reportTitleBlock(
 
   if (opts.pills?.length) {
     let px = MARGIN;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.8);
     for (const pill of opts.pills.slice(0, 4)) {
-      const w = doc.getTextWidth(pill) + 8;
-      doc.setFillColor(...BLUE_SOFT);
-      doc.roundedRect(px, y, w, 6.5, 3, 3, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7);
-      doc.setTextColor(...BLUE_DEEP);
-      doc.text(pill, px + 4, y + 4.4);
-      px += w + 3;
+      const colors = statusPillColors(pill);
+      const w = Math.min(doc.getTextWidth(pill) + 9, 50);
+      doc.setFillColor(...colors.bg);
+      doc.roundedRect(px, y, w, 6.2, 3.1, 3.1, "F");
+      doc.setTextColor(...colors.fg);
+      doc.text(pill, px + 4.5, y + 4.2);
+      px += w + 3.5;
     }
     y += 10;
   }
@@ -332,11 +370,11 @@ function heroMetricCard(
   return y + 34;
 }
 
-/** Soft KPI cards with colored icon bubbles. */
+/** Soft KPI cards with stroke icons. */
 function kpiGrid(doc: Doc, y: number, items: { label: string; value: string; glyph?: string }[], cols = 4) {
-  const gap = 3.5;
+  const gap = 3.2;
   const rows = Math.ceil(items.length / cols);
-  const cardH = 22;
+  const cardH = 24;
   const need = rows * (cardH + gap);
   y = ensureY(doc, y, need + 4);
   const colW = (CONTENT_W - gap * (cols - 1)) / cols;
@@ -349,21 +387,22 @@ function kpiGrid(doc: Doc, y: number, items: { label: string; value: string; gly
     const pal = ICON_PALETTE[i % ICON_PALETTE.length]!;
 
     doc.setFillColor(...WHITE);
-    doc.roundedRect(x, cy, colW, cardH, 3, 3, "F");
+    doc.roundedRect(x, cy, colW, cardH, 3.2, 3.2, "F");
     doc.setDrawColor(...LINE);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, cy, colW, cardH, 3, 3, "S");
+    doc.setLineWidth(0.28);
+    doc.roundedRect(x, cy, colW, cardH, 3.2, 3.2, "S");
 
-    drawIconBubble(doc, x + 3.5, cy + 4.5, 8, pal, item.glyph || "•");
+    drawIconBubble(doc, x + 3.2, cy + 3.4, 9, pal, item.glyph || "•");
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.3);
     doc.setTextColor(...MUTED);
-    doc.text(item.label, x + 14, cy + 8);
+    doc.text(item.label, x + 14.5, cy + 7.4, { maxWidth: colW - 17 });
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
+    doc.setFontSize(9);
     doc.setTextColor(...BLUE_NAVY);
-    doc.text(item.value, x + 14, cy + 16);
+    const val = item.value.length > 14 ? `${item.value.slice(0, 13)}…` : item.value;
+    doc.text(val, x + 14.5, cy + 17.8);
   });
 
   doc.setTextColor(...INK);
@@ -405,6 +444,7 @@ function detailCard(doc: Doc, y: number, rows: [string, string][], opts?: { titl
   doc.setLineWidth(0.3);
   doc.roundedRect(MARGIN, y, CONTENT_W, boxH, 3, 3, "S");
 
+  const rowGlyphs = ["★", "☰", "◷", "₹", "⇄", "☰", "✓", "%"];
   rows.forEach(([k, v], i) => {
     const ry = y + 2 + i * rowH;
     if (i > 0) {
@@ -413,7 +453,7 @@ function detailCard(doc: Doc, y: number, rows: [string, string][], opts?: { titl
       doc.line(MARGIN + 4, ry, PAGE_W - MARGIN - 4, ry);
     }
     const pal = ICON_PALETTE[i % ICON_PALETTE.length]!;
-    drawIconBubble(doc, MARGIN + 4, ry + 1.2, 5.5, pal, "·");
+    drawIconBubble(doc, MARGIN + 4, ry + 1.2, 5.8, pal, rowGlyphs[i % rowGlyphs.length]!);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
