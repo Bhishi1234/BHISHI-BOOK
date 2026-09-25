@@ -1179,9 +1179,15 @@
   .lp-brand strong { font-size: 14px; }
   .lp-hero { padding: 30px 16px 56px; }
   .lp-brand-hero { margin-bottom: 12px; gap: 10px; }
-  .lp-hero h1 { max-width: 20ch; font-size: 20px; }
   .lp-lead { margin-top: 12px; max-width: none; font-size: 15px; }
-  .lp-actions { margin-top: 18px; gap: 8px; }
+  .lp-actions {
+    margin-top: 18px;
+    gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lp-actions .lp-btn { width: 100%; }
+  .lp-hero h1 { max-width: 18ch; font-size: 20px; }
   .lp-meta { font-size: 12px; }
   .lp-block { padding: 40px 16px; }
   .lp-block-head { margin-bottom: 20px; }
