@@ -58,7 +58,7 @@ export function LangModal({
             </button>
           ))}
         </div>
-        <button type="button" className="lp-btn lp-btn-primary lp-btn-wide" onClick={() => onApply(pendingLang)}>
+        <button type="button" className="lp-btn lp-btn-primary lp-btn-glow lp-btn-wide" onClick={() => onApply(pendingLang)}>
           {t.langContinue}
         </button>
       </div>
@@ -78,33 +78,62 @@ export function LandingNav({
   const { user } = useStore();
   const loc = useLocation();
   const onLanding = loc.pathname === "/" || loc.pathname === "/welcome";
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="lp-nav">
-      <Link className="lp-brand" to="/welcome">
-        <img src="/brand/bhishi-mark.png?v=3" alt="" width={26} height={26} />
+      <Link className="lp-brand" to="/welcome" onClick={() => setMenuOpen(false)}>
+        <img src="/brand/bhishi-mark.png?v=3" alt="" width={28} height={28} />
         <strong>Bhishi Circle</strong>
       </Link>
+
       {onLanding && (
-        <nav className="lp-nav-links" aria-label="Primary">
-          <a href="#demos">{t.navHow}</a>
-          <a href="#types">{t.navTypes}</a>
-          <a href="#features">{t.navFeatures}</a>
-          <a href="#how">{t.navHowItWorks}</a>
+        <nav className={`lp-nav-links${menuOpen ? " is-open" : ""}`} aria-label="Primary">
+          <a href="#features" onClick={() => setMenuOpen(false)}>
+            {t.navFeatures}
+          </a>
+          <a href="#preview" onClick={() => setMenuOpen(false)}>
+            {t.navHow}
+          </a>
+          <a href="#how" onClick={() => setMenuOpen(false)}>
+            {t.navHowItWorks}
+          </a>
         </nav>
       )}
+
       <div className="lp-nav-actions">
         <button type="button" className="lp-lang-chip" onClick={onOpenLang} aria-label="Language">
           <Languages size={14} />
           {lang === "hi" ? "हि" : lang === "mr" ? "मर" : "EN"}
         </button>
         {user ? (
-          <Link className="lp-btn lp-btn-primary" to="/">{t.navOpenApp}</Link>
+          <Link className="lp-btn lp-btn-primary lp-btn-glow" to="/">
+            {t.navOpenApp}
+          </Link>
         ) : (
           <>
-            <Link className="lp-btn lp-btn-ghost" to="/login">{t.navLogin}</Link>
-            <Link className="lp-btn lp-btn-primary" to="/login">{t.navStart}</Link>
+            <Link className="lp-btn lp-btn-ghost lp-nav-login" to="/login">
+              {t.navLogin}
+            </Link>
+            <Link className="lp-btn lp-btn-primary lp-btn-glow" to="/login">
+              {t.navStart}
+              <span className="lp-btn-arrow" aria-hidden>
+                →
+              </span>
+            </Link>
           </>
+        )}
+        {onLanding && (
+          <button
+            type="button"
+            className={`lp-menu-btn${menuOpen ? " is-open" : ""}`}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <span />
+            <span />
+          </button>
         )}
       </div>
     </header>
@@ -116,7 +145,7 @@ export function LandingFooter({ t }: { t: LandingCopy }) {
     <footer className="lp-foot">
       <div className="lp-foot-top">
         <div className="lp-foot-brand">
-          <img src="/brand/bhishi-mark.png?v=3" alt="" width={26} height={26} />
+          <img src="/brand/bhishi-mark.png?v=3" alt="" width={28} height={28} />
           <div>
             <strong>Bhishi Circle</strong>
             <span>{t.footerTagline}</span>
