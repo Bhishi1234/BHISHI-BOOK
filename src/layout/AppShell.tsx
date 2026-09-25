@@ -178,8 +178,22 @@ export function AppShell({
       <div className="main">
         <div className="topbar topbar-desktop">
           <div className="crumbs">
-            {crumb && <Link to={crumb === "Chits" || crumb === m.nav.chits ? "/chits" : "/"}>{crumb}</Link>}
-            {crumb2 && <span>›</span>}
+            {crumb && (crumb2 || crumb !== title) && (
+              <>
+                <Link
+                  to={
+                    crumb === "Chits" || crumb === m.nav.chits
+                      ? "/chits"
+                      : crumb === m.nav.customers
+                        ? "/customers"
+                        : "/"
+                  }
+                >
+                  {crumb}
+                </Link>
+                <span>›</span>
+              </>
+            )}
             <strong>{title}</strong>
           </div>
           <button className="search" onClick={() => nav("/search")}>

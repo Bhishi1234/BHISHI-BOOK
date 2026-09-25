@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Check,
@@ -11,10 +11,13 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { landingCopy } from "../i18n/landing";
-import { getGuestLang, hasChosenGuestLang, setGuestLang, type GuestLang } from "../lib/uiLang";
 import { useStore } from "../store";
-import "../landing.css";
+import {
+  LangModal,
+  LandingFooter,
+  LandingNav,
+  useLandingLang,
+} from "./LandingChrome";
 
 const BASE = "/landing/demos";
 
@@ -67,9 +70,9 @@ const SHOTS = {
 
 const TYPE_FRAMES = [SHOTS.auction, SHOTS.fixed, SHOTS.wheel, SHOTS.sacrifice, SHOTS.loan] as const;
 const WHEEL_NAMES = ["Anita", "Ravi", "Sneha", "Priya", "Karan"] as const;
-const WHEEL_COLORS = ["#2f6fed", "#0f9f6e", "#0d9488", "#4f46e5", "#0284c8"] as const;
+const WHEEL_COLORS = ["#2f6fed", "#0d9488", "#0f9f6e", "#1e56d8", "#0284c8"] as const;
 
-/** Freestanding phone video — assets already include device chrome. */
+/** Freestanding phone video — assets already include device chrome. No card wrapper. */
 function DemoPhone({
   webm,
   mp4,
@@ -116,22 +119,23 @@ function DemoPhone({
       ref={wrapRef}
       className={`lp-demo-phone-wrap lp-demo-phone-${size} ${ready ? "is-ready" : ""} ${className}`.trim()}
     >
-      <div className="lp-demo-phone">
-        <video
-          ref={ref}
-          className="lp-demo-video"
-          poster={poster}
-          muted
-          loop
-          playsInline
-          preload={priority ? "auto" : "metadata"}
-          aria-label={alt}
-          onLoadedData={() => setReady(true)}
-        >
-          <source src={webm} type="video/webm" />
-          <source src={mp4} type="video/mp4" />
-        </video>
+      <div className="lp-demo-phone-chrome" aria-hidden>
+        <span className="lp-demo-phone-island" />
       </div>
+      <video
+        ref={ref}
+        className="lp-demo-video"
+        poster={poster}
+        muted
+        loop
+        playsInline
+        preload={priority ? "auto" : "metadata"}
+        aria-label={alt}
+        onLoadedData={() => setReady(true)}
+      >
+        <source src={webm} type="video/webm" />
+        <source src={mp4} type="video/mp4" />
+      </video>
     </div>
   );
 }
@@ -238,7 +242,7 @@ function LuckyWheel({ winnerLabel }: { winnerLabel: string }) {
             <span
               key={name}
               className="lp-wheel-label"
-              style={{ transform: `rotate(${i * a + a / 2}deg) translateY(-78px)` }}
+              style={{ transform: `rotate(${i * a + a / 2}deg) translateY(-68px)` }}
             >
               {name}
             </span>
@@ -257,12 +261,10 @@ function LuckyWheel({ winnerLabel }: { winnerLabel: string }) {
 export function LandingPage() {
   const { user } = useStore();
   const nav = useNavigate();
-  const [lang, setLang] = useState<GuestLang>(() => getGuestLang());
-  const [langOpen, setLangOpen] = useState(() => !hasChosenGuestLang());
-  const [pendingLang, setPendingLang] = useState<GuestLang>(() => getGuestLang());
+  const { lang, t, langOpen, pendingLang, setPendingLang, applyLang, openLang } = useLandingLang();
   const [typeIdx, setTypeIdx] = useState(0);
   const [activeDemo, setActiveDemo] = useState(0);
-  const t = useMemo(() => landingCopy(lang), [lang]);
+  const [openFaq, setOpenFaq] = useState(0);
 
   useEffect(() => {
     document.title = t.metaTitle;
@@ -276,103 +278,47 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const nodes = DEMOS.map((d) => document.getElementById(`demo-${d.id}`)).filter(Boolean) as HTMLElement[];
-    if (!nodes.length) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (!visible?.target.id) return;
-        const idx = DEMOS.findIndex((d) => `demo-${d.id}` === visible.target.id);
-        if (idx >= 0) setActiveDemo(idx);
-      },
-      { threshold: [0.35, 0.55], rootMargin: "-15% 0px -35% 0px" },
-    );
-    nodes.forEach((n) => io.observe(n));
-    return () => io.disconnect();
+    const c = window.setInterval(() => setActiveDemo((i) => (i + 1) % DEMOS.length), 9000);
+    return () => window.clearInterval(c);
   }, []);
-
-  function applyLang(next: GuestLang) {
-    setGuestLang(next);
-    setLang(next);
-    setLangOpen(false);
-  }
 
   function goAuth() {
     nav(user ? "/" : "/login");
   }
 
-  const heroDemo = DEMOS[1]!; // award / lucky spin — most cinematic
+  const heroDemo = DEMOS[1]!;
   const demos = t.demos;
 
   return (
     <div className="lp">
-      {langOpen && (
-        <div className="lp-lang-back" role="dialog" aria-modal="true" aria-labelledby="lp-lang-title">
-          <div className="lp-lang-modal">
-            <img src="/brand/bhishi-circle-logo.png?v=3" alt="Bhishi Circle" width={120} height={90} />
-            <h2 id="lp-lang-title">{t.langTitle}</h2>
-            <p>{t.langHint}</p>
-            <div className="lp-lang-opts">
-              {([["en", t.langEn], ["hi", t.langHi], ["mr", t.langMr]] as const).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={`lp-lang-opt${pendingLang === id ? " on" : ""}`}
-                  onClick={() => setPendingLang(id)}
-                >
-                  <Languages size={18} /> {label}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="lp-btn lp-btn-primary lp-btn-wide" onClick={() => applyLang(pendingLang)}>
-              {t.langContinue}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <header className="lp-nav">
-        <a className="lp-brand" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-          <img src="/brand/bhishi-mark.png?v=3" alt="" width={28} height={28} />
-          <strong>BhishiCircle</strong>
-        </a>
-        <nav className="lp-nav-links">
-          <a href="#demos">{t.navHow}</a>
-          <a href="#types">{t.navTypes}</a>
-          <a href="#features">{t.navFeatures}</a>
-        </nav>
-        <div className="lp-nav-actions">
-          <button type="button" className="lp-lang-chip" onClick={() => { setPendingLang(lang); setLangOpen(true); }}>
-            <Languages size={14} />
-            {lang === "hi" ? "हि" : lang === "mr" ? "मर" : "EN"}
-          </button>
-          {user ? (
-            <Link className="lp-btn lp-btn-primary" to="/">{t.navOpenApp}</Link>
-          ) : (
-            <>
-              <Link className="lp-btn lp-btn-ghost" to="/login">{t.navLogin}</Link>
-              <Link className="lp-btn lp-btn-primary" to="/login">{t.navStart}</Link>
-            </>
-          )}
-        </div>
-      </header>
+      <LangModal
+        open={langOpen}
+        t={t}
+        pendingLang={pendingLang}
+        setPendingLang={setPendingLang}
+        onApply={applyLang}
+      />
+      <LandingNav t={t} lang={lang} onOpenLang={openLang} />
 
       <main id="top">
         <section className="lp-hero">
           <div className="lp-hero-grid">
             <div className="lp-hero-copy">
-              <p className="lp-kicker">{t.heroEyebrow}</p>
+              <p className="lp-brand-hero">
+                <img src="/brand/bhishi-mark-white.png?v=3" alt="" width={36} height={36} />
+                {t.heroBrand}
+              </p>
               <h1>
                 {t.heroTitle} <em>{t.heroTitleAccent}</em>
               </h1>
               <p className="lp-lead">{t.heroSub}</p>
               <div className="lp-actions">
                 <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={goAuth}>
-                  {t.heroCta} <ArrowRight size={18} />
+                  {t.heroCta} <ArrowRight size={16} />
                 </button>
-                <a className="lp-btn lp-btn-outline lp-btn-lg" href="#demos">{t.heroSecondary}</a>
+                <a className="lp-btn lp-btn-outline lp-btn-lg" href="#demos">
+                  {t.heroSecondary}
+                </a>
               </div>
               <p className="lp-meta">{t.heroTrust}</p>
             </div>
@@ -386,26 +332,26 @@ export function LandingPage() {
                 className="lp-phone-main"
                 priority
               />
-              <div className="lp-chip lp-chip-a"><Wallet size={14} /> {t.demoCollect}</div>
-              <div className="lp-chip lp-chip-b"><FileText size={14} /> PDF</div>
             </div>
           </div>
           <div className="lp-hero-wash" aria-hidden />
         </section>
 
-        <section className="lp-strip">
+        <section className="lp-strip" aria-label={t.trustLabel}>
           <p>{t.trustLabel}</p>
           <div className="lp-strip-grid">
             {t.stats.map((s) => (
-              <div key={s.label}><strong>{s.value}</strong><span>{s.label}</span></div>
+              <div key={s.label}>
+                <strong>{s.value}</strong>
+                <span>{s.label}</span>
+              </div>
             ))}
           </div>
         </section>
 
-        {/* Demo picker + animated phones */}
         <section className="lp-block lp-demos-block" id="demos">
           <div className="lp-block-head lp-block-head-center">
-            <p className="lp-kicker lp-kicker-blue">{t.demosEyebrow}</p>
+            <p className="lp-kicker">{t.demosEyebrow}</p>
             <h2>{t.demosTitle}</h2>
             <p>{t.demosSub}</p>
           </div>
@@ -418,10 +364,7 @@ export function LandingPage() {
                 role="tab"
                 aria-selected={activeDemo === i}
                 className={activeDemo === i ? "on" : ""}
-                onClick={() => {
-                  setActiveDemo(i);
-                  document.getElementById(`demo-${d.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-                }}
+                onClick={() => setActiveDemo(i)}
               >
                 <span className="lp-demo-tab-num">{String(i + 1).padStart(2, "0")}</span>
                 <span>{d.short}</span>
@@ -436,7 +379,9 @@ export function LandingPage() {
               <p>{demos[activeDemo]!.body}</p>
               <ul>
                 {demos[activeDemo]!.points.map((p) => (
-                  <li key={p}><Check size={15} /> {p}</li>
+                  <li key={p}>
+                    <Check size={14} /> {p}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -453,50 +398,9 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* Full walkthrough — each animation as its own section */}
-        <section className="lp-walkthrough" id="walkthrough" aria-label={t.walkTitle}>
-          <div className="lp-block-head lp-block-head-center lp-walk-head">
-            <p className="lp-kicker lp-kicker-blue">{t.walkEyebrow}</p>
-            <h2>{t.walkTitle}</h2>
-            <p>{t.walkSub}</p>
-          </div>
-
-          {demos.map((item, i) => {
-            const media = DEMOS[i]!;
-            return (
-              <div
-                key={item.id}
-                id={`demo-${item.id}`}
-                className={`lp-walk-row${i % 2 ? " flip" : ""}${activeDemo === i ? " is-active" : ""}`}
-              >
-                <div className="lp-walk-copy">
-                  <span className="lp-step">{String(i + 1).padStart(2, "0")}</span>
-                  <h2>{item.title}</h2>
-                  <p>{item.body}</p>
-                  <ul>
-                    {item.points.map((p) => (
-                      <li key={p}><Check size={15} /> {p}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="lp-walk-media">
-                  <DemoPhone
-                    webm={media.webm}
-                    mp4={media.mp4}
-                    poster={media.poster}
-                    alt={item.title}
-                    size="md"
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </section>
-
-        {/* TYPES */}
         <section className="lp-block" id="types">
           <div className="lp-block-head">
-            <p className="lp-kicker lp-kicker-blue">{t.typesEyebrow}</p>
+            <p className="lp-kicker">{t.typesEyebrow}</p>
             <h2>{t.typesTitle}</h2>
             <p>{t.typesSub}</p>
           </div>
@@ -521,7 +425,9 @@ export function LandingPage() {
                 <p>{t.types[typeIdx]!.body}</p>
                 <ul>
                   {t.types[typeIdx]!.points.map((p) => (
-                    <li key={p}><Check size={14} /> {p}</li>
+                    <li key={p}>
+                      <Check size={14} /> {p}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -530,23 +436,24 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* LUCKY DRAW */}
         <section className="lp-lucky" id="lucky">
           <div className="lp-lucky-copy">
-            <p className="lp-kicker lp-kicker-blue">{t.luckyEyebrow}</p>
+            <p className="lp-kicker">{t.luckyEyebrow}</p>
             <h2>{t.luckyTitle}</h2>
             <p>{t.luckySub}</p>
             <ul>
               {t.luckyPoints.map((p) => (
-                <li key={p}><Check size={15} /> {p}</li>
+                <li key={p}>
+                  <Check size={14} /> {p}
+                </li>
               ))}
             </ul>
             <button type="button" className="lp-btn lp-btn-primary" onClick={goAuth}>
-              {t.luckyCta} <ArrowRight size={16} />
+              {t.luckyCta} <ArrowRight size={14} />
             </button>
           </div>
           <div className="lp-lucky-duo">
-            <LuckyWheel winnerLabel={lang === "hi" ? "विजेता" : lang === "mr" ? "विजेता" : "Winner"} />
+            <LuckyWheel winnerLabel={lang === "hi" || lang === "mr" ? "विजेता" : "Winner"} />
             <DemoPhone
               webm={DEMOS[1]!.webm}
               mp4={DEMOS[1]!.mp4}
@@ -558,10 +465,9 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* FEATURES */}
         <section className="lp-block" id="features">
           <div className="lp-block-head">
-            <p className="lp-kicker lp-kicker-blue">{t.toolsEyebrow}</p>
+            <p className="lp-kicker">{t.toolsEyebrow}</p>
             <h2>{t.toolsTitle}</h2>
             <p>{t.toolsSub}</p>
           </div>
@@ -570,7 +476,9 @@ export function LandingPage() {
               const Icon = [Wallet, MessageCircle, FileText, Languages, Users, Shield][i] || Sparkles;
               return (
                 <article key={f.title}>
-                  <span><Icon size={18} /></span>
+                  <span>
+                    <Icon size={16} />
+                  </span>
                   <h3>{f.title}</h3>
                   <p>{f.body}</p>
                 </article>
@@ -579,27 +487,111 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section className="lp-block" id="how">
+          <div className="lp-block-head lp-block-head-center">
+            <p className="lp-kicker">{t.howEyebrow}</p>
+            <h2>{t.howTitle}</h2>
+            <p>{t.howSub}</p>
+          </div>
+          <ol className="lp-how">
+            {t.howSteps.map((step, i) => (
+              <li key={step.title}>
+                <span className="lp-how-num">{String(i + 1).padStart(2, "0")}</span>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="lp-block" id="for-whom">
+          <div className="lp-block-head lp-block-head-center">
+            <p className="lp-kicker">{t.forWhomEyebrow}</p>
+            <h2>{t.forWhomTitle}</h2>
+            <p>{t.forWhomSub}</p>
+          </div>
+          <div className="lp-audience">
+            {t.forWhom.map((item) => (
+              <article key={item.title}>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="lp-block lp-compare-block" id="why">
+          <div className="lp-block-head lp-block-head-center">
+            <p className="lp-kicker">{t.compareEyebrow}</p>
+            <h2>{t.compareTitle}</h2>
+            <p>{t.compareSub}</p>
+          </div>
+          <div className="lp-compare">
+            <div className="lp-compare-col lp-compare-before">
+              <h3>{t.compareBeforeTitle}</h3>
+              <ul>
+                {t.compareBefore.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="lp-compare-col lp-compare-after">
+              <h3>{t.compareAfterTitle}</h3>
+              <ul>
+                {t.compareAfter.map((line) => (
+                  <li key={line}>
+                    <Check size={14} /> {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-block lp-faq-block" id="trust">
+          <div className="lp-faq-grid">
+            <div className="lp-block-head">
+              <p className="lp-kicker">{t.faqEyebrow}</p>
+              <h2>{t.faqTitle}</h2>
+              <p>{t.faqSub}</p>
+              <div className="lp-faq-stats">
+                {t.stats.map((s) => (
+                  <div key={`faq-${s.label}`}>
+                    <strong>{s.value}</strong>
+                    <span>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="lp-faq-list">
+              {t.faq.map((item, i) => (
+                <details
+                  key={item.q}
+                  className="lp-faq-item"
+                  open={openFaq === i}
+                  onToggle={(e) => {
+                    if ((e.target as HTMLDetailsElement).open) setOpenFaq(i);
+                  }}
+                >
+                  <summary>{item.q}</summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="lp-cta">
-          <img src="/brand/bhishi-mark-white.png?v=3" alt="" width={44} height={44} />
+          <img src="/brand/bhishi-mark-white.png?v=3" alt="" width={40} height={40} />
           <h2>{t.finalTitle}</h2>
           <p>{t.finalSub}</p>
           <button type="button" className="lp-btn lp-btn-yellow lp-btn-lg" onClick={goAuth}>
-            {t.finalCta} <ArrowRight size={18} />
+            {t.finalCta} <ArrowRight size={16} />
           </button>
         </section>
       </main>
 
-      <footer className="lp-foot">
-        <div>
-          <img src="/brand/bhishi-mark.png?v=3" alt="" width={26} height={26} />
-          <div>
-            <strong>Bhishi Circle</strong>
-            <span>{t.footerTagline}</span>
-          </div>
-        </div>
-        <p>{t.footerLegal}</p>
-        <Link to="/login">{t.footerLogin}</Link>
-      </footer>
+      <LandingFooter t={t} />
     </div>
   );
 }

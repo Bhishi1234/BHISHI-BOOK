@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useStore } from "./store";
 import { LandingPage } from "./pages/LandingPage";
+import { TermsPage, PrivacyPage, ContactPage } from "./pages/LegalPages";
 import { LoginPage } from "./pages/LoginPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -45,6 +46,9 @@ export default function App() {
     <Routes>
       <Route path="/" element={<RootEntry />} />
       <Route path="/welcome" element={<Boot><LandingPage /></Boot>} />
+      <Route path="/terms" element={<Boot><TermsPage /></Boot>} />
+      <Route path="/privacy" element={<Boot><PrivacyPage /></Boot>} />
+      <Route path="/contact" element={<Boot><ContactPage /></Boot>} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<Boot><ForgotPasswordPage /></Boot>} />
       <Route path="/chits" element={<Guard><ChitsPage /></Guard>} />

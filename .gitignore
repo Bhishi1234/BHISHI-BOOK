@@ -40,3 +40,6 @@ key.properties
 *.njsproj
 *.sln
 *.sw?
+
+tools/ffmpeg/
+
