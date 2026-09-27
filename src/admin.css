@@ -1,0 +1,115 @@
+.owner-admin {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  background: var(--bg);
+  color: var(--ink);
+}
+.owner-side {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+.owner-brand { padding: 6px 10px 14px; }
+.owner-brand strong { display: block; font-size: 15px; }
+.owner-brand span { color: #94a3b8; font-size: 12px; }
+.owner-side nav { display: flex; flex-direction: column; gap: 4px; }
+.owner-side a {
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: #cbd5e1;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.owner-side a.on,
+.owner-side a:hover { background: #1e293b; color: #fff; }
+.owner-out {
+  margin-top: auto;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.owner-main { padding: 28px 28px 48px; min-width: 0; }
+.owner-head h1 { font-size: 28px; letter-spacing: -0.03em; }
+.owner-head p { margin-top: 6px; color: var(--muted); max-width: 68ch; }
+.owner-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+.owner-stats article {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  box-shadow: var(--shadow-sm);
+}
+.owner-stats span { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
+.owner-stats strong { display: block; margin-top: 6px; font-size: 22px; letter-spacing: -0.03em; }
+.owner-stats em { display: block; margin-top: 4px; color: var(--soft); font-style: normal; font-size: 12px; }
+.owner-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.owner-links a {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.owner-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+.owner-split section,
+.owner-block,
+.owner-table-wrap,
+.owner-tickets article {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.owner-split h2,
+.owner-block h2 { font-size: 14px; margin-bottom: 10px; }
+.owner-block { margin-bottom: 16px; }
+.owner-bars { display: flex; flex-direction: column; gap: 8px; }
+.owner-bars div { display: grid; grid-template-columns: minmax(90px, 160px) 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+.owner-bars span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.owner-bars i { display: block; height: 8px; background: #eef2f7; border-radius: 99px; overflow: hidden; }
+.owner-bars b { display: block; height: 100%; background: var(--blue); border-radius: 99px; }
+.owner-bars strong { font-variant-numeric: tabular-nums; }
+.owner-search { max-width: 360px; margin: 8px 0 12px; }
+.owner-table-wrap { overflow: auto; padding: 0; }
+.owner-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.owner-table th,
+.owner-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+.owner-table th { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: #f8fafc; position: sticky; top: 0; }
+.owner-table td span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.owner-empty { color: var(--muted); padding: 8px 0; }
+.owner-tickets { display: flex; flex-direction: column; gap: 10px; }
+.owner-tickets header { display: flex; justify-content: space-between; gap: 12px; }
+.owner-tickets header span { text-transform: capitalize; color: var(--muted); font-size: 12px; font-weight: 700; }
+.owner-tickets p { margin: 8px 0; white-space: pre-wrap; }
+.owner-tickets footer { color: var(--muted); font-size: 12px; }
+@media (max-width: 980px) {
+  .owner-admin { grid-template-columns: 1fr; }
+  .owner-side { position: static; height: auto; }
+  .owner-side nav { flex-direction: row; flex-wrap: wrap; }
+  .owner-out { margin-top: 8px; }
+  .owner-stats, .owner-split { grid-template-columns: 1fr; }
+  .owner-main { padding: 18px 14px 40px; }
+}

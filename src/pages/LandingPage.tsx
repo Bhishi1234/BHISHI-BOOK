@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { recordLandingVisit } from "../lib/adminApi";
 import { trackMetaPageView } from "../lib/metaPixel";
 import { useNavigate } from "react-router-dom";
 import {
@@ -64,6 +65,7 @@ export function LandingPage() {
 
   useEffect(() => {
     trackMetaPageView();
+    recordLandingVisit(window.location.pathname || "/");
   }, []);
 
   function goAuth() {

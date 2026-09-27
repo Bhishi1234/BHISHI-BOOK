@@ -21,6 +21,17 @@ import {
   SearchPage,
   SupportPage,
 } from "./pages/MorePages";
+import { AdminLoginPage } from "./pages/admin/AdminLoginPage";
+import {
+  AdminAwardsPage,
+  AdminBhishiPage,
+  AdminCollectionsPage,
+  AdminMembersPage,
+  AdminOrganisersPage,
+  AdminOverviewPage,
+  AdminSupportPage,
+  AdminWebsitePage,
+} from "./pages/admin/AdminPages";
 
 function Boot({ children }: { children: ReactNode }) {
   const { ready } = useStore();
@@ -66,6 +77,15 @@ export default function App() {
       <Route path="/support" element={<Guard><SupportPage /></Guard>} />
       <Route path="/profile" element={<Guard><ProfilePage /></Guard>} />
       <Route path="/search" element={<Guard><SearchPage /></Guard>} />
+      <Route path="/adminbhishibook" element={<AdminLoginPage />} />
+      <Route path="/adminbhishibookdashboard" element={<AdminOverviewPage />} />
+      <Route path="/AdminBhishi" element={<AdminBhishiPage />} />
+      <Route path="/memberBhishi" element={<AdminMembersPage />} />
+      <Route path="/WebsiteMetrics" element={<AdminWebsitePage />} />
+      <Route path="/AdminCollections" element={<AdminCollectionsPage />} />
+      <Route path="/AdminAwards" element={<AdminAwardsPage />} />
+      <Route path="/AdminOrganisers" element={<AdminOrganisersPage />} />
+      <Route path="/AdminSupport" element={<AdminSupportPage />} />
       <Route path="/upgrade" element={<Navigate to="/" replace />} />
       <Route path="/billing/*" element={<Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
