@@ -152,6 +152,8 @@ export type Messages = {
     sendOtp: string;
     verify: string;
     signedIn: string;
+    thanksTitle: string;
+    thanksBody: string;
     goDashboard: string;
     enterOtp: string;
     tabLogin: string;

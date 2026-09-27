@@ -146,6 +146,8 @@ export const hi: Messages = {
     sendOtp: "OTP भेजें",
     verify: "सत्यापित करें",
     signedIn: "आप साइन इन हैं",
+    thanksTitle: "खाता बन गया",
+    thanksBody: "साइन अप पूरा हो गया। डैशबोर्ड खोलकर इस महीने का हिसाब शुरू करें।",
     goDashboard: "डैशबोर्ड पर जाएँ",
     enterOtp: "SMS से मिला 6 अंकों का कोड डालें",
     tabLogin: "लॉग इन",

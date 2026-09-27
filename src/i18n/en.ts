@@ -146,6 +146,8 @@ export const en: Messages = {
     sendOtp: "Send OTP",
     verify: "Verify & continue",
     signedIn: "You are signed in",
+    thanksTitle: "Account created",
+    thanksBody: "Sign-up is complete. Your dashboard is ready.",
     goDashboard: "Go to dashboard",
     enterOtp: "Enter the 6-digit SMS code",
     tabLogin: "Log in",

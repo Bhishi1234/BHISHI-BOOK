@@ -4,6 +4,7 @@ import { useStore } from "./store";
 import { LandingPage } from "./pages/LandingPage";
 import { TermsPage, PrivacyPage, ContactPage } from "./pages/LegalPages";
 import { LoginPage } from "./pages/LoginPage";
+import { SignupThanksPage } from "./pages/SignupThanksPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ChitsPage, CustomersPage } from "./pages/ChitsCustomers";
@@ -50,6 +51,7 @@ export default function App() {
       <Route path="/privacy" element={<Boot><PrivacyPage /></Boot>} />
       <Route path="/contact" element={<Boot><ContactPage /></Boot>} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signed-up" element={<SignupThanksPage />} />
       <Route path="/forgot-password" element={<Boot><ForgotPasswordPage /></Boot>} />
       <Route path="/chits" element={<Guard><ChitsPage /></Guard>} />
       <Route path="/chits/new" element={<Guard><NewChitPage /></Guard>} />

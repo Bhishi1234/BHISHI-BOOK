@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { consumeSignupConversion, markSignupConversion, trackMetaPageView } from "../lib/metaPixel";
+import { useRef, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { hasFreshSignup, markSignupConversion } from "../lib/metaPixel";
 import { useI18n } from "../i18n";
 import type { Lang } from "../i18n/types";
 import { useStore } from "../store";
@@ -9,7 +9,7 @@ type Mode = "login" | "signup";
 type Step = "form" | "otp";
 
 export function LoginPage() {
-  const { beginSignup, loginWithPassword, verifyOtp, logout, user, authHint, error } = useStore();
+  const { beginSignup, loginWithPassword, verifyOtp, user, authHint, error } = useStore();
   const { m, tx, lang, setUiLang } = useI18n();
   const nav = useNavigate();
   const [mode, setMode] = useState<Mode>("login");
@@ -94,6 +94,7 @@ export function LoginPage() {
     try {
       await verifyOtp(digits, code, fullName, { password, language: lang });
       markSignupConversion();
+      nav("/signed-up", { replace: true });
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : "Invalid OTP");
     } finally {
@@ -114,38 +115,8 @@ export function LoginPage() {
     if (key === "Backspace" && !otp[i] && i > 0) refs.current[i - 1]?.focus();
   }
 
-  const pixelView = user ? "welcome" : mode === "signup" || step === "otp" ? "signup" : "login";
-
-  useEffect(() => {
-    trackMetaPageView();
-    if (pixelView === "welcome") consumeSignupConversion();
-  }, [pixelView]);
-
   if (user) {
-    return (
-      <div className="login-wrap">
-        <div style={{ width: "min(420px, 100%)" }}>
-          <img
-            className="login-logo"
-            src="/brand/bhishi-circle-logo.png?v=3"
-            alt={m.brand}
-            width={148}
-            height={110}
-            decoding="async"
-          />
-          <p className="sub" style={{ marginTop: 4 }}>{m.login.signedIn}</p>
-          <div className="login-card">
-            <p className="sub" style={{ marginBottom: 16 }}>
-              {[user.name && user.name !== "Organiser" ? user.name : null, user.phone ? `+91 ${user.phone}` : null]
-                .filter(Boolean)
-                .join(" · ") || user.name}
-            </p>
-            <button className="btn wide" onClick={() => nav("/")}>{m.login.goDashboard}</button>
-            <button className="btn ghost wide" style={{ marginTop: 10 }} onClick={() => void logout()}>{m.nav.signOut}</button>
-          </div>
-        </div>
-      </div>
-    );
+    return <Navigate to={hasFreshSignup() ? "/signed-up" : "/"} replace />;
   }
 
   return (

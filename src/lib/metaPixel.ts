@@ -60,17 +60,46 @@ export function markSignupConversion() {
   }
 }
 
-/** Fires once after a new account is created, then clears the flag. */
+/** True only in the moment after a new account is created, before the thank-you page is shown. */
+export function hasFreshSignup(): boolean {
+  try {
+    return sessionStorage.getItem(SIGNUP_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** pending = just signed up; shown = thank-you page already opened; none = sign-in or a direct visit. */
+export function signupThanksAccess(): "pending" | "shown" | "none" {
+  try {
+    const value = sessionStorage.getItem(SIGNUP_FLAG);
+    if (value === "1") return "pending";
+    if (value === "shown") return "shown";
+    return "none";
+  } catch {
+    return "none";
+  }
+}
+
+/** Fires once after a new account is created. Later visits do not send the conversion again. */
 export function consumeSignupConversion(): boolean {
   try {
     if (sessionStorage.getItem(SIGNUP_FLAG) !== "1") return false;
-    sessionStorage.removeItem(SIGNUP_FLAG);
+    sessionStorage.setItem(SIGNUP_FLAG, "shown");
   } catch {
     return false;
   }
   installMetaPixel();
   window.fbq?.("track", "CompleteRegistration");
   return true;
+}
+
+export function clearSignupThanks() {
+  try {
+    sessionStorage.removeItem(SIGNUP_FLAG);
+  } catch {
+    /* private mode */
+  }
 }
 
 export const META_PIXEL_ID = PIXEL_ID;
