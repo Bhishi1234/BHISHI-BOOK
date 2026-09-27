@@ -803,6 +803,8 @@ export const mr: Messages = {
     newTicket: "नवीन",
     newConversation: "नवीन संभाषण",
     selectOrStart: "संभाषण निवडा, किंवा नवीन सुरू करा.",
+    whatsappBody: "WhatsApp वर संदेश पाठवा. आम्ही याच नंबरवर उत्तर देतो.",
+    whatsappPrefill: "नमस्कार, मला Bhishi Circle मध्ये मदत हवी आहे.",
   },
 
 

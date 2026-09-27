@@ -801,6 +801,8 @@ export type Messages = {
     newTicket: string;
     newConversation: string;
     selectOrStart: string;
+    whatsappBody: string;
+    whatsappPrefill: string;
   };
 
 

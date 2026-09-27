@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { WhatsAppIcon } from "../components/InviteWhatsAppButton";
 import { ModalPortal } from "../components/ModalPortal";
 import { ReasonModal } from "../components/ReasonModal";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { chitPath, inr } from "../lib/format";
+import { waMeUrl } from "../lib/share";
 import { useStore } from "../store";
+
+const SUPPORT_WHATSAPP = "9967966631";
 
 export function SupportPage() {
   const { tickets, addTicket } = useStore();
@@ -13,6 +17,7 @@ export function SupportPage() {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const whatsappHref = waMeUrl(SUPPORT_WHATSAPP, m.support.whatsappPrefill);
   return (
     <AppShell crumb={m.support.title}>
       <div className="page">
@@ -20,7 +25,13 @@ export function SupportPage() {
           <h1>{m.support.title}</h1>
           <button className="btn" onClick={() => setOpen(true)}>{m.support.newTicket}</button>
         </div>
-        <p className="page-sub">{m.support.selectOrStart}</p>
+        <div className="card support-card">
+          <p className="page-sub">{m.support.whatsappBody}</p>
+          <a className="btn support-wa" href={whatsappHref} target="_blank" rel="noopener noreferrer">
+            <WhatsAppIcon size={18} />
+            WhatsApp · 99679 66631
+          </a>
+        </div>
         <div className="stack">
         {tickets.length === 0 && <p className="muted">{m.support.empty}</p>}
         {tickets.map((t) => (
