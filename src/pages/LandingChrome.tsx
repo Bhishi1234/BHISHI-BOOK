@@ -89,14 +89,14 @@ export function LandingNav({
 
       {onLanding && (
         <nav className={`lp-nav-links${menuOpen ? " is-open" : ""}`} aria-label="Primary">
-          <a href="#features" onClick={() => setMenuOpen(false)}>
+          <a href="#problem" onClick={() => setMenuOpen(false)}>
             {t.navFeatures}
           </a>
-          <a href="#preview" onClick={() => setMenuOpen(false)}>
+          <a href="#admins" onClick={() => setMenuOpen(false)}>
             {t.navHow}
           </a>
-          <a href="#how" onClick={() => setMenuOpen(false)}>
-            {t.navHowItWorks}
+          <a href="#styles" onClick={() => setMenuOpen(false)}>
+            {t.navTypes}
           </a>
         </nav>
       )}
