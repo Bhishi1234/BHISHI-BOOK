@@ -370,6 +370,12 @@ export const supabaseApi = {
     return loadChit(id);
   },
 
+  async hideChit(id: string) {
+    const { sb } = await requireUser();
+    const { error } = await sb.rpc("hide_chit", { p_chit_id: id });
+    throwIf(error);
+  },
+
   async exitChitAsMember(id: string) {
     const { sb } = await requireUser();
     const { error } = await sb.rpc("exit_chit_as_member", { p_chit_id: id });

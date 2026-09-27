@@ -203,6 +203,10 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${id}`));
   },
 
+  async hideChit(id: string) {
+    await request(`/api/v1/chits/${id}/hide`, { method: "POST" });
+  },
+
   async exitChitAsMember(id: string) {
     await request(`/api/v1/chits/${id}/exit`, { method: "POST" });
   },

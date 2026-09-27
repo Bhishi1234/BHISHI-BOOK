@@ -54,6 +54,7 @@ export type Messages = {
     back: string;
     date: string;
     you: string;
+    delete: string;
   };
   terms: {
     hapta: string;
@@ -587,6 +588,9 @@ export type Messages = {
     premiumLegacy: string;
     emptyActive: string;
     emptyCompleted: string;
+    emptyCancelled: string;
+    hideTitle: string;
+    hideBody: string;
     sharedEmpty: string;
     paymentDueNow: string;
     progressLabel: string;

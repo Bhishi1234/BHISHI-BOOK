@@ -45,6 +45,7 @@ type Store = {
   updateCustomer: (id: string, patch: { name?: string; phone?: string }) => Promise<Customer>;
   addChit: (chit: Omit<Chit, "id" | "payments" | "status">) => Promise<string>;
   cancelChit: (id: string, reasons?: string[]) => Promise<void>;
+  hideChit: (id: string) => Promise<void>;
   exitChitAsMember: (id: string) => Promise<void>;
   addMember: (chitId: string, customerId: string) => Promise<void>;
   removeMember: (chitId: string, slot: number) => Promise<void>;
@@ -88,6 +89,34 @@ type Store = {
 
 const Ctx = createContext<Store | null>(null);
 
+function hiddenKey(userId: string) {
+  return `bhishi-hidden-chits:${userId}`;
+}
+
+function readHidden(userId: string | undefined) {
+  if (!userId) return new Set<string>();
+  try {
+    const raw = localStorage.getItem(hiddenKey(userId));
+    const ids = raw ? JSON.parse(raw) as unknown : [];
+    return new Set(Array.isArray(ids) ? ids.map(String) : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function rememberHidden(userId: string | undefined, id: string) {
+  if (!userId) return;
+  const next = readHidden(userId);
+  next.add(id);
+  localStorage.setItem(hiddenKey(userId), JSON.stringify([...next]));
+}
+
+function withoutHidden(userId: string | undefined, list: Chit[]) {
+  const hidden = readHidden(userId);
+  if (!hidden.size) return list;
+  return list.filter((c) => !hidden.has(c.id));
+}
+
 function upsertChit(list: Chit[], next: Chit) {
   const i = list.findIndex((c) => c.id === next.id);
   if (i < 0) return [next, ...list];
@@ -114,7 +143,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ]);
       setUser(me);
       setCustomers(cs as Customer[]);
-      setChits(ch);
+      setChits(withoutHidden(me.id || me.phone, ch));
       setTickets(ts as Ticket[]);
     } catch {
       setUser(null);
@@ -237,6 +266,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelChit: async (id, reasons) => {
         const next = await guarded(() => api.cancelChit(id, reasons));
         setChits((prev) => upsertChit(prev, next));
+      },
+      hideChit: async (id) => {
+        const who = user?.id || user?.phone;
+        rememberHidden(who, id);
+        setChits((prev) => prev.filter((c) => c.id !== id));
+        try {
+          await api.hideChit(id);
+        } catch {
+          // Still hidden on this device. The server copy applies once hide_chit exists.
+        }
       },
       exitChitAsMember: async (id) => {
         await guarded(() => api.exitChitAsMember(id));

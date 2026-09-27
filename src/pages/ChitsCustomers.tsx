@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, BookUser, ChevronRight, Plus, UserRound, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
+import { HideChitButton } from "../components/HideChitButton";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
@@ -19,13 +20,16 @@ export function ChitsPage() {
   const { chits, user } = useStore();
   const { m, typeLabel, statusLabel, tx } = useI18n();
   const nav = useNavigate();
-  const [tab, setTab] = useState<"active" | "completed">("active");
+  const [tab, setTab] = useState<"active" | "completed" | "cancelled">("active");
 
   useEffect(() => {
     scrollPageToTop();
   }, [tab]);
 
-  const pool = chits.filter((c) => (tab === "active" ? c.status === "running" : c.status !== "running"));
+  const pool = chits.filter((c) =>
+    tab === "active" ? c.status === "running" : c.status === tab,
+  );
+  const canDelete = tab !== "active";
   const managed = pool.filter((c) => c.mode === "organise" && c.viewerRole !== "member");
   const tracking = pool.filter((c) => c.mode === "tracking" && c.viewerRole !== "member");
   const shared = pool.filter((c) => c.viewerRole === "member");
@@ -41,6 +45,7 @@ export function ChitsPage() {
         <div className="seg block">
           <button className={`chip ${tab === "active" ? "on" : ""}`} onClick={() => setTab("active")}>{m.common.active}</button>
           <button className={`chip ${tab === "completed" ? "on" : ""}`} onClick={() => setTab("completed")}>{m.status.completed}</button>
+          <button className={`chip ${tab === "cancelled" ? "on" : ""}`} onClick={() => setTab("cancelled")}>{m.status.cancelled}</button>
         </div>
         {!!managed.length && (
           <div className="dash-chits block">
@@ -84,13 +89,20 @@ export function ChitsPage() {
                     </div>
                     <div className="progress"><i style={{ width: `${pct}%` }} /></div>
                   </div>
+                  {canDelete && (
+                    <div className="dash-chit-foot">
+                      <HideChitButton chitId={c.id} />
+                    </div>
+                  )}
                 </article>
               );
             })}
           </div>
         )}
         {!managed.length && (
-          <p className="muted block">{tab === "active" ? m.chit.emptyActive : m.chit.emptyCompleted}</p>
+          <p className="muted block">
+            {tab === "active" ? m.chit.emptyActive : tab === "cancelled" ? m.chit.emptyCancelled : m.chit.emptyCompleted}
+          </p>
         )}
 
         <div className="row-head" style={{ marginTop: managed.length ? 8 : 0 }}>
@@ -146,6 +158,11 @@ export function ChitsPage() {
                     </div>
                     <div className="progress"><i style={{ width: `${pct}%` }} /></div>
                   </div>
+                  {canDelete && (
+                    <div className="dash-chit-foot">
+                      <HideChitButton chitId={c.id} />
+                    </div>
+                  )}
                 </article>
               );
             })}
@@ -200,6 +217,11 @@ export function ChitsPage() {
                     <div className="dash-chit-progress">
                       <div className="progress"><i style={{ width: `${pct}%` }} /></div>
                     </div>
+                    {canDelete && (
+                      <div className="dash-chit-foot">
+                        <HideChitButton chitId={c.id} />
+                      </div>
+                    )}
                   </article>
                 );
               })}

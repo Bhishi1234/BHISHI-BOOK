@@ -28,6 +28,7 @@ type Db = {
   chits: Chit[];
   tickets: Ticket[];
   exitedSharedIds: string[];
+  hiddenChitIds: string[];
   deletionFeedback: { reasons: string[]; note?: string; at: string }[];
 };
 
@@ -45,6 +46,7 @@ function blankDb(): Db {
     customers: [],
     chits: [],
     exitedSharedIds: [],
+    hiddenChitIds: [],
     deletionFeedback: [],
   };
 }
@@ -60,6 +62,7 @@ function emptyDb(): Db {
     accounts: [],
     tickets: [],
     exitedSharedIds: [],
+    hiddenChitIds: [],
     deletionFeedback: [],
     customers: [
       { id: "c1", name: "ANIKET", phone: "9000000001" },
@@ -179,6 +182,7 @@ function read(): Db {
     if (!raw) return emptyDb();
     const db = JSON.parse(raw) as Db;
     if (!Array.isArray(db.exitedSharedIds)) db.exitedSharedIds = [];
+    if (!Array.isArray(db.hiddenChitIds)) db.hiddenChitIds = [];
     if (!Array.isArray(db.deletionFeedback)) db.deletionFeedback = [];
     if (!Array.isArray(db.accounts)) db.accounts = [];
     if (db.pendingSignup === undefined) db.pendingSignup = null;
@@ -449,14 +453,16 @@ export const mockServer = {
     list() {
       const db = read();
       const user = needUser(db);
+      const hidden = new Set(db.hiddenChitIds || []);
       return [
         ...db.chits.map((c) => annotateViewerRole(c, user, db)),
         ...sharedDemoChits(user, db.exitedSharedIds || []),
-      ];
+      ].filter((c) => !hidden.has(c.id));
     },
     get(id: string) {
       const db = read();
       const user = needUser(db);
+      if ((db.hiddenChitIds || []).includes(id)) throw new Error("Not found");
       const shared = sharedDemoChits(user, db.exitedSharedIds || []).find((c) => c.id === id);
       if (shared) return shared;
       const chit = db.chits.find((c) => c.id === id);
@@ -494,6 +500,18 @@ export const mockServer = {
       );
       write(db);
       return this.get(id);
+    },
+    hide(id: string) {
+      const db = read();
+      needUser(db);
+      const chit = this.get(id);
+      if (chit.status !== "completed" && chit.status !== "cancelled") {
+        throw new Error("Only a completed or cancelled bhishi can be removed from your list");
+      }
+      if (!(db.hiddenChitIds || []).includes(id)) {
+        db.hiddenChitIds = [...(db.hiddenChitIds || []), id];
+        write(db);
+      }
     },
     exitAsMember(id: string) {
       const db = read();

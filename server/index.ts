@@ -427,6 +427,18 @@ app.post("/api/v1/chits/:id/cancel", async (c) => {
   }
 });
 
+app.post("/api/v1/chits/:id/hide", async (c) => {
+  try {
+    const sb = asUser(bearer(c));
+    const { error } = await sb.rpc("hide_chit", { p_chit_id: c.req.param("id") });
+    if (error) return c.json({ error: rpcError(error) }, 400);
+    return c.json({ ok: true });
+  } catch (e) {
+    const { error, status } = fail(e);
+    return c.json({ error }, status);
+  }
+});
+
 app.post("/api/v1/chits/:id/members", async (c) => {
   try {
     const sb = asUser(bearer(c));

@@ -48,6 +48,7 @@ export const mr: Messages = {
     back: "मागे",
     date: "तारीख",
     you: "तुम्ही",
+    delete: "हटवा",
   },
   terms: {
     hapta: "हप्ता",
@@ -589,6 +590,9 @@ export const mr: Messages = {
     premiumLegacy: "अवॉर्दनंतर प्रीमियम (जुने)",
     emptyActive: "अजून सक्रिय भिशी नाही.",
     emptyCompleted: "अजून पूर्ण भिशी नाही.",
+    emptyCancelled: "अजून रद्द भिशी नाही.",
+    hideTitle: "ही भिशी तुमच्या यादीतून हटवायची?",
+    hideBody: "ती तुमच्या स्क्रीनवर दिसेनाशी होईल. ग्रुपचे रेकॉर्ड जसे आहेत तसे राहतील.",
     sharedEmpty: "अजून शेअर भिशी नाही. आयोजकाला सदस्य दृश्यता सुरू करायला सांगा आणि तुमचा फोन द्या.",
     paymentDueNow: "आत्ता पेमेंट थकबाकी",
     progressLabel: "प्रगती",

@@ -80,6 +80,36 @@ export function DashboardPage() {
           <Link className="link" to="/chits">{m.common.viewAll}</Link>
         </div>
         <div className="dash-chits">
+          {shared.map((c, i) => {
+            const pct = chitProgress(c);
+            const featured = i % 2 === 0;
+            return (
+              <article
+                key={c.id}
+                className={`dash-chit slim${featured ? " featured" : ""}`}
+                onClick={() => nav(chitPath(c))}
+              >
+                <div className="dash-chit-top">
+                  <div className={`dash-chit-avatar tone-${toneAt(i + 2)}`}>{initials(c.name)}</div>
+                  <div className="dash-chit-heading">
+                    <strong>{c.name}</strong>
+                    <span>{m.chitsPage.shared} · {displayCycle(c)} / {c.duration}</span>
+                  </div>
+                  <div className="dash-chit-actions">
+                    <span className="dash-chit-status">{m.chitsPage.shared}</span>
+                    <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
+                  </div>
+                </div>
+                <div className="dash-chit-progress">
+                  <div className="dash-chit-progress-head">
+                    <span>{m.terms.collection}</span>
+                    <strong>{pct}%</strong>
+                  </div>
+                  <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                </div>
+              </article>
+            );
+          })}
           {tracking.map((c, i) => {
             const pct = chitProgress(c);
             const featured = i % 2 === 0;
@@ -114,7 +144,7 @@ export function DashboardPage() {
               </article>
             );
           })}
-          {!tracking.length && <p className="empty">{m.chitsPage.empty}</p>}
+          {!tracking.length && !shared.length && <p className="empty">{m.chitsPage.empty}</p>}
         </div>
       </div>
     </AppShell>

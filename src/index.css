@@ -657,6 +657,13 @@ button.stat {
   flex: none;
   max-width: 46%;
 }
+.dash-chit-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.link.danger { color: #b42318; font-weight: 600; }
+.dash-chit.featured .link.danger { color: #fecaca; }
 .dash-chit-status {
   flex: none;
   font-size: 11px;

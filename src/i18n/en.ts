@@ -48,6 +48,7 @@ export const en: Messages = {
     back: "Back",
     date: "Date",
     you: "You",
+    delete: "Delete",
   },
   terms: {
     hapta: "Hapta",
@@ -589,6 +590,9 @@ export const en: Messages = {
     premiumLegacy: "Premium after prized (legacy)",
     emptyActive: "No active chits yet.",
     emptyCompleted: "No completed chits yet.",
+    emptyCancelled: "No cancelled chits yet.",
+    hideTitle: "Delete this bhishi from your list?",
+    hideBody: "It will stop showing on your screens. The group's records stay as they are.",
     sharedEmpty: "No shared chits yet. Ask your organiser to turn on member visibility and use your phone number.",
     paymentDueNow: "Payment due now",
     progressLabel: "Progress",
