@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { trackMetaPageView } from "../lib/metaPixel";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -133,6 +134,10 @@ export function LandingPage() {
     document.querySelector('meta[name="description"]')?.setAttribute("content", t.metaDescription);
     document.documentElement.lang = lang === "en" ? "en" : lang;
   }, [t, lang]);
+
+  useEffect(() => {
+    trackMetaPageView();
+  }, []);
 
   function goAuth() {
     nav(user ? "/" : "/login");

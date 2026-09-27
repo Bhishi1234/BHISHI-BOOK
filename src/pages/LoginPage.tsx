@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { consumeSignupConversion, markSignupConversion, trackMetaPageView } from "../lib/metaPixel";
 import { useI18n } from "../i18n";
 import type { Lang } from "../i18n/types";
 import { useStore } from "../store";
@@ -92,7 +93,7 @@ export function LoginPage() {
     setLocalError(null);
     try {
       await verifyOtp(digits, code, fullName, { password, language: lang });
-      nav("/");
+      markSignupConversion();
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : "Invalid OTP");
     } finally {
@@ -112,6 +113,13 @@ export function LoginPage() {
   function onOtpKeyDown(i: number, key: string) {
     if (key === "Backspace" && !otp[i] && i > 0) refs.current[i - 1]?.focus();
   }
+
+  const pixelView = user ? "welcome" : mode === "signup" || step === "otp" ? "signup" : "login";
+
+  useEffect(() => {
+    trackMetaPageView();
+    if (pixelView === "welcome") consumeSignupConversion();
+  }, [pixelView]);
 
   if (user) {
     return (
