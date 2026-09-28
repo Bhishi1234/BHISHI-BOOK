@@ -454,9 +454,9 @@ export const supabaseApi = {
     return loadChit(chitId);
   },
 
-  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, interestRate?: number) {
+  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, interestRate?: number, commissionRupees?: number) {
     const chit = await loadChit(chitId);
-    assertCanSettlePayout(chit, winnerId, bid, method, winnerSlot, interestRate);
+    assertCanSettlePayout(chit, winnerId, bid, method, winnerSlot, interestRate, commissionRupees);
     const { sb } = await requireUser();
     const { data, error } = await sb.rpc("settle_payout", {
       p_chit_id: chitId,
@@ -465,12 +465,13 @@ export const supabaseApi = {
       p_method: method,
       p_winner_slot: winnerSlot ?? null,
       p_interest_rate: interestRate ?? null,
+      p_commission: commissionRupees ?? null,
     });
     throwIf(error);
     return mapAuction(data as Record<string, unknown>);
   },
 
-  async replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+  async replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, commissionRupees?: number) {
     const chit = await loadChit(chitId);
     const cycle = chit.currentCycle;
     const old = chit.auctions.find((a) => a.cycle === cycle && a.method !== "settlement");
@@ -493,7 +494,7 @@ export const supabaseApi = {
       const { error: memErr } = await q;
       throwIf(memErr);
     }
-    return this.settlePayout(chitId, winnerId, bid, method, winnerSlot);
+    return this.settlePayout(chitId, winnerId, bid, method, winnerSlot, undefined, commissionRupees);
   },
 
   async luckyDraw(chitId: string) {

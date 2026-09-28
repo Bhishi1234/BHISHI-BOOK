@@ -263,17 +263,17 @@ export const restApi = {
     return mapChit(await request(`/api/v1/chits/${chitId}`));
   },
 
-  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, interestRate?: number) {
+  async settlePayout(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, interestRate?: number, commissionRupees?: number) {
     return mapAuction(await request(`/api/v1/chits/${chitId}/settle`, {
       method: "POST",
-      body: JSON.stringify({ winnerId, bid, method, winnerSlot, interestRate }),
+      body: JSON.stringify({ winnerId, bid, method, winnerSlot, interestRate, commissionRupees }),
     }));
   },
 
-  async replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number) {
+  async replaceCycleAward(chitId: string, winnerId: string, bid: number, method: AuctionRecord["method"], winnerSlot?: number, commissionRupees?: number) {
     return mapAuction(await request(`/api/v1/chits/${chitId}/replace-award`, {
       method: "POST",
-      body: JSON.stringify({ winnerId, bid, method, winnerSlot }),
+      body: JSON.stringify({ winnerId, bid, method, winnerSlot, commissionRupees }),
     }));
   },
 

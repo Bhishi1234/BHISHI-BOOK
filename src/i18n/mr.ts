@@ -381,6 +381,8 @@ export const mr: Messages = {
     repaymentTenure: "परतफेडीची मुदत",
     restOfChit: "उरलेली भिशी",
     commissionPerHapta: "कमिशन / हप्ता",
+    awardCommission: "या हप्त्याचे कमिशन",
+    awardCommissionHint: "फक्त या अवॉर्डमधून कापले जाईल. पुढच्या हप्त्यावर वेगळी रक्कम ठेवू शकता.",
     recordAll: "सर्व पेमेंट्स नोंदवा",
     markAllUnpaid: "सर्व न भरलेले चिन्हांकित करा",
     recording: "नोंद होत आहे…",

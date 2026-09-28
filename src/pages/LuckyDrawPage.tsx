@@ -3,7 +3,7 @@ import { ArrowLeft, Loader2, Share2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
-import { displayCycle, handLabel, isLuckyDrawChit } from "../lib/chitMath";
+import { displayCycle, handLabel, isLuckyDrawChit, settleWinner } from "../lib/chitMath";
 import { inr } from "../lib/format";
 import { shareLuckyDrawResult, WHEEL_PALETTE } from "../lib/luckyDrawShare";
 import { useStore } from "../store";
@@ -79,6 +79,8 @@ export function LuckyDrawPage() {
   const [error, setError] = useState("");
   const [sharing, setSharing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [awardCommission, setAwardCommission] = useState("");
+  const awardCommissionRupees = Math.max(0, Math.round(Number(awardCommission.replace(/\D/g, "")) || 0));
   const [drawnAt, setDrawnAt] = useState<Date | null>(null);
   /** Wheel land — kept when admin later allots to someone else. */
   const [spinWinnerKey, setSpinWinnerKey] = useState<string | null>(null);
@@ -216,8 +218,8 @@ export function LuckyDrawPage() {
     setError("");
     try {
       const rec = existingWin
-        ? await replaceCycleAward(chit.id, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot)
-        : await recordAuction(chit.id, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot);
+        ? await replaceCycleAward(chit.id, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot, awardCommissionRupees)
+        : await recordAuction(chit.id, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot, undefined, awardCommissionRupees);
       if (!rec) throw new Error("Could not award winner");
       setResult(rec);
       setDrawnAt(new Date());
@@ -397,6 +399,23 @@ export function LuckyDrawPage() {
                 </option>
               ))}
             </select>
+            <label className="label" htmlFor="ld-commission">{copy.chit.awardCommission}</label>
+            <input
+              id="ld-commission"
+              className="field"
+              inputMode="numeric"
+              placeholder="0"
+              value={awardCommission}
+              onChange={(e) => setAwardCommission(e.target.value.replace(/\D/g, "").slice(0, 8))}
+            />
+            <p className="muted">{copy.chit.awardCommissionHint}</p>
+            {chit && pendingMember ? (
+              <p className="muted">
+                {copy.chit.payout}: {inr(settleWinner(chit, pendingMember.customerId, chit.pot, "lucky_draw", pendingMember.slot, undefined, awardCommissionRupees).payout)}
+                {" · "}
+                {copy.chit.yourCommission}: {inr(awardCommissionRupees)}
+              </p>
+            ) : null}
             <button
               className="btn ld-spin-btn"
               type="button"

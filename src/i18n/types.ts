@@ -378,6 +378,8 @@ export type Messages = {
     repaymentTenure: string;
     restOfChit: string;
     commissionPerHapta: string;
+    awardCommission: string;
+    awardCommissionHint: string;
     recordAll: string;
     markAllUnpaid: string;
     recording: string;

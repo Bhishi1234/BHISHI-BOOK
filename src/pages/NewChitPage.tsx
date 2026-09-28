@@ -40,8 +40,6 @@ export function NewChitPage() {
   const [presetDays, setPresetDays] = useState(30);
   const [customOn, setCustomOn] = useState(false);
   const [customDays, setCustomDays] = useState("");
-  const [commKind, setCommKind] = useState<"amount" | "percent">("amount");
-  const [comm, setComm] = useState("0");
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
   const [tenure, setTenure] = useState("");
   const [loanPrincipalMode, setLoanPrincipalMode] = useState<"emi" | "end">("emi");
@@ -104,8 +102,6 @@ export function NewChitPage() {
   const potN = Number(pot) || 0;
   const months = Number(duration) || n;
   const instalment = computeInstalment(potN, n);
-  const commPct = commKind === "percent" ? Number(comm) || 0 : potN ? Math.round(((Number(comm) || 0) / potN) * 100) : 0;
-  const commMonth = commKind === "amount" ? Number(comm) || 0 : Math.round((potN * (Number(comm) || 0)) / 100);
   const tenureN = Number(tenure) || 0;
   const slotsFull = !!n && picked.length >= n;
   const slotsLeft = n > 0 ? Math.max(0, n - picked.length) : 99;
@@ -177,9 +173,8 @@ export function NewChitPage() {
         ? tx(m.newChitExtra.monthsCount, { n: months })
         : m.newChitExtra.monthsZero,
     per: instalment ? inr(instalment) : "—",
-    commission: commMonth ? inr(commMonth) : "—",
     style: styleLabel,
-  }), [n, months, instalment, commMonth, styleLabel, m, tx, intervalOk, intervalDays]);
+  }), [n, months, instalment, styleLabel, m, tx, intervalOk, intervalDays]);
 
   /** Short labels for the segmented stepper (long titles truncate on mobile). */
   function phaseTabLabel(p: Phase) {
@@ -256,15 +251,15 @@ export function NewChitPage() {
         pot: potN,
         instalment,
         membersCount: n,
-        commissionPct: commPct,
+        commissionPct: 0,
         duration: haptaN,
         startDate: start,
         mode: "organise",
         members,
         auctions: [],
         currentCycle: 1,
-        commissionKind: commKind,
-        commissionValue: Number(comm) || 0,
+        commissionKind: "amount",
+        commissionValue: 0,
         adjustmentStyle: type === "auction" ? adjust : "every_month",
         auctionStyle,
         fixedStyle: type === "fixed" ? fixedStyle : undefined,
@@ -556,9 +551,11 @@ export function NewChitPage() {
                 ) : null}
               </div>
 
+              {(type === "loan" || (type === "auction" && auctionStyle === "collect_first")) && (
               <div className="card" style={{ marginTop: 16 }}>
+                {type === "loan" && (
                 <div className="row-head" style={{ marginBottom: 8 }}>
-                  <h2 style={{ margin: 0 }}>{m.terms.collected}</h2>
+                  <h2 style={{ margin: 0 }}>{m.type.loan}</h2>
                   <button
                     type="button"
                     className={`info-chip${termsHelpOpen ? " on" : ""}`}
@@ -570,22 +567,6 @@ export function NewChitPage() {
                     <Info size={15} strokeWidth={2.4} />
                   </button>
                 </div>
-                <label className="label">{m.terms.commission}</label>
-                <div className="seg" style={{ marginBottom: 12 }}>
-                  <button className={`chip ${commKind === "amount" ? "on" : ""}`} onClick={() => setCommKind("amount")}>{m.newChitExtra.amountKind}</button>
-                  <button className={`chip ${commKind === "percent" ? "on" : ""}`} onClick={() => setCommKind("percent")}>{m.newChitExtra.percentKind}</button>
-                </div>
-                <input className="field" value={comm} onChange={(e) => setComm(e.target.value)} />
-                {termsHelpOpen && (
-                  <PromptBox tone="amber">
-                    {type === "loan"
-                      ? m.newChitExtra.commissionFromTill
-                      : type === "auction" && auctionStyle === "auction_first"
-                        ? m.newChitExtra.commissionAuctionFirstPeer
-                        : type === "auction"
-                          ? m.newChitExtra.commissionAuctionFirst
-                          : m.newChitExtra.commissionCollectFirst}
-                  </PromptBox>
                 )}
                 {type === "loan" && (
                   <>
@@ -637,6 +618,7 @@ export function NewChitPage() {
                   </>
                 )}
               </div>
+              )}
             </div>
             <div className="new-chit-terms-side">
               <div className="card live-preview-card">
@@ -661,10 +643,6 @@ export function NewChitPage() {
                   <div className="summary-cell">
                     <span className="summary-label">{m.terms.perHapta}</span>
                     <strong className="summary-value">{preview.per}</strong>
-                  </div>
-                  <div className="summary-cell">
-                    <span className="summary-label">{m.terms.commission}</span>
-                    <strong className="summary-value">{preview.commission}</strong>
                   </div>
                 </div>
               </div>

@@ -530,6 +530,8 @@ app.post("/api/v1/chits/:id/settle", async (c) => {
       p_bid: body.bid,
       p_method: body.method,
       p_winner_slot: body.winnerSlot ?? null,
+      p_interest_rate: body.interestRate ?? null,
+      p_commission: body.commissionRupees ?? null,
     });
     if (error) return c.json({ error: rpcError(error) }, 400);
     return c.json(data);
@@ -578,6 +580,8 @@ app.post("/api/v1/chits/:id/replace-award", async (c) => {
       p_bid: body.bid,
       p_method: body.method,
       p_winner_slot: body.winnerSlot ?? null,
+      p_interest_rate: body.interestRate ?? null,
+      p_commission: body.commissionRupees ?? null,
     });
     if (error) return c.json({ error: rpcError(error) }, 400);
     return c.json(data);

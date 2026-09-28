@@ -381,6 +381,8 @@ export const en: Messages = {
     repaymentTenure: "Repayment tenure",
     restOfChit: "Rest of bhishi",
     commissionPerHapta: "Commission / hapta",
+    awardCommission: "Commission this hapta",
+    awardCommissionHint: "Taken from this award only. The next hapta can be a different amount.",
     recordAll: "Record all payments",
     markAllUnpaid: "Mark all unpaid",
     recording: "Recording…",

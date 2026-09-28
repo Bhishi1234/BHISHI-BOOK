@@ -381,6 +381,8 @@ export const hi: Messages = {
     repaymentTenure: "चुकौती अवधि",
     restOfChit: "बाकी भिशी",
     commissionPerHapta: "कमीशन / हप्ता",
+    awardCommission: "इस हप्ते का कमीशन",
+    awardCommissionHint: "सिर्फ इस अवॉर्ड से कटेगा। अगले हप्ते पर अलग रकम रख सकते हैं।",
     recordAll: "सभी भुगतान दर्ज करें",
     markAllUnpaid: "सभी को बकाया चिह्नित करें",
     recording: "दर्ज हो रहा है…",

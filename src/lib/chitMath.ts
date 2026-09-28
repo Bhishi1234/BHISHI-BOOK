@@ -1190,6 +1190,7 @@ export function settleWinner(
   method: AuctionRecord["method"],
   winnerSlot?: number,
   interestRate?: number,
+  commissionRupees?: number,
 ): AuctionRecord {
   const alreadyLoanedThisCycle = chit.auctions.some(
     (a) => a.cycle === chit.currentCycle && a.method === "fixed",
@@ -1202,15 +1203,20 @@ export function settleWinner(
   const loanRate = method === "fixed" && chit.type === "loan"
     ? loanRateOf(chit, null, interestRate)
     : 0;
-  // Foreman commission on every award type (incl. auction-first peer), except last cycle / settlement / extra loans same month.
+  // Commission is chosen on this award. A blank override keeps the older group default.
+  const typedCommission = commissionRupees != null && Number.isFinite(Number(commissionRupees))
+    ? Math.max(0, Math.round(Number(commissionRupees)))
+    : null;
   const commission =
-    method === "settlement" || lastAuction
+    method === "settlement" || (method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle)
       ? 0
-      : method === "fixed" && chit.type === "loan" && alreadyLoanedThisCycle
-        ? 0
-        : method === "lucky_draw" || method === "auction" || method === "fixed"
-          ? commissionAmount(chit)
-          : 0;
+      : typedCommission != null
+        ? Math.min(typedCommission, Math.max(0, Math.round(chit.pot || typedCommission)))
+        : lastAuction
+          ? 0
+          : method === "lucky_draw" || method === "auction" || method === "fixed"
+            ? commissionAmount(chit)
+            : 0;
   let safeBid: number;
   let dividend = 0;
   let discount = 0;
@@ -1237,7 +1243,9 @@ export function settleWinner(
   } else if (lastAuction && auctionPeer) {
     safeBid = Math.max(0, chit.pot);
   } else if (lastAuction) {
-    safeBid = awardFirst ? Math.max(0, chit.pot - commission) : Math.max(0, treasuryOf(chit));
+    safeBid = awardFirst
+      ? Math.max(0, chit.pot - commission)
+      : Math.max(0, treasuryOf(chit) - commission);
   } else if (method === "auction") {
     // Bid = amount the winner takes (face award). Never invent a different award in the books.
     safeBid = Math.min(chit.pot, Math.max(0, bid));
@@ -1350,6 +1358,7 @@ export function assertCanSettlePayout(
   method: AuctionRecord["method"],
   winnerSlot?: number,
   interestRate?: number,
+  commissionRupees?: number,
 ) {
   if (method === "fixed" && chit.type === "loan" && !canGiveLoan(chit)) {
     throw new Error("No new loans on the last month — collect dues and settle leftover cash instead");
@@ -1369,7 +1378,7 @@ export function assertCanSettlePayout(
   if (method === "fixed" && chit.type === "loan" && interestRate != null && !Number.isFinite(Number(interestRate))) {
     throw new Error("Enter a valid interest rate for this loan");
   }
-  const rec = settleWinner(chit, winnerId, bid, method, winnerSlot, interestRate);
+  const rec = settleWinner(chit, winnerId, bid, method, winnerSlot, interestRate, commissionRupees);
   if (method === "fixed" && chit.type === "loan") {
     const capacity = loanFundingCapacity(chit);
     const maxFace = loanMaxFaceAmount(chit);

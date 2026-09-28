@@ -130,6 +130,7 @@ export function ChitDetailPage() {
   }, [tab, monthSub, id]);
   const [payFor, setPayFor] = useState<{ customerId: string; slot: number } | null>(null);
   const [bid, setBid] = useState("");
+  const [awardCommission, setAwardCommission] = useState("");
   const [loanInterest, setLoanInterest] = useState("5");
   const [winnerId, setWinnerId] = useState("");
   const [winnerSlot, setWinnerSlot] = useState<number | undefined>(undefined);
@@ -241,6 +242,7 @@ export function ChitDetailPage() {
 
   const data = chit;
   const cycle = displayCycle(data);
+  const awardCommissionRupees = Math.max(0, Math.round(Number(awardCommission.replace(/\D/g, "")) || 0));
   const isRunning = data.status === "running";
   const started = chitHasStarted(data);
   const pending = isRunning
@@ -819,11 +821,7 @@ export function ChitDetailPage() {
                 {fixedLike && data.premiumAmount != null && data.premiumAmount > 0 && (
                   <div className="kv"><span>{copy.chit.premiumLegacy}</span><strong>{inr(data.premiumAmount)}</strong></div>
                 )}
-                <div className="kv"><span>{copy.chit.commissionPerHapta}</span><strong>{
-                  data.commissionKind === "amount" && data.commissionValue
-                    ? inr(data.commissionValue)
-                    : `${data.commissionPct}%`
-                }</strong></div>
+                <div className="kv"><span>{copy.chit.commissionPerHapta}</span><strong>{copy.chit.awardCommission}</strong></div>
               </div>
             </div>
             <div className="card flush block">
@@ -1338,6 +1336,16 @@ export function ChitDetailPage() {
                 </p>
               ) : (
                 <div style={{ padding: "16px 0 0" }}>
+                  <label className="label" htmlFor="award-commission">{copy.chit.awardCommission}</label>
+                  <input
+                    id="award-commission"
+                    className="field"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={awardCommission}
+                    onChange={(e) => setAwardCommission(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  />
+                  <p className="muted" style={{ margin: "0 0 12px" }}>{copy.chit.awardCommissionHint}</p>
                   {data.type === "auction" && (
                     <>
                       {lastAuctionMonth ? (
@@ -1369,7 +1377,7 @@ export function ChitDetailPage() {
                               onClick={() => {
                                 const who = winnerId || lastMember?.customerId || "";
                                 const slot = winnerSlot ?? lastMember?.slot;
-                                runAward(recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot));
+                                runAward(recordAuction(data.id, who, auctionFirst ? data.pot : cashOnHand, "auction", slot, undefined, awardCommissionRupees));
                               }}
                             >
                               {copy.chit.awardFullPot}
@@ -1378,7 +1386,7 @@ export function ChitDetailPage() {
                           {(winnerId || lastMember) && (() => {
                             const who = winnerId || lastMember!.customerId;
                             const slot = winnerSlot ?? lastMember?.slot;
-                            const preview = settleWinner(data, who, auctionFirst ? data.pot : cashOnHand, "auction", slot);
+                            const preview = settleWinner(data, who, auctionFirst ? data.pot : cashOnHand, "auction", slot, undefined, awardCommissionRupees);
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(preview.bid)}</strong></div>
@@ -1428,7 +1436,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !bid || !Number(bid)}
-                              onClick={() => runAward(recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot))}
+                              onClick={() => runAward(recordAuction(data.id, winnerId, Number(bid), "auction", winnerSlot, undefined, awardCommissionRupees))}
                             >
                               {copy.chit.recordAuctionBtn}
                             </button>
@@ -1441,7 +1449,7 @@ export function ChitDetailPage() {
                             </p>
                           )}
                           {winnerId && Number(bid) > 0 && (() => {
-                            const preview = settleWinner(data, winnerId, Number(bid), "auction", winnerSlot);
+                            const preview = settleWinner(data, winnerId, Number(bid), "auction", winnerSlot, undefined, awardCommissionRupees);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             const entered = Number(bid);
                             const awardFace = preview.bid;
@@ -1579,7 +1587,7 @@ export function ChitDetailPage() {
                               onClick={() => {
                                 const amount = Number(bid);
                                 const rate = Number(loanInterest);
-                                runAward(recordAuction(data.id, winnerId, amount, "fixed", winnerSlot, rate).then((rec) => {
+                                runAward(recordAuction(data.id, winnerId, amount, "fixed", winnerSlot, rate, awardCommissionRupees).then((rec) => {
                                   setBid(String(Math.min(data.pot, loanMaxFace)));
                                   setWinnerId("");
                                   setWinnerSlot(undefined);
@@ -1608,7 +1616,7 @@ export function ChitDetailPage() {
                           {winnerId && winnerSlot != null && Number(bid) > 0 && (() => {
                             const faceReq = Number(bid);
                             const rate = Number(loanInterest) || 0;
-                            const preview = settleWinner(data, winnerId, faceReq, "fixed", winnerSlot, rate);
+                            const preview = settleWinner(data, winnerId, faceReq, "fixed", winnerSlot, rate, awardCommissionRupees);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             const start = cycle;
                             const tenure = loanEffectiveTenure(data, start);
@@ -1712,7 +1720,7 @@ export function ChitDetailPage() {
                                 onClick={() => {
                                   const who = winnerId || unprized[0]?.customerId || "";
                                   const slot = winnerSlot ?? unprized[0]?.slot;
-                                  runAward(recordAuction(data.id, who, data.pot, "lucky_draw", slot));
+                                  runAward(recordAuction(data.id, who, data.pot, "lucky_draw", slot, undefined, awardCommissionRupees));
                                 }}
                               >
                                 {copy.chit.awardLastPot}
@@ -1741,7 +1749,7 @@ export function ChitDetailPage() {
                                 <button
                                   className="btn ghost"
                                   disabled={!canSettleCycle(data) || !winnerId}
-                                  onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot))}
+                                  onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "lucky_draw", winnerSlot, undefined, awardCommissionRupees))}
                                 >
                                   {copy.chit.awardPot}
                                 </button>
@@ -1774,7 +1782,7 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot))}
+                              onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot, undefined, awardCommissionRupees))}
                             >
                               {copy.chit.awardPot}
                             </button>
@@ -1788,7 +1796,7 @@ export function ChitDetailPage() {
                             {tx(copy.chit.luckyDrawInstead, { n: unprized.length })}
                           </button>
                           {winnerId && (() => {
-                            const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot);
+                            const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot, undefined, awardCommissionRupees);
                             const still = Math.max(0, unprized.length - 1);
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
@@ -1825,13 +1833,13 @@ export function ChitDetailPage() {
                             <button
                               className="btn"
                               disabled={!winnerId || !canSettleCycle(data)}
-                              onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot))}
+                              onClick={() => runAward(recordAuction(data.id, winnerId, data.pot, "fixed", winnerSlot, undefined, awardCommissionRupees))}
                             >
                               {copy.chit.awardPot}
                             </button>
                           </div>
                           {winnerId && (() => {
-                            const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot);
+                            const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot, undefined, awardCommissionRupees);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             return (
                               <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
