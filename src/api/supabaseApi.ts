@@ -12,6 +12,13 @@ function right10(value: string | null | undefined) {
   return String(value || "").replace(/\D/g, "").slice(-10);
 }
 
+/** Blank is allowed. A partial number is still rejected. */
+function storedCustomerPhone(phone: string) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return phone10(phone);
+}
+
 async function syncProfilePhone(sb: ReturnType<typeof getSupabase>, digits: string) {
   try {
     await sb.rpc("set_profile_phone", { p_phone: digits });
@@ -321,7 +328,7 @@ export const supabaseApi = {
     const { sb, user } = await requireUser();
     const { data, error } = await sb
       .from("customers")
-      .insert({ owner_id: user.id, name: name.trim(), phone: phone10(phone) })
+      .insert({ owner_id: user.id, name: name.trim(), phone: storedCustomerPhone(phone) })
       .select("*")
       .single();
     throwIf(error);

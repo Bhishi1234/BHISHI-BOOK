@@ -3087,21 +3087,49 @@ body.native-app {
 }
 
 .create-flow { max-width: 560px; }
+.create-top { text-align: center; margin: 0 auto 14px; }
 .create-kicker {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-size: 12px;
   color: var(--muted);
   font-weight: 600;
 }
-.create-dots { display: flex; gap: 6px; margin: 0 0 12px; }
-.create-dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 99px;
-  background: #d5dde8;
+.create-steps {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
-.create-dots span.done { background: #12b76a; }
-.create-dots span.on { background: var(--blue); }
+.create-steps span {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 99px;
+  display: grid;
+  place-items: center;
+  background: #e8eef6;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+.create-steps span:not(:last-child) { margin-right: 16px; }
+.create-steps span:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 10px;
+  width: 16px;
+  height: 2px;
+  background: #e6edf5;
+}
+.create-steps span.done {
+  background: #ecfdf5;
+  color: #067647;
+}
+.create-steps span.done:not(:last-child)::after { background: #86efac; }
+.create-steps span.on {
+  background: var(--blue);
+  color: #fff;
+}
 .create-back { margin: 0 0 6px; }
 .create-flow h2 {
   margin: 0 0 6px;

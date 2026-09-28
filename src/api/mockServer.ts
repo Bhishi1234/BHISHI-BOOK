@@ -420,8 +420,8 @@ export const mockServer = {
       const db = read();
       needUser(db);
       const digits = phone.replace(/\D/g, "").slice(-10);
-      if (digits.length !== 10) throw new Error("Phone must be 10 digits");
-      const c: Customer = { id: uid("c"), name, phone: digits };
+      if (digits.length > 0 && digits.length !== 10) throw new Error("Phone must be 10 digits");
+      const c: Customer = { id: uid("c"), name, phone: digits.length === 10 ? digits : "" };
       db.customers.push(c);
       write(db);
       return c;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookUser, Plus, Trash2, UserPlus } from "lucide-react";
+import { BookUser, Check, Trash2, UserPlus } from "lucide-react";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
@@ -76,7 +76,8 @@ export function NewChitPage() {
   const [existingHands, setExistingHands] = useState(1);
   const [saving, setSaving] = useState(false);
   const [pickingContacts, setPickingContacts] = useState(false);
-  const [addPanel, setAddPanel] = useState<"new" | "saved" | null>(null);
+  const [addPanel, setAddPanel] = useState<"saved" | null>(null);
+  const [phoneError, setPhoneError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
 
   const { isOnApp } = usePhonesOnApp(customers.map((c) => c.phone));
@@ -276,13 +277,18 @@ export function NewChitPage() {
 
   async function addManualMember() {
     if (!newName.trim() || slotsFull) return;
+    const digits = newPhone.replace(/\D/g, "");
+    if (digits && digits.length !== 10) {
+      setPhoneError(copy.phoneShort);
+      return;
+    }
+    setPhoneError("");
     const hands = Math.min(Math.max(1, manualHands), slotsLeft);
-    const c = await addCustomer(newName.trim(), newPhone.trim());
+    const c = await addCustomer(newName.trim(), digits);
     setPicked((p) => [...p, ...Array.from({ length: hands }, () => c.id)]);
     setNewName("");
     setNewPhone("");
     setManualHands(1);
-    setAddPanel(null);
   }
 
   function addExistingMember() {
@@ -321,11 +327,15 @@ export function NewChitPage() {
   return (
     <AppShell crumb={m.nav.chits} crumb2={m.newChit.title}>
       <div className="page new-chit-page create-flow">
-        <p className="create-kicker">{tx(copy.stepOf, { n: step + 1, total: STEPS })}</p>
-        <div className="create-dots" aria-hidden>
-          {Array.from({ length: STEPS }, (_, i) => (
-            <span key={i} className={i < step ? "done" : i === step ? "on" : ""} />
-          ))}
+        <div className="create-top">
+          <p className="create-kicker">{tx(copy.stepOf, { n: step + 1, total: STEPS })}</p>
+          <div className="create-steps" aria-hidden>
+            {Array.from({ length: STEPS }, (_, i) => (
+              <span key={i} className={i < step ? "done" : i === step ? "on" : ""}>
+                {i < step ? <Check size={12} strokeWidth={3} /> : i + 1}
+              </span>
+            ))}
+          </div>
         </div>
         {step > 0 && (
           <button type="button" className="hapta-back create-back" onClick={goBack}>
@@ -492,7 +502,7 @@ export function NewChitPage() {
                             <InviteWhatsAppButton phone={c.phone} message={inviteMsg(c.name, c.phone)} />
                           ) : null}
                         </div>
-                        {c?.phone ? <div className="muted">{c.phone}</div> : null}
+                        <div className="muted">{c?.phone || copy.noPhone}</div>
                       </div>
                       {showPayoutOrder && (
                         <>
@@ -509,15 +519,24 @@ export function NewChitPage() {
               </div>
             )}
 
-            {!slotsFull && addPanel !== "new" && (
-              <button type="button" className="btn wide" onClick={() => setAddPanel("new")}>
-                <Plus size={15} /> {copy.addPerson}
-              </button>
-            )}
-            {addPanel === "new" && !slotsFull && (
+            {!slotsFull && (
               <div className="card create-card">
-                <input className="field" placeholder={m.profile.name} value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <input className="field" placeholder={m.profile.phone} value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+                <label className="label" htmlFor="member-name">{copy.name}</label>
+                <input id="member-name" className="field" autoComplete="name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <label className="label" htmlFor="member-phone">{copy.phoneLabel}</label>
+                <input
+                  id="member-phone"
+                  className="field"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder={copy.phoneOptionalPh}
+                  value={newPhone}
+                  onChange={(e) => {
+                    setPhoneError("");
+                    setNewPhone(e.target.value);
+                  }}
+                />
+                <p className={phoneError ? "due" : "hint"}>{phoneError || copy.phoneOptional}</p>
                 <div className="hands-stepper">
                   <span className="hands-stepper-label">{m.newChitExtra.noOfHands}</span>
                   <div className="hands-stepper-controls">
@@ -588,16 +607,21 @@ export function NewChitPage() {
               <div className="card create-card">
                 {type === "auction" && auctionStyle === "collect_first" && (
                   <>
-                    <label className="label">{m.newChitExtra.adjustmentStyle}</label>
+                    <label className="label">{copy.dividendTitle}</label>
+                    <p className="hint">{copy.dividendLead}</p>
                     <div className="create-picks">
-                      <button type="button" className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>{m.newChitExtra.everyMonth}</button>
-                      <button type="button" className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>{m.newChitExtra.atEnd}</button>
+                      <button type="button" className={`chip ${adjust === "every_month" ? "on" : ""}`} onClick={() => setAdjust("every_month")}>{copy.dividendEvery}</button>
+                      <button type="button" className={`chip ${adjust === "at_end" ? "on" : ""}`} onClick={() => setAdjust("at_end")}>{copy.dividendEnd}</button>
                     </div>
+                    <p className="hint">
+                      {adjust === "every_month" ? copy.dividendEveryHint : copy.dividendEndHint}
+                    </p>
                   </>
                 )}
                 {type === "fixed" && (
                   <>
                     <label className="label">{m.settlementStyle.title}</label>
+                    <p className="hint">{copy.fixedOrderLead}</p>
                     <div className="create-picks">
                       <button type="button" className={`chip ${auctionStyle === "collect_first" ? "on" : ""}`} onClick={() => setAuctionStyle("collect_first")}>{copy.collectFirst}</button>
                       <button type="button" className={`chip ${auctionStyle === "auction_first" ? "on" : ""}`} onClick={() => setAuctionStyle("auction_first")}>{copy.awardFirst}</button>
@@ -607,17 +631,22 @@ export function NewChitPage() {
                 {type === "loan" && (
                   <>
                     <label className="label">{m.newChitExtra.interestCutLabel}</label>
+                    <p className="hint">{copy.interestLead}</p>
                     <div className="create-picks">
                       <button type="button" className={`chip ${loanInterestUpfront ? "on" : ""}`} onClick={() => setLoanInterestUpfront(true)}>{m.newChitExtra.interestCutAtGive}</button>
                       <button type="button" className={`chip ${!loanInterestUpfront ? "on" : ""}`} onClick={() => setLoanInterestUpfront(false)}>{m.newChitExtra.interestCutNextMonth}</button>
                     </div>
                     <label className="label">{m.newChitExtra.repaymentTenureLabel}</label>
                     <input className="field" placeholder={m.newChitExtra.blankRestOfChit} value={tenure} onChange={(e) => setTenure(e.target.value.replace(/\D/g, "").slice(0, 3))} />
-                    <label className="label">{m.newChitExtra.principalModeLabel}</label>
+                    <label className="label">{copy.principalPayTitle}</label>
+                    <p className="hint">{copy.principalPayLead}</p>
                     <div className="create-picks">
-                      <button type="button" className={`chip ${loanPrincipalMode === "emi" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("emi")}>{m.newChitExtra.principalEmi}</button>
-                      <button type="button" className={`chip ${loanPrincipalMode === "end" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("end")}>{m.newChitExtra.principalAtEnd}</button>
+                      <button type="button" className={`chip ${loanPrincipalMode === "emi" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("emi")}>{copy.principalEach}</button>
+                      <button type="button" className={`chip ${loanPrincipalMode === "end" ? "on" : ""}`} onClick={() => setLoanPrincipalMode("end")}>{copy.principalEndPay}</button>
                     </div>
+                    <p className="hint">
+                      {loanPrincipalMode === "emi" ? copy.principalEachHint : copy.principalEndHint}
+                    </p>
                   </>
                 )}
               </div>
