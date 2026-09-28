@@ -25,6 +25,7 @@ export function PayModal({
   const [mode, setMode] = useState<PayMode>("cash");
   const [amount, setAmount] = useState(String(due));
   const [cash, setCash] = useState(false);
+  const [moreWays, setMoreWays] = useState(false);
   const [notes, setNotes] = useState<Record<number, number>>({});
   const cashTotal = useMemo(
     () => NOTES.reduce((s, n) => s + n * (notes[n] || 0), 0),
@@ -49,10 +50,11 @@ export function PayModal({
         >
           <div className="modal-head-row">
             <div className="modal-head-copy">
-              <h2>{m.detail.recordPayment}</h2>
+              <h2>{name}</h2>
               <p className="muted pay-modal-sub">
-                {name} · {m.terms.haptaRound} {cycle}
+                {m.terms.haptaRound} {cycle}
               </p>
+              <p className="pay-due-figure">{inr(due)}</p>
             </div>
             <button type="button" className="modal-close-x" onClick={onClose} aria-label={m.common.close}>
               <X size={18} strokeWidth={2.4} />
@@ -97,34 +99,72 @@ export function PayModal({
             </>
           ) : (
             <>
-              <div className="pay-row">
-                <button type="button" className={`tab ${kind === "partial" ? "on" : ""}`} onClick={() => { setKind("partial"); setAmount(String(Math.max(0, Math.round(due / 2)))); }}>{payKindLabel("partial")}</button>
-                <button type="button" className={`tab ${kind === "full" ? "on" : ""}`} onClick={() => { setKind("full"); setAmount(String(due)); }}>
-                  {inr(due)}
+              <div className="pay-choices">
+                <button
+                  type="button"
+                  className={`pay-choice${mode === "cash" && kind === "full" ? " on" : ""}`}
+                  onClick={() => { setKind("full"); setMode("cash"); setAmount(String(due)); }}
+                >
+                  {modeLabel("cash")}
                 </button>
-                <button type="button" className={`tab ${kind === "advance" ? "on" : ""}`} onClick={() => { setKind("advance"); setAmount(String(due * 2)); }}>{payKindLabel("advance")}</button>
+                <button
+                  type="button"
+                  className={`pay-choice${mode === "upi" && kind === "full" ? " on" : ""}`}
+                  onClick={() => { setKind("full"); setMode("upi"); setAmount(String(due)); }}
+                >
+                  {modeLabel("upi")}
+                </button>
+                <button
+                  type="button"
+                  className={`pay-choice${kind === "partial" ? " on" : ""}`}
+                  onClick={() => { setKind("partial"); setAmount(String(Math.max(0, Math.round(due / 2)))); }}
+                >
+                  {m.payModal.partPayment}
+                </button>
               </div>
-              <label className="label">{m.payModal.mode}</label>
-              <div className="seg" style={{ marginBottom: 12 }}>
-                {(["cash", "upi", "bank", "cheque", "adjusted"] as PayMode[]).map((payModeId) => (
-                  <button key={payModeId} type="button" className={`chip ${mode === payModeId ? "on" : ""}`} onClick={() => setMode(payModeId)}>
-                    {modeLabel(payModeId)}
-                  </button>
-                ))}
-              </div>
-              <label className="label">{m.payModal.amount}</label>
-              <input className="field" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={kind === "full"} />
-              <label className="check">
-                <input type="checkbox" checked={cash} onChange={(e) => setCash(e.target.checked)} />
-                {m.payModal.countCash}
-              </label>
+              {kind !== "full" && (
+                <>
+                  <label className="label">{m.payModal.amount}</label>
+                  <input className="field" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </>
+              )}
+              <button type="button" className="hapta-text-btn" onClick={() => setMoreWays((v) => !v)}>
+                {m.payModal.otherWays}
+              </button>
+              {moreWays && (
+                <>
+                  <div className="seg" style={{ marginBottom: 12 }}>
+                    {(["bank", "cheque", "adjusted"] as PayMode[]).map((payModeId) => (
+                      <button
+                        key={payModeId}
+                        type="button"
+                        className={`chip ${mode === payModeId ? "on" : ""}`}
+                        onClick={() => setMode(payModeId)}
+                      >
+                        {modeLabel(payModeId)}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`chip ${kind === "advance" ? "on" : ""}`}
+                      onClick={() => { setKind("advance"); setAmount(String(due * 2)); }}
+                    >
+                      {payKindLabel("advance")}
+                    </button>
+                  </div>
+                  <label className="check">
+                    <input type="checkbox" checked={cash} onChange={(e) => setCash(e.target.checked)} />
+                    {m.payModal.countCash}
+                  </label>
+                </>
+              )}
               <button
                 type="button"
-                className="btn wide"
+                className="btn wide hapta-cta"
                 disabled={!value || !cashOk}
                 onClick={() => onSave(value, kind, mode)}
               >
-                {m.common.save}
+                {m.payModal.markPaid}
               </button>
             </>
           )}

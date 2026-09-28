@@ -13,6 +13,7 @@ import {
   Wallet,
   Check,
 } from "lucide-react";
+import { HaptaGuide, HaptaRail, type HaptaStepId } from "../components/HaptaGuide";
 import { PayModal } from "../components/PayModal";
 import { MemberReachButtons } from "../components/MemberReachButtons";
 import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
@@ -111,13 +112,22 @@ export function ChitDetailPage() {
   const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
-  const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "members" | "activity" | "settlement" | "settings">("overview");
+  const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "members" | "activity" | "settlement" | "settings">("monthly");
   const [monthSub, setMonthSub] = useState<"collect" | "award" | "close">("collect");
+  const [showHaptaHome, setShowHaptaHome] = useState(true);
+  const [showCalc, setShowCalc] = useState(false);
+  const [showCloseDetail, setShowCloseDetail] = useState(false);
   const [booksOpen, setBooksOpen] = useState(false);
   const [collectHelpOpen, setCollectHelpOpen] = useState(false);
   const [awardTouched, setAwardTouched] = useState(false);
   const reportsRef = useRef<HTMLDivElement | null>(null);
   const skipScrollTopRef = useRef(false);
+
+  useEffect(() => {
+    setShowHaptaHome(true);
+    setShowCalc(false);
+    setShowCloseDetail(false);
+  }, [id, chit?.currentCycle]);
 
   useEffect(() => {
     if (skipScrollTopRef.current) {
@@ -313,7 +323,14 @@ export function ChitDetailPage() {
   }
   function goAfterClose() {
     setUnpaidNoted(false);
+    setShowHaptaHome(true);
     setMonthSub(awardFirst ? "award" : "collect");
+  }
+
+  function openHaptaStep(step: HaptaStepId) {
+    setMonthSub(step);
+    setShowHaptaHome(false);
+    setShowCalc(false);
   }
 
   function afterAwardRecorded(rec: AuctionRecord | null | undefined) {
@@ -499,6 +516,76 @@ export function ChitDetailPage() {
       }),
     );
   }
+
+  const awardStepLabel = luckyDrawChit ? copy.type.lucky_draw : copy.chit.award;
+  const railOrder: HaptaStepId[] = awardFirst ? ["award", "collect", "close"] : ["collect", "award", "close"];
+  const collectDone = awardFirst ? awardResolved && remainDue === 0 : remainDue === 0;
+  const jobStep: HaptaStepId = !isRunning
+    ? "close"
+    : awardFirst && !awardResolved
+      ? "award"
+      : remainDue > 0
+        ? "collect"
+        : !awardResolved
+          ? "award"
+          : "close";
+  function haptaRailFor(active: HaptaStepId) {
+    return railOrder.map((stepId, index) => ({
+      id: stepId,
+      n: index + 1,
+      label: stepId === "award" ? awardStepLabel : stepId === "collect" ? copy.chit.collect : copy.chit.closeStep,
+      state: (stepId === active
+        ? "on"
+        : stepId === "collect" && collectDone
+          ? "done"
+          : stepId === "award" && awardResolved
+            ? "done"
+            : "wait") as "done" | "on" | "wait",
+    }));
+  }
+  const haptaRail = haptaRailFor(jobStep);
+  const prevAwards = cycle > 1
+    ? data.auctions.filter((a) => a.cycle === cycle - 1 && a.method !== "settlement")
+    : [];
+  const freshHapta = collectedCount(data) === 0 && !lastWin;
+  const closedNote = isRunning && freshHapta && prevAwards.length === 1
+    ? tx(copy.chit.haptaClosedLine, {
+      n: cycle - 1,
+      name: names[prevAwards[0].winnerId] || copy.common.member,
+      amount: inr(prevAwards[0].payout),
+    })
+    : isRunning && freshHapta && prevAwards.length > 1
+      ? tx(copy.chit.haptaClosedPlain, { n: cycle - 1 })
+      : "";
+  const haptaLead = !isRunning
+    ? data.status === "completed"
+      ? tx(copy.chit.allHaptasClosed, { n: data.duration })
+      : tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })
+    : jobStep === "collect"
+      ? remainDue === 1
+        ? copy.chit.onePersonNotPaid
+        : tx(copy.chit.peopleNotPaid, { n: remainDue })
+      : jobStep === "award"
+        ? data.type === "loan"
+          ? copy.chit.loanJob
+          : remainDue === 0
+            ? copy.chit.everyoneHasPaidGive
+            : copy.chit.awardFirstJob
+        : lastWin
+          ? tx(copy.chit.potGivenClose, { name: names[lastWin.winnerId] || copy.common.member })
+          : copy.chit.readyToClose;
+  const haptaAction = !isRunning
+    ? copy.chit.backToBhishis
+    : jobStep === "collect"
+      ? copy.chit.collectFromThem
+      : jobStep === "award"
+        ? data.type === "loan" ? copy.chit.giveLoan : copy.chit.giveThePot
+        : tx(copy.chit.closeHaptaN, { n: cycle });
+  const haptaTone = !isRunning ? "ghost" as const : jobStep === "close" ? "green" as const : "blue" as const;
+  const potHistory = [...data.auctions]
+    .filter((a) => a.method !== "settlement")
+    .sort((a, b) => a.cycle - b.cycle || (a.winnerSlot || 0) - (b.winnerSlot || 0));
+  const nextAfterCollect: HaptaStepId = awardFirst || awardResolved ? "close" : "award";
 
   return (
     <AppShell crumb={copy.nav.chits} crumb2={data.name}>
@@ -1016,72 +1103,56 @@ export function ChitDetailPage() {
         })()}
 
         {tab === "monthly" && (
-          <div className="stack">
-            {(() => {
-              const awardLabel = awardFirst
-                ? copy.chit.award
-                : data.type === "loan"
-                  ? (loanAllowed ? copy.chit.award : copy.chit.closeStep)
-                  : luckyDrawChit
-                    ? copy.type.lucky_draw
-                    : fixedLike
-                      ? copy.chit.award
-                      : copy.chit.award;
-              const subs = awardFirst
-                ? [
-                    { id: "award" as const, label: `1. ${awardLabel}` },
-                    { id: "collect" as const, label: `2. ${copy.chit.collect}` },
-                    { id: "close" as const, label: `3. ${copy.chit.closeStep}` },
-                  ]
-                : [
-                    { id: "collect" as const, label: `1. ${copy.chit.collect}` },
-                    { id: "award" as const, label: `2. ${awardLabel}` },
-                    { id: "close" as const, label: `3. ${copy.chit.closeStep}` },
-                  ];
-              const awardDone = awardResolved;
-              const collectDone = awardFirst
-                ? awardResolved && remainDue === 0
-                : remainDue === 0;
-              return (
-                <div className="month-steps" role="tablist" aria-label={copy.chit.monthlySteps}>
-                  {subs.map((s) => {
-                    const done = s.id === "collect" ? collectDone : s.id === "award" ? awardDone : false;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={monthSub === s.id}
-                        className={`month-step${monthSub === s.id ? " on" : ""}${done && monthSub !== s.id ? " done" : ""}`}
-                        onClick={() => setMonthSub(s.id)}
-                      >
-                        {s.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+          <div className={`stack hapta-flow${showCalc ? " calc-open" : ""}`}>
+            {(showHaptaHome || !isRunning) ? (
+              <HaptaGuide
+                kicker={isRunning ? copy.chit.thisHapta : undefined}
+                title={
+                  isRunning
+                    ? tx(copy.chit.haptaOf, { n: cycle, total: data.duration })
+                    : data.status === "completed"
+                      ? copy.chit.bhishiFinished
+                      : (statusLabel(data.status) || data.status)
+                }
+                note={closedNote || undefined}
+                lead={haptaLead}
+                steps={isRunning ? haptaRail : undefined}
+                onStep={isRunning ? openHaptaStep : undefined}
+                stepsLabel={copy.chit.monthlySteps}
+                actionLabel={haptaAction}
+                actionTone={haptaTone}
+                onAction={() => {
+                  if (!isRunning) nav("/chits");
+                  else openHaptaStep(jobStep);
+                }}
+                potsTitle={!isRunning && potHistory.length ? copy.chit.whoGotThePot : undefined}
+                pots={!isRunning ? potHistory.map((a, i) => ({
+                  key: `${a.cycle}-${a.winnerId}-${a.winnerSlot ?? i}`,
+                  text: tx(copy.chit.potLine, {
+                    n: a.cycle,
+                    name: names[a.winnerId] || copy.common.member,
+                    amount: inr(a.payout),
+                  }),
+                })) : undefined}
+              />
+            ) : (
+            <>
+            <button type="button" className="hapta-back" onClick={() => setShowHaptaHome(true)}>
+              <ChevronLeft size={18} /> {copy.common.back}
+            </button>
+            <HaptaRail steps={haptaRailFor(monthSub)} onStep={openHaptaStep} label={copy.chit.monthlySteps} />
             {monthSub === "collect" && (
             <>
-            <div className="stats two">
-              <StatCard label={copy.chit.expectedThisHapta} value={inr(expectedThisCycle(data))} hint="target" tone="blue" icon={Wallet} />
-              <StatCard label={copy.terms.collected} value={inr(collectedThisCycle(data))} hint="received" tone="green" icon={PiggyBank} />
-            </div>
-            <div className="card flush member-list-card">
-              <div className="card-pad month-head">
-                <div className="member-list-head" style={{ padding: 0 }}>
-                  {tx(copy.chit.haptaCollectMeta, {
-                    n: cycle,
-                    status: isRunning ? copy.chit.open : copy.chit.closed,
-                    done: collectedCount(data),
-                    total: data.members.length,
-                  })}
+            <div className="card flush member-list-card hapta-panel">
+              <div className="hapta-collect-head">
+                <div>
+                  <h2>{tx(copy.chit.haptaOf, { n: cycle, total: data.duration })}</h2>
+                  <p className="muted">{tx(copy.chit.handsCollected, { done: collectedCount(data), total: data.members.length })}</p>
                 </div>
-                <div className="seg">
+                {remainDue > 0 ? (
                   <button
-                    className="btn"
-                    disabled={!isRunning || !remainDue || busyAll || (awardFirst && !awardResolved)}
+                    className="btn wide hapta-cta"
+                    disabled={!isRunning || busyAll || (awardFirst && !awardResolved)}
                     onClick={() => {
                       setBusyAll(true);
                       void recordAllPayments(data.id).finally(() => {
@@ -1090,15 +1161,24 @@ export function ChitDetailPage() {
                       });
                     }}
                   >
-                    {busyAll ? copy.chit.recording : copy.chit.recordAll}
+                    {busyAll ? copy.chit.recording : copy.chit.everyonePaid}
                   </button>
-                  <button className="btn ghost" type="button" disabled={!isRunning || !remainDue || (awardFirst && !awardResolved)} onClick={() => {
+                ) : (
+                  <button type="button" className="btn wide hapta-cta" onClick={() => openHaptaStep(nextAfterCollect)}>
+                    {nextAfterCollect === "close" ? tx(copy.chit.closeHaptaN, { n: cycle }) : copy.chit.giveThePot}
+                  </button>
+                )}
+                <button
+                  className="hapta-text-btn"
+                  type="button"
+                  disabled={!isRunning || !remainDue || (awardFirst && !awardResolved)}
+                  onClick={() => {
                     setUnpaidNoted(true);
                     goAfterCollect();
-                  }}>
-                    {copy.chit.markAllUnpaid}
-                  </button>
-                </div>
+                  }}
+                >
+                  {copy.chit.markAllUnpaid}
+                </button>
               </div>
               {awardFirst && !awardResolved && (
                 <PromptBox tone="amber" className="inline">
@@ -1187,10 +1267,15 @@ export function ChitDetailPage() {
                             {handLabel(names[m.customerId] || copy.common.member, m.slot, hands)}
                             {isWinner ? <span className="muted">{copy.chit.winnerSuffix}</span> : null}
                           </button>
-                          <div className="muted member-list-meta">
-                            {fullyPaid
-                              ? copy.chit.paidForMonth
-                              : tx(copy.chit.balanceLeft, { amount: inr(left || due) })}
+                          <div className="muted member-list-meta hapta-row-meta">
+                            <span className={`hapta-pill ${fullyPaid ? "is-paid" : "is-due"}`}>
+                              {fullyPaid ? copy.payStatus.paid : copy.chit.notPaid}
+                            </span>
+                            <span>
+                              {fullyPaid
+                                ? copy.chit.paidForMonth
+                                : tx(copy.chit.balanceLeft, { amount: inr(left || due) })}
+                            </span>
                           </div>
                         </div>
                         {fullyPaid ? (
@@ -1252,7 +1337,7 @@ export function ChitDetailPage() {
             </>
             )}
             {monthSub === "award" && (
-            <div className="card">
+            <div className="card hapta-panel">
               <div className="month-head" style={{ padding: 0 }}>
                 <div>
                   <h2 style={{ margin: 0 }}>
@@ -1345,7 +1430,10 @@ export function ChitDetailPage() {
                     value={awardCommission}
                     onChange={(e) => setAwardCommission(e.target.value.replace(/\D/g, "").slice(0, 8))}
                   />
-                  <p className="muted" style={{ margin: "0 0 12px" }}>{copy.chit.awardCommissionHint}</p>
+                  <p className="muted" style={{ margin: "0 0 4px" }}>{copy.chit.awardCommissionHint}</p>
+                  <button type="button" className="hapta-text-btn" onClick={() => setShowCalc((v) => !v)}>
+                    {showCalc ? copy.chit.hideCalculation : copy.chit.seeCalculation}
+                  </button>
                   {data.type === "auction" && (
                     <>
                       {lastAuctionMonth ? (
@@ -1388,7 +1476,7 @@ export function ChitDetailPage() {
                             const slot = winnerSlot ?? lastMember?.slot;
                             const preview = settleWinner(data, who, auctionFirst ? data.pot : cashOnHand, "auction", slot, undefined, awardCommissionRupees);
                             return (
-                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                              <div className="card hapta-preview" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(preview.bid)}</strong></div>
                                 {preview.arrearsWithheld > 0 && (
                                   <>
@@ -1457,7 +1545,7 @@ export function ChitDetailPage() {
                               ? auctionFirstShare({ ...data, auctions: [...data.auctions.filter((a) => a.cycle !== cycle), preview] }, cycle)
                               : null;
                             return (
-                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                              <div className="card hapta-preview" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(awardFace)}</strong></div>
                                 {entered > 0 && awardFace !== entered && (
                                   <p className="muted" style={{ margin: "4px 0 0" }}>
@@ -1627,7 +1715,7 @@ export function ChitDetailPage() {
                             const interest = loanMonthlyInterest(data, face, rate);
                             const balloon = (data.loanPrincipalMode || "emi") === "end";
                             return (
-                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                              <div className="card hapta-preview" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.hand}</span><strong>{tx(copy.chit.slot, { n: winnerSlot })}</strong></div>
                                 <div className="kv"><span>{copy.chit.faceLoan}</span><strong>{inr(face)}{faceReq > face ? ` ${tx(copy.chit.cappedFrom, { amount: inr(faceReq) })}` : ""}</strong></div>
                                 <div className="kv"><span>{copy.chit.interest}</span><strong>{tx(copy.chit.interestPctMonth, { rate })}</strong></div>
@@ -1799,7 +1887,7 @@ export function ChitDetailPage() {
                             const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot, undefined, awardCommissionRupees);
                             const still = Math.max(0, unprized.length - 1);
                             return (
-                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                              <div className="card hapta-preview" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.winnerTakes}</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(preview.commission)}</strong></div>
                                 <div className="kv"><span>{copy.chit.dividendPool}</span><strong>{inr(preview.discount)}</strong></div>
@@ -1842,7 +1930,7 @@ export function ChitDetailPage() {
                             const preview = settleWinner(data, winnerId, data.pot, "fixed", winnerSlot, undefined, awardCommissionRupees);
                             const cashAfter = cashOnHand - preview.payout - preview.commission;
                             return (
-                              <div className="card" style={{ marginTop: 12, background: "#f8fafc" }}>
+                              <div className="card hapta-preview" style={{ marginTop: 12, background: "#f8fafc" }}>
                                 <div className="kv"><span>{copy.chit.memberReceives}</span><strong>{inr(preview.payout)}</strong></div>
                                 <div className="kv"><span>{copy.chit.yourCommission}</span><strong>{inr(preview.commission)}</strong></div>
                                 <div className="kv"><span>{copy.chit.cashOnHandAfter}</span><strong className={cashAfter < 0 ? "neg" : ""}>{inr(cashAfter)}</strong></div>
@@ -1858,56 +1946,52 @@ export function ChitDetailPage() {
             </div>
             )}
             {monthSub === "close" && (
-            <div className="card">
-              <div className="month-head" style={{ padding: 0 }}>
-                <div>
-                  <h2 style={{ margin: 0 }}>Close month {cycle}</h2>
-                  <p className="muted">
-                    {auctionFirst
-                      ? copy.chit.closeAfterAuction
-                      : data.type === "loan"
-                        ? !loanAllowed
-                          ? copy.chit.closeLastSettle
-                          : copy.chit.closeLoan
-                        : copy.chit.closeDefault}
-                  </p>
-                </div>
-                <button
-                  className="btn green"
-                  disabled={
-                    !isRunning
-                      ? true
-                      : !collectCloseGate.ok
-                        ? true
-                      : !lastMonthGate.ok
-                        ? true
-                      : data.mode === "organise" && data.type === "auction" && !lastWin
-                        ? true
-                        : data.mode === "organise" && fixedLike && !lastWin
-                          ? true
-                          : false
-                  }
-                  onClick={() => {
-                    const finishing = cycle >= data.duration;
-                    void closeCycle(data.id).then(() => {
-                      goAfterClose();
-                      if (finishing) setCelebrate("completed");
-                    });
-                  }}
-                >
-                  Close month
-                </button>
-              </div>
-              {!isRunning ? (
-                <p className="muted" style={{ margin: "12px 0 0" }}>
-                  {tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })}
-                </p>
-              ) : !collectCloseGate.ok ? (
-                <p className="due" style={{ margin: "12px 0 0" }}>{collectCloseGate.reason}</p>
+            <div className="card hapta-panel">
+              <h2 className="hapta-panel-title">{tx(copy.chit.closeHaptaTitle, { n: cycle })}</h2>
+              <p className="hapta-panel-lead">
+                {lastWin && data.type !== "loan"
+                  ? tx(copy.chit.potGivenClose, { name: names[lastWin.winnerId] || copy.common.member })
+                  : auctionFirst
+                    ? copy.chit.closeAfterAuction
+                    : data.type === "loan"
+                      ? !loanAllowed
+                        ? copy.chit.closeLastSettle
+                        : copy.chit.closeLoan
+                      : copy.chit.closeDefault}
+              </p>
+              {!collectCloseGate.ok ? (
+                <p className="due">{collectCloseGate.reason}</p>
               ) : !lastMonthGate.ok ? (
-                <p className="due" style={{ margin: "12px 0 0" }}>{lastMonthGate.reason}</p>
-              ) : (
-                <div style={{ marginTop: 12 }}>
+                <p className="due">{lastMonthGate.reason}</p>
+              ) : data.mode === "organise" && data.type === "auction" && !lastWin ? (
+                <p className="due">{copy.chit.recordAuctionBeforeClose}</p>
+              ) : data.mode === "organise" && fixedLike && !lastWin ? (
+                <p className="due">{copy.chit.awardPotBeforeClose}</p>
+              ) : null}
+              <button
+                className="btn green wide hapta-cta"
+                disabled={
+                  !isRunning
+                    || !collectCloseGate.ok
+                    || !lastMonthGate.ok
+                    || (data.mode === "organise" && data.type === "auction" && !lastWin)
+                    || (data.mode === "organise" && fixedLike && !lastWin)
+                }
+                onClick={() => {
+                  const finishing = cycle >= data.duration;
+                  void closeCycle(data.id).then(() => {
+                    goAfterClose();
+                    if (finishing) setCelebrate("completed");
+                  });
+                }}
+              >
+                {tx(copy.chit.closeHaptaN, { n: cycle })}
+              </button>
+              <button type="button" className="hapta-text-btn" onClick={() => setShowCloseDetail((v) => !v)}>
+                {showCloseDetail ? copy.chit.hideCalculation : copy.chit.seeCalculation}
+              </button>
+              {showCloseDetail && (
+                <div>
                   <div className="kv"><span>{copy.chit.collectedThisMonth}</span><strong>{inr(collectedThisCycle(data))}</strong></div>
                   <div className="kv"><span>{copy.chit.outstandingLabel}</span><strong>{inr(outstandingOf(data))}</strong></div>
                   <div className="kv">
@@ -1936,6 +2020,8 @@ export function ChitDetailPage() {
                 </div>
               )}
             </div>
+            )}
+            </>
             )}
           </div>
         )}
