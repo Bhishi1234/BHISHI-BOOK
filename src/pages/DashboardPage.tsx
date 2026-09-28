@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ArrowUpRight, Layers, Wallet, AlertCircle, Share2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
@@ -6,12 +7,19 @@ import { AppShell } from "../layout/AppShell";
 import { chitProgress, collectedThisCycle, displayCycle, outstandingOf } from "../lib/chitMath";
 import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
+import { FirstRunWelcome } from "../components/FirstRunWelcome";
+import { firstRunStage, setFirstRun } from "../lib/firstRun";
 import { StatCard, toneAt } from "../ui/StatCard";
 
 export function DashboardPage() {
   const { user, chits } = useStore();
   const { m, typeLabel, statusLabel, greetingNow, longDateNow } = useI18n();
   const nav = useNavigate();
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    const stage = user ? firstRunStage(user) : null;
+    if (stage === "pending" || stage === "creating") setWelcome(true);
+  }, [user]);
   const active = chits.filter((c) => c.status === "running");
   const managed = active.filter((c) => c.mode === "organise" && c.members.length > 0 && c.viewerRole !== "member");
   const tracking = active.filter((c) => c.mode === "tracking" && c.viewerRole !== "member");
@@ -147,6 +155,19 @@ export function DashboardPage() {
           {!tracking.length && !shared.length && <p className="empty">{m.chitsPage.empty}</p>}
         </div>
       </div>
+      {welcome && user && (
+        <FirstRunWelcome
+          onCreate={() => {
+            setFirstRun(user, "creating");
+            setWelcome(false);
+            nav("/chits/new");
+          }}
+          onLater={() => {
+            setFirstRun(user, "done");
+            setWelcome(false);
+          }}
+        />
+      )}
     </AppShell>
   );
 }

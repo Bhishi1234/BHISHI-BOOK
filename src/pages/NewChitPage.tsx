@@ -12,6 +12,7 @@ import { frequencyForInterval, HAPTA_PRESETS } from "../lib/haptaInterval";
 import { pickContactsFromBook } from "../lib/contacts";
 import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
 import { usePhonesOnApp } from "../lib/usePhonesOnApp";
+import { firstRunStage, setFirstRun } from "../lib/firstRun";
 import { useStore } from "../store";
 
 const STEPS = 8;
@@ -117,8 +118,8 @@ export function NewChitPage() {
   }
 
   function canAdvance() {
-    if (step === 2) return potN > 0;
-    if (step === 3) return n >= 1;
+    if (step === 2) return n >= 1;
+    if (step === 3) return potN > 0;
     if (step === 4) return intervalOk;
     if (step === 5) return Boolean(start);
     if (step === 6) return n > 0 && picked.length === n;
@@ -253,6 +254,9 @@ export function NewChitPage() {
         remindDays: [],
         memberVisible: visible,
       });
+      if (user && (firstRunStage(user) === "pending" || firstRunStage(user) === "creating")) {
+        setFirstRun(user, "tour");
+      }
       nav(`/chits/${id}`);
     } finally {
       setSaving(false);
@@ -308,8 +312,8 @@ export function NewChitPage() {
   const heading =
     step === 0 ? copy.kindTitle
       : step === 1 ? copy.turnTitle
-        : step === 2 ? copy.potTitle
-          : step === 3 ? copy.peopleTitle
+        : step === 2 ? copy.peopleTitle
+          : step === 3 ? copy.potTitle
             : step === 4 ? copy.oftenTitle
               : step === 5 ? copy.startTitle
                 : step === 6 ? copy.whoTitle
@@ -317,8 +321,8 @@ export function NewChitPage() {
   const lead =
     step === 0 ? copy.kindLead
       : step === 1 ? (type === "loan" ? copy.turnLoan : type === "fixed" ? copy.turnFixed : copy.turnAuction)
-        : step === 2 ? copy.potLead
-          : step === 3 ? copy.peopleLead
+        : step === 2 ? copy.peopleLead
+          : step === 3 ? copy.potLead
             : step === 4 ? copy.oftenLead
               : step === 6 && n
                 ? tx(m.newChitExtra.slotsFilled, { filled: picked.length, total: n })
@@ -374,7 +378,7 @@ export function NewChitPage() {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <div className="card create-card">
             <label className="label" htmlFor="create-pot">{copy.potLabel}</label>
             <input
@@ -395,7 +399,7 @@ export function NewChitPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <>
             <div className="card create-card">
               <label className="label" htmlFor="create-people">{copy.peopleLabel}</label>
@@ -588,8 +592,8 @@ export function NewChitPage() {
             <div className="card create-card create-review">
               <div><span>{copy.kind}</span><strong>{kindName}</strong></div>
               <div><span>{copy.turn}</span><strong>{turnLabel}</strong></div>
-              <div><span>{copy.pot}</span><strong>{inr(potN)}</strong></div>
               <div><span>{copy.people}</span><strong>{tx(copy.peopleLine, { n, amount: inr(instalment) })}</strong></div>
+              <div><span>{copy.pot}</span><strong>{inr(potN)}</strong></div>
               <div><span>{copy.pay}</span><strong>{intervalDays === 1 ? copy.everyDay : tx(copy.everyDays, { n: intervalDays })}</strong></div>
               <div><span>{copy.dates}</span><strong>{tx(copy.datesLine, { start: prettyDate(start, locale), end: endLabel })}</strong></div>
               <div><span>{copy.name}</span><strong>{groupName}</strong></div>
@@ -652,6 +656,22 @@ export function NewChitPage() {
               </div>
             )}
           </>
+        )}
+
+        <p className={`create-info${step === 1 || step === 4 || step === 6 ? " amber" : ""}${step === 7 ? " green" : ""}`}>
+          {step === 0 ? copy.kindInfo
+            : step === 1 && type === "fixed" ? copy.turnFixedInfo
+              : step === 1 && type === "loan" ? copy.turnLoanInfo
+                : step === 1 ? copy.turnAuctionInfo
+                  : step === 2 ? copy.peopleInfo
+                    : step === 3 ? copy.potInfo
+                      : step === 4 ? copy.oftenInfo
+                        : step === 5 ? copy.startInfo
+                          : step === 6 ? copy.membersInfo
+                            : copy.reviewInfo}
+        </p>
+        {step === 3 && n > 0 && potN > 0 && (
+          <p className="create-info green">{tx(copy.potShare, { amount: inr(instalment) })}</p>
         )}
 
         <div className="create-actions">

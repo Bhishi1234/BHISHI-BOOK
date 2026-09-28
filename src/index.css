@@ -3180,6 +3180,76 @@ body.native-app {
   font-size: 13px;
   line-height: 1.45;
 }
+.create-info {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border: 1px solid #bfdbfe;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.create-info.amber {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.create-info.green {
+  background: #ecfdf5;
+  color: #067647;
+  border-color: #a7f3d0;
+}
+.first-run-back {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 0.62);
+}
+.first-run-card {
+  width: min(420px, 100%);
+  padding: 22px 18px 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(15 23 42 / 0.22);
+}
+.first-run-card h2 { margin: 4px 0 8px; font-size: 20px; }
+.first-run-card p { margin: 0 0 14px; color: #475569; line-height: 1.5; }
+.first-run-card .btn { margin-bottom: 4px; }
+.tour-layer { position: fixed; inset: 0; z-index: 70; }
+.tour-dim, .tour-shade {
+  position: fixed;
+  background: rgb(15 23 42 / 0.62);
+}
+.tour-dim { inset: 0; }
+.tour-hole {
+  position: fixed;
+  border-radius: 16px;
+  box-shadow: 0 0 0 2px #fff;
+  pointer-events: auto;
+  background: transparent;
+}
+.tour-card {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 0.2);
+  z-index: 71;
+}
+.tour-card.is-top { bottom: auto; top: 16px; }
+.tour-card h2 { margin: 0 0 8px; font-size: 18px; }
+.tour-card p { margin: 0; color: #334155; line-height: 1.5; }
+.tour-count { margin-bottom: 6px !important; font-size: 12px; font-weight: 700; color: var(--blue) !important; }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
 .create-actions { margin-top: 16px; }
 .create-review { display: flex; flex-direction: column; }
 .create-review > div,

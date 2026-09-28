@@ -12,6 +12,7 @@ import {
   Wallet,
   Check,
 } from "lucide-react";
+import { FirstRunTour } from "../components/FirstRunTour";
 import { HaptaGuide, HaptaRail, type HaptaStepId } from "../components/HaptaGuide";
 import { PayModal } from "../components/PayModal";
 import { MemberReachButtons } from "../components/MemberReachButtons";
@@ -22,6 +23,7 @@ import { ReasonModal } from "../components/ReasonModal";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
 import { buildActivityLog, formatActivityAt, groupActivityByCycle } from "../lib/activityLog";
+import { firstRunStage, setFirstRun } from "../lib/firstRun";
 import { StatCard, toneAt } from "../ui/StatCard";
 import { useI18n } from "../i18n";
 import {
@@ -122,6 +124,7 @@ export function ChitDetailPage() {
   const [collectHelpOpen, setCollectHelpOpen] = useState(false);
   const [awardTouched, setAwardTouched] = useState(false);
   const reportsRef = useRef<HTMLDivElement | null>(null);
+  const [showTour, setShowTour] = useState(false);
   const skipScrollTopRef = useRef(false);
   function pickTab(next: ChitTab) {
     setTab(next);
@@ -133,6 +136,10 @@ export function ChitDetailPage() {
     setShowCalc(false);
     setShowCloseDetail(false);
   }, [id, chit?.currentCycle]);
+
+  useEffect(() => {
+    setShowTour(Boolean(user && firstRunStage(user) === "tour"));
+  }, [user, id]);
 
   useEffect(() => {
     if (skipScrollTopRef.current) {
@@ -619,6 +626,7 @@ export function ChitDetailPage() {
             </button>
             <button
               type="button"
+              data-tour="chit-more"
               className={`wizard-tab${tab !== "monthly" ? " active" : ""}`}
               onClick={() => pickTab(openMoreTab)}
             >
@@ -2753,6 +2761,10 @@ export function ChitDetailPage() {
             </div>
           </div>
         </ModalPortal>
+      )}
+
+      {showTour && user && (
+        <FirstRunTour onDone={() => { setFirstRun(user, "done"); setShowTour(false); }} />
       )}
 
       {payFor && (

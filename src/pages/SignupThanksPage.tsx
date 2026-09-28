@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n";
+import { beginFirstRun } from "../lib/firstRun";
 import { clearSignupThanks, consumeSignupConversion, signupThanksAccess, trackMetaPageView } from "../lib/metaPixel";
 import { useStore } from "../store";
 
@@ -13,6 +14,7 @@ export function SignupThanksPage() {
   useEffect(() => {
     if (!ready || !user || access === "none") return;
     trackMetaPageView();
+    beginFirstRun(user);
     if (access === "pending") consumeSignupConversion();
   }, [access, ready, user]);
 

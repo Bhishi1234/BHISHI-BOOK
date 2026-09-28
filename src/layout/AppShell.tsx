@@ -106,7 +106,7 @@ export function AppShell({
         <span>{m.brand}</span>
       </NavLink>
       {NAV.map((n) => (
-        <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => `nav-btn${isActive ? " active" : ""}`}>
+        <NavLink key={n.to} to={n.to} end={n.to === "/"} data-tour={n.to === "/chits" ? "nav-bhishi" : undefined} className={({ isActive }) => `nav-btn${isActive ? " active" : ""}`}>
           <n.icon size={18} />
           {n.label}
         </NavLink>
@@ -226,6 +226,7 @@ export function AppShell({
                 key={n.to}
                 to={n.to}
                 end={n.to === "/"}
+                data-tour={n.to === "/chits" ? "nav-bhishi" : undefined}
                 className={({ isActive }) => `bottom-tab${isActive ? " active" : ""}`}
               >
                 <n.icon size={20} strokeWidth={isActivePath(loc.pathname, n.to) ? 2.4 : 2} />

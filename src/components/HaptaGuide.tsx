@@ -67,7 +67,7 @@ export function HaptaGuide({
   pots?: { key: string; text: string }[];
 }) {
   return (
-    <section className="hapta-home">
+    <section className="hapta-home" data-tour="hapta">
       {kicker ? <p className="hapta-kicker">{kicker}</p> : null}
       <h2>{title}</h2>
       {note ? <p className="hapta-note">{note}</p> : null}
@@ -88,6 +88,7 @@ export function HaptaGuide({
       {actionLabel && onAction ? (
         <button
           type="button"
+          data-tour="hapta-cta"
           className={`btn wide hapta-cta${actionTone === "green" ? " green" : ""}${actionTone === "ghost" ? " ghost" : ""}`}
           onClick={onAction}
         >
