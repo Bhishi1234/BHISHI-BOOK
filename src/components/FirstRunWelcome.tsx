@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { ModalPortal } from "./ModalPortal";
 
@@ -17,7 +18,7 @@ export function FirstRunWelcome({
           <p className="hapta-kicker">Bhishi Circle</p>
           <h2 id="first-run-title">{copy.welcomeTitle}</h2>
           <p>{copy.welcomeBody}</p>
-          <button type="button" className="btn wide" onClick={onCreate}>{copy.createBhishi}</button>
+          <Link className="btn wide" to="/chits/new" onClick={onCreate}>{copy.createBhishi}</Link>
           <button type="button" className="hapta-text-btn" onClick={onLater}>{copy.later}</button>
         </div>
       </div>

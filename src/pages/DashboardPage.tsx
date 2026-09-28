@@ -159,8 +159,6 @@ export function DashboardPage() {
         <FirstRunWelcome
           onCreate={() => {
             setFirstRun(user, "creating");
-            setWelcome(false);
-            nav("/chits/new");
           }}
           onLater={() => {
             setFirstRun(user, "done");
