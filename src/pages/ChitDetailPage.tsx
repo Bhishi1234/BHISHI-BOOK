@@ -5,7 +5,6 @@ import {
   BookUser,
   Calendar,
   ChevronLeft,
-  ChevronRight,
   Info,
   Percent,
   PiggyBank,
@@ -112,7 +111,9 @@ export function ChitDetailPage() {
   const { m: copy, tx, typeLabel, freqLabel, modeLabel, statusLabel, tabLabel, locale } = useI18n();
   const nav = useNavigate();
   const chit = chits.find((c) => c.id === id);
-  const [tab, setTab] = useState<"overview" | "collections" | "monthly" | "members" | "activity" | "settlement" | "settings">("monthly");
+  type ChitTab = "overview" | "collections" | "monthly" | "members" | "activity" | "settlement" | "settings";
+  const [tab, setTab] = useState<ChitTab>("monthly");
+  const [moreTab, setMoreTab] = useState<Exclude<ChitTab, "monthly">>("overview");
   const [monthSub, setMonthSub] = useState<"collect" | "award" | "close">("collect");
   const [showHaptaHome, setShowHaptaHome] = useState(true);
   const [showCalc, setShowCalc] = useState(false);
@@ -122,6 +123,10 @@ export function ChitDetailPage() {
   const [awardTouched, setAwardTouched] = useState(false);
   const reportsRef = useRef<HTMLDivElement | null>(null);
   const skipScrollTopRef = useRef(false);
+  function pickTab(next: ChitTab) {
+    setTab(next);
+    if (next !== "monthly") setMoreTab(next);
+  }
 
   useEffect(() => {
     setShowHaptaHome(true);
@@ -164,7 +169,6 @@ export function ChitDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [membersHelpOpen, setMembersHelpOpen] = useState(false);
-  const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setUnpaidNoted(false);
@@ -307,13 +311,10 @@ export function ChitDetailPage() {
   const commissionLabel = data.commissionKind === "amount" && data.commissionValue
     ? inr(data.commissionValue)
     : `${data.commissionPct}%`;
-  const tabItems = (
-    ["overview", "monthly", "collections", "members", "activity", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const
+  const moreTabs = (
+    ["overview", "collections", "members", "activity", ...(showSettlement ? ["settlement" as const] : []), "settings"] as const
   );
-
-  function scrollTabs(dir: -1 | 1) {
-    tabsRef.current?.scrollBy({ left: dir * 140, behavior: "smooth" });
-  }
+  const openMoreTab = moreTab === "settlement" && !showSettlement ? "overview" : moreTab;
 
   function goAfterCollect() {
     setMonthSub(awardFirst ? "close" : "award");
@@ -607,26 +608,40 @@ export function ChitDetailPage() {
           <p className="muted block">{tx(copy.chit.closedBanner, { status: statusLabel(data.status) || data.status })}</p>
         )}
 
-        <div className="chit-tabbar">
-          <button type="button" className="chit-tab-arrow" aria-label={copy.chit.scrollTabsLeft} onClick={() => scrollTabs(-1)}>
-            <ChevronLeft size={18} />
-          </button>
-          <div className="chit-tabbar-scroll" ref={tabsRef}>
-            {tabItems.map((t) => (
+        <div className="chit-tabbar chit-tabbar-simple">
+          <div className="chit-tabbar-scroll">
+            <button
+              type="button"
+              className={`wizard-tab${tab === "monthly" ? " active" : ""}`}
+              onClick={() => pickTab("monthly")}
+            >
+              <span className="wizard-tab-label">{tabLabel("monthly")}</span>
+            </button>
+            <button
+              type="button"
+              className={`wizard-tab${tab !== "monthly" ? " active" : ""}`}
+              onClick={() => pickTab(openMoreTab)}
+            >
+              <span className="wizard-tab-label">{copy.nav.more}</span>
+            </button>
+          </div>
+        </div>
+        {tab !== "monthly" && (
+          <div className="chit-more-tabs" role="tablist" aria-label={copy.nav.more}>
+            {moreTabs.map((t) => (
               <button
                 key={t}
                 type="button"
-                className={`wizard-tab${tab === t ? " active" : ""}`}
-                onClick={() => setTab(t)}
+                role="tab"
+                aria-selected={tab === t}
+                className={tab === t ? "active" : ""}
+                onClick={() => pickTab(t)}
               >
-                <span className="wizard-tab-label">{tabLabel(t)}</span>
+                {tabLabel(t)}
               </button>
             ))}
           </div>
-          <button type="button" className="chit-tab-arrow" aria-label={copy.chit.scrollTabsRight} onClick={() => scrollTabs(1)}>
-            <ChevronRight size={18} />
-          </button>
-        </div>
+        )}
 
         {tab === "overview" && (
           <div className="stats four">
@@ -2723,7 +2738,7 @@ export function ChitDetailPage() {
                   onClick={() => {
                     setCelebrate(null);
                     skipScrollTopRef.current = true;
-                    setTab("settings");
+                    pickTab("settings");
                     window.setTimeout(() => {
                       reportsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                     }, 80);

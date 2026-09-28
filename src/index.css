@@ -907,6 +907,30 @@ button.stat {
 .chit-tabbar-scroll .wizard-tab.active + .wizard-tab::after {
   display: none;
 }
+.chit-tabbar-simple .chit-tabbar-scroll .wizard-tab {
+  flex: 1 1 0;
+}
+.chit-more-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -8px 0 16px;
+}
+.chit-more-tabs button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #4b5563;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chit-more-tabs button.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
 
 .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .toolbar .field { margin: 0; min-height: 36px; font-size: 12.5px; padding: 7px 10px; max-width: 100%; }
@@ -1092,11 +1116,11 @@ button.stat {
   color: var(--blue);
 }
 .hapta-home h2 {
-  margin: 4px 0 10px;
-  font-size: 28px;
-  line-height: 1.15;
-  letter-spacing: -0.04em;
-  font-weight: 700;
+  margin: 2px 0 8px;
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 .hapta-note {
   margin: 0 0 12px;
@@ -1109,8 +1133,8 @@ button.stat {
   line-height: 1.4;
 }
 .hapta-lead {
-  margin: 0 0 18px;
-  font-size: 16px;
+  margin: 0 0 14px;
+  font-size: 13px;
   line-height: 1.45;
   color: #334155;
 }
@@ -1137,9 +1161,9 @@ button.stat {
 .hapta-rail-step:not(:last-child)::after {
   content: "";
   position: absolute;
-  top: 15px;
-  left: calc(50% + 18px);
-  width: calc(100% - 36px);
+  top: 12px;
+  left: calc(50% + 16px);
+  width: calc(100% - 32px);
   height: 2px;
   background: #e6edf5;
   border-radius: 99px;
@@ -1148,15 +1172,15 @@ button.stat {
 .hapta-rail-mark {
   position: relative;
   z-index: 1;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
   display: grid;
   place-items: center;
   background: #f1f5f9;
   color: #94a3b8;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 .hapta-rail-step.on { color: var(--ink); }
 .hapta-rail-step.on .hapta-rail-mark {
@@ -1174,10 +1198,10 @@ button.stat {
   text-align: center;
 }
 .hapta-cta {
-  min-height: 48px;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 700;
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
 }
 .btn.green.hapta-cta:hover { background: #0b8a5e; }
 .hapta-back {
@@ -1195,14 +1219,14 @@ button.stat {
 .hapta-panel { border-radius: 18px; }
 .hapta-panel-title {
   margin: 0 0 4px;
-  font-size: 20px;
-  letter-spacing: -0.03em;
-  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 .hapta-panel-lead {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   color: #334155;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.45;
 }
 .hapta-collect-head {
@@ -1213,8 +1237,8 @@ button.stat {
 }
 .hapta-collect-head h2 {
   margin: 0;
-  font-size: 18px;
-  letter-spacing: -0.03em;
+  font-size: 14.5px;
+  letter-spacing: -0.02em;
 }
 .hapta-collect-head p { margin: 2px 0 0; }
 .hapta-text-btn {
@@ -1290,10 +1314,10 @@ button.stat {
 }
 .hapta-pot-list li:first-child { border-top: 0; }
 .pay-due-figure {
-  margin: 6px 0 14px;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  margin: 4px 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 .pay-choices {
@@ -1305,11 +1329,11 @@ button.stat {
 .pay-choice {
   border: 1px solid var(--line);
   background: #fff;
-  border-radius: 14px;
-  min-height: 64px;
+  border-radius: 12px;
+  min-height: 48px;
   padding: 8px 6px;
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 600;
+  font-size: 12.5px;
   line-height: 1.25;
   cursor: pointer;
   color: var(--ink);
