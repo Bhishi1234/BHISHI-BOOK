@@ -22,7 +22,7 @@ export function CustomerDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { customers, chits, updateCustomer, error } = useStore();
-  const { m, tx, typeLabel, modeLabel, statusLabel, locale } = useI18n();
+  const { m, tx, typeLabel, modeLabel, locale } = useI18n();
   const customer = customers.find((c) => c.id === id);
   const [editPhone, setEditPhone] = useState(false);
   const [phoneVal, setPhoneVal] = useState("");
@@ -184,6 +184,11 @@ export function CustomerDetailPage() {
           {error && editPhone && <p className="due" style={{ marginTop: 6 }}>{error}</p>}
         </div>
 
+        <div className="lead-card">
+          <p className="kicker">{m.customerDetail.stillDueWord}</p>
+          <strong className="lead-figure">{inr(outstanding)}</strong>
+        </div>
+
         <div className="stats four">
           <StatCard label={m.customerDetail.contributed} value={inr(contributed)} hint={m.customersPage.lifetime} tone="teal" icon={PiggyBank} />
           <StatCard label={m.customerDetail.received} value={inr(received)} hint={m.chit.payoutsAndLoans} tone="blue" icon={Wallet} />
@@ -206,7 +211,11 @@ export function CustomerDetailPage() {
             <div className="card"><p className="muted" style={{ margin: 0 }}>{m.chit.notMapped}</p></div>
           )}
           <div className="member-chit-grid">
-            {memberships.map(({ ch, bal, member, hands, payouts, awards }) => (
+            {memberships.map(({ ch, bal, member, hands, payouts, awards }) => {
+              const hapta = displayCycle(ch);
+              const dueNow = rawCycleDue(ch, customer.id, hapta);
+              const paidNow = paidInCycle(ch, customer.id, hapta);
+              return (
               <div key={ch.id} className="card member-chit-card">
                 <div className="member-chit-card-top">
                   <div>
@@ -214,8 +223,17 @@ export function CustomerDetailPage() {
                       {ch.name}
                     </Link>
                     <div className="muted" style={{ marginTop: 2 }}>
-                      {typeLabel(ch.type)} · {statusLabel(ch.status)} · {hands.length > 1 ? `${hands.length} ${m.terms.hands}` : `${m.terms.hand} ${member.slot}`}
-                      {member.prizedCycle ? ` · ${tx(m.customerDetail.cyclePrized, { n: member.prizedCycle })}` : ""}
+                      {typeLabel(ch.type)} · {tx(m.customerDetail.haptaN, { n: hapta })} / {ch.duration}
+                      {hands.length > 1 ? ` · ${hands.length} ${m.terms.hands}` : ` · ${m.terms.hand} ${member.slot}`}
+                    </div>
+                    <div className="muted" style={{ marginTop: 4 }}>
+                      {paidNow >= dueNow ? m.dash.paidHapta : m.dash.notPaidYet}
+                      {" · "}
+                      {tx(m.dash.paidSoFarLine, { amount: inr(bal.paid) })}
+                      {" · "}
+                      {member.prizedCycle
+                        ? tx(m.customerDetail.cyclePrized, { n: member.prizedCycle })
+                        : m.customerDetail.noWinsYet}
                     </div>
                   </div>
                   <button
@@ -252,90 +270,62 @@ export function CustomerDetailPage() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        <div className="card flush block">
-          <div className="card-pad">
-            <h2>{m.customerDetail.ledger}</h2>
-            <p className="muted">{m.customerDetail.ledgerAllHint}</p>
-          </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{m.common.date}</th>
-                  <th>{m.nav.chits}</th>
-                  <th>{m.customerDetail.entry}</th>
-                  <th>{m.payModal.mode}</th>
-                  <th>{m.customerDetail.inCol}</th>
-                  <th>{m.customerDetail.outCol}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledger.map((row) => (
-                  <tr key={row.key}>
-                    <td>{new Date(row.when).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}</td>
-                    <td><Link className="link" to={`/chits/${row.chitId}`}>{row.chitName}</Link></td>
-                    <td>{row.label}</td>
-                    <td>{row.mode ? modeLabel(row.mode) || row.mode : "—"}</td>
-                    <td>{row.credit ? inr(row.credit) : "—"}</td>
-                    <td>{row.debit ? inr(row.debit) : "—"}</td>
-                  </tr>
-                ))}
-                {!ledger.length && (
-                  <tr><td colSpan={6}><p className="empty">{m.chit.ledgerEmpty}</p></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="card block">
+          <h2>{m.customerDetail.ledger}</h2>
+          <p className="muted">{m.customerDetail.ledgerAllHint}</p>
+          {ledger.map((row) => (
+            <div key={row.key} className="kv">
+              <span>
+                <Link className="link" to={`/chits/${row.chitId}`}>{row.chitName}</Link>
+                <div className="muted">
+                  {new Date(row.when).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}
+                  {" · "}
+                  {row.label}
+                  {row.mode ? ` · ${modeLabel(row.mode) || row.mode}` : ""}
+                </div>
+              </span>
+              <strong className={row.debit ? "" : undefined}>
+                {row.credit ? inr(row.credit) : row.debit ? inr(row.debit) : "—"}
+              </strong>
+            </div>
+          ))}
+          {!ledger.length && <p className="empty">{m.chit.ledgerEmpty}</p>}
         </div>
 
         {memberships.map(({ ch, member }) => (
-          <div key={`pass-${ch.id}`} className="card flush block">
-            <div className="card-pad">
-              <div className="row-head" style={{ margin: 0 }}>
-                <div>
-                  <h2 style={{ margin: 0 }}>{m.customerDetail.passbook} · {ch.name}</h2>
-                  <p className="muted" style={{ margin: "4px 0 0" }}>{m.customerDetail.passbookHint}</p>
-                </div>
-                <button
-                  type="button"
-                  className="btn ghost btn-sm"
-                  onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
-                >
-                  {m.customerDetail.openInBhishi}
-                </button>
+          <div key={`pass-${ch.id}`} className="card block">
+            <div className="row-head" style={{ margin: 0 }}>
+              <div>
+                <h2 style={{ margin: 0 }}>{m.customerDetail.passbook} · {ch.name}</h2>
+                <p className="muted" style={{ margin: "4px 0 0" }}>{m.customerDetail.passbookHint}</p>
               </div>
+              <button
+                type="button"
+                className="btn ghost btn-sm"
+                onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
+              >
+                {m.customerDetail.openInBhishi}
+              </button>
             </div>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>{m.chit.cycle}</th>
-                    <th>{m.customerDetail.due}</th>
-                    <th>{m.customerDetail.paidCol}</th>
-                    <th>{m.customerDetail.balanceCol}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: displayCycle(ch) }, (_, i) => i + 1).map((cyc) => {
-                    const due = rawCycleDue(ch, customer.id, cyc);
-                    const paid = paidInCycle(ch, customer.id, cyc);
-                    const left = Math.max(0, due - paid);
-                    return (
-                      <tr key={cyc}>
-                        <td>{member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : `${m.terms.haptaRound} ${cyc}`}</td>
-                        <td>{inr(due)}</td>
-                        <td>{inr(paid)}</td>
-                        <td className={left ? "neg" : ""}>{left ? inr(left) : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {Array.from({ length: displayCycle(ch) }, (_, i) => i + 1).map((cyc) => {
+              const due = rawCycleDue(ch, customer.id, cyc);
+              const paid = paidInCycle(ch, customer.id, cyc);
+              const left = Math.max(0, due - paid);
+              return (
+                <div key={cyc} className="kv">
+                  <span>
+                    {member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : tx(m.customerDetail.haptaN, { n: cyc })}
+                    <div className="muted">{m.customerDetail.due} {inr(due)} · {m.customerDetail.paidCol} {inr(paid)}</div>
+                  </span>
+                  <strong className={left ? "neg" : ""}>{left ? tx(m.find.stillToPay, { amount: inr(left) }) : m.customerDetail.paidWord}</strong>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>

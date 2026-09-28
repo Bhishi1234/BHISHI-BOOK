@@ -5,6 +5,7 @@ import { ModalPortal } from "../components/ModalPortal";
 import { ReasonModal } from "../components/ReasonModal";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
+import { customerOutstanding, displayCycle } from "../lib/chitMath";
 import { chitPath, inr } from "../lib/format";
 import { waMeUrl } from "../lib/share";
 import { useStore } from "../store";
@@ -21,27 +22,31 @@ export function SupportPage() {
   return (
     <AppShell crumb={m.support.title}>
       <div className="page">
-        <div className="row-head">
-          <h1>{m.support.title}</h1>
-          <button className="btn" onClick={() => setOpen(true)}>{m.support.newTicket}</button>
-        </div>
+        <h1 className="block">{m.support.title}</h1>
         <div className="card support-card">
-          <p className="page-sub">{m.support.whatsappBody}</p>
+          <p className="page-sub" style={{ marginTop: 0 }}>{m.support.whatsappBody}</p>
           <a className="btn support-wa" href={whatsappHref} target="_blank" rel="noopener noreferrer">
             <WhatsAppIcon size={18} />
             WhatsApp · 99679 66631
           </a>
         </div>
+        <div className="row-head">
+          <h2>{m.support.yourMessages}</h2>
+        </div>
         <div className="stack">
         {tickets.length === 0 && <p className="muted">{m.support.empty}</p>}
         {tickets.map((t) => (
           <div key={t.id} className="card">
-            <strong>{t.subject}</strong>
-            <div className="muted">{t.status} · {t.createdAt.slice(0, 10)}</div>
-            <p>{t.message}</p>
+            <div className="row-head" style={{ marginBottom: 6 }}>
+              <strong>{t.subject}</strong>
+              <span className={`pill ${t.status === "closed" ? "paid" : "advance"}`} style={{ textTransform: "capitalize" }}>{t.status}</span>
+            </div>
+            <div className="muted">{t.createdAt.slice(0, 10)}</div>
+            <p style={{ marginBottom: 0 }}>{t.message}</p>
           </div>
         ))}
         </div>
+        <button type="button" className="quiet-link" onClick={() => setOpen(true)}>{m.support.newMessage}</button>
         {open && (
           <ModalPortal>
             <div className="modal-back" onClick={() => setOpen(false)}>
@@ -144,16 +149,12 @@ export function ProfilePage() {
         <div className="card center">
           <h2>{m.profile.invite}</h2>
           <p className="muted">{m.profile.inviteHint}</p>
-          <button className="btn ghost" onClick={() => void navigator.clipboard.writeText(window.location.origin)}>{m.common.share}</button>
+          <button className="btn ghost" onClick={() => void navigator.clipboard.writeText(window.location.origin)}>{m.profile.copyLink}</button>
         </div>
-        <div className="card">
-          <h2>{m.profile.danger}</h2>
-          <p className="muted">{m.profile.dangerHint}</p>
-          <button className="btn danger" type="button" onClick={() => setDeleteOpen(true)}>
-            {m.profile.deleteAccount}
-          </button>
-          <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => void logout()}>{m.nav.signOut}</button>
-        </div>
+        <button className="btn ghost wide" type="button" onClick={() => void logout()}>{m.nav.signOut}</button>
+        <button className="quiet-link" type="button" onClick={() => setDeleteOpen(true)}>
+          {m.profile.deleteQuiet} · {m.profile.dangerHint}
+        </button>
         </div>
       </div>
 
@@ -196,7 +197,7 @@ export function ProfilePage() {
 
 export function SearchPage() {
   const { chits, customers } = useStore();
-  const { m, typeLabel } = useI18n();
+  const { m, tx, typeLabel, modeLabel } = useI18n();
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
@@ -244,35 +245,54 @@ export function SearchPage() {
             <p className="muted">{m.searchPlaceholder}</p>
             <input className="field" autoFocus placeholder={m.searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
 
-            <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>{m.nav.chits}</p>
-            {chitHits.length ? chitHits.map((c) => (
-              <div key={c.id} className="search-hit">
-                <Link to={chitPath(c)}>{c.name}</Link>
-                <span className="muted">{typeLabel(c.type)} · {c.viewerRole === "member" ? m.chitsPage.shared : c.mode}</span>
-              </div>
-            )) : <p className="muted">{m.chitsPage.empty}</p>}
-
-            <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Members</p>
-            {memberHits.length ? memberHits.slice(0, 12).map((c) => (
-              <div key={c.id} className="search-hit">
-                <Link to={`/customers/${c.id}`}>{c.name}</Link>
-                <span className="muted">{c.phone}</span>
-              </div>
-            )) : <p className="muted">No members match.</p>}
-
-            {!!query && (
+            {query ? (
               <>
-                <p className="muted" style={{ marginTop: 16, marginBottom: 4 }}>Receipts</p>
-                {receiptHits.length ? receiptHits.map((p) => (
-                  <div key={p.id} className="search-hit">
-                    <Link to={p.path}>
-                      {names[p.memberId] || "Member"} · {inr(p.amount)}
-                    </Link>
-                    <span className="muted">{p.chitName} · cycle {p.cycle}</span>
-                  </div>
-                )) : <p className="muted">No receipts match.</p>}
+                <section className="search-group">
+                  <h2>{m.find.groups}</h2>
+                  {chitHits.length ? chitHits.map((c) => {
+                    const who = c.members
+                      .map((mem) => customers.find((person) => person.id === mem.customerId))
+                      .find((person) => person && person.name.toLowerCase().includes(query));
+                    return (
+                      <div key={c.id} className="search-hit">
+                        <Link to={chitPath(c)}>{c.name}</Link>
+                        <span className="muted">
+                          {typeLabel(c.type)}
+                          {who ? ` · ${tx(m.find.inGroup, { name: who.name })}` : ""}
+                          {` · ${displayCycle(c)} / ${c.duration}`}
+                        </span>
+                      </div>
+                    );
+                  }) : <p className="muted">{m.find.noGroups}</p>}
+                </section>
+                <section className="search-group">
+                  <h2>{m.find.people}</h2>
+                  {memberHits.length ? memberHits.slice(0, 12).map((c) => (
+                    <div key={c.id} className="search-hit">
+                      <Link to={`/customers/${c.id}`}>{c.name}</Link>
+                      <span className="muted">
+                        {c.phone ? `+91 ${c.phone}` : m.customersPage.noPhone}
+                        {" · "}
+                        {tx(m.find.stillToPay, { amount: inr(customerOutstanding(chits, c.id)) })}
+                      </span>
+                    </div>
+                  )) : <p className="muted">{m.find.noPeople}</p>}
+                </section>
+                <section className="search-group">
+                  <h2>{m.find.receipts}</h2>
+                  {receiptHits.length ? receiptHits.map((p) => (
+                    <div key={p.id} className="search-hit">
+                      <Link to={p.path}>
+                        {names[p.memberId] || m.common.member} · {inr(p.amount)}
+                      </Link>
+                      <span className="muted">
+                        {p.chitName} · {tx(m.customerDetail.haptaN, { n: p.cycle })} · {modeLabel(p.mode || "cash")} · {p.date?.slice(0, 10)}
+                      </span>
+                    </div>
+                  )) : <p className="muted">{m.find.noReceipts}</p>}
+                </section>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

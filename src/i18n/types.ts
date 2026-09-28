@@ -34,6 +34,16 @@ export type Messages = {
     profile: string;
   };
   searchPlaceholder: string;
+  find: {
+    groups: string;
+    people: string;
+    receipts: string;
+    noGroups: string;
+    noPeople: string;
+    noReceipts: string;
+    stillToPay: string;
+    inGroup: string;
+  };
   common: {
     save: string;
     cancel: string;
@@ -95,6 +105,14 @@ export type Messages = {
     yourChits: string;
     sharedWithMe: string;
     activeCount: string;
+    stillToCollect: string;
+    stillToCollectHint: string;
+    stillDueLine: string;
+    youPayLine: string;
+    notPaidYet: string;
+    paidHapta: string;
+    paidSoFarLine: string;
+    trackingTitle: string;
   };
   chitsPage: {
     title: string;
@@ -142,6 +160,8 @@ export type Messages = {
     phoneHint: string;
     editProfile: string;
     saving: string;
+    copyLink: string;
+    deleteQuiet: string;
   };
   login: {
     tagline: string;
@@ -825,6 +845,11 @@ export type Messages = {
     cycleLoan: string;
     cycleAward: string;
     haptaN: string;
+    thisHaptaOwes: string;
+    thisHaptaClear: string;
+    eachHapta: string;
+    paidWord: string;
+    stillDueWord: string;
     bhishiCards: string;
     thisBhishi: string;
     openInBhishi: string;
@@ -844,6 +869,8 @@ export type Messages = {
     selectOrStart: string;
     whatsappBody: string;
     whatsappPrefill: string;
+    yourMessages: string;
+    newMessage: string;
   };
 
 
@@ -907,6 +934,12 @@ export type Messages = {
     exitGroup: string;
     exitHint: string;
     exitConfirm: string;
+    youPay: string;
+    notPaidYet: string;
+    organiserMarks: string;
+    aboutGroup: string;
+    yourHaptas: string;
+    exitQuiet: string;
     exiting: string;
   };
   loginExtra: {

@@ -96,6 +96,9 @@ export function MemberInChitPage() {
   ].sort((a, b) => b.when.localeCompare(a.when));
 
   const through = displayCycle(chit);
+  const dueNow = rawCycleDue(chit, customer.id, through);
+  const paidNow = paidInCycle(chit, customer.id, through);
+  const leftNow = Math.max(0, dueNow - paidNow);
   const cyclesPaid = Array.from({ length: through }, (_, i) => i + 1).filter(
     (cyc) => paidInCycle(chit, customer.id, cyc) >= rawCycleDue(chit, customer.id, cyc) && rawCycleDue(chit, customer.id, cyc) > 0,
   ).length;
@@ -185,6 +188,16 @@ export function MemberInChitPage() {
           </button>
         </div>
 
+        <div className="lead-card">
+          <p className="kicker">{tx(m.customerDetail.haptaN, { n: through })}</p>
+          <strong className="lead-figure">
+            {leftNow > 0
+              ? tx(m.customerDetail.thisHaptaOwes, { amount: inr(leftNow) })
+              : m.customerDetail.thisHaptaClear}
+          </strong>
+          <p>{tx(m.customerDetail.eachHapta, { amount: inr(chit.instalment) })}</p>
+        </div>
+
         <div className="stats four">
           <StatCard label={m.customerDetail.contributed} value={inr(bal.paid)} hint={m.customerDetail.inThisBhishi} tone="teal" icon={PiggyBank} />
           <StatCard label={m.customerDetail.received} value={inr(payouts)} hint={m.customerDetail.winsAndLoans} tone="blue" icon={Wallet} />
@@ -246,72 +259,41 @@ export function MemberInChitPage() {
           </div>
         </div>
 
-        <div className="card flush block">
-          <div className="card-pad">
-            <h2>{m.customerDetail.passbook}</h2>
-            <p className="muted">{m.customerDetail.passbookHint}</p>
-          </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{m.chit.cycle}</th>
-                  <th>{m.customerDetail.due}</th>
-                  <th>{m.customerDetail.paidCol}</th>
-                  <th>{m.customerDetail.balanceCol}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: through }, (_, i) => i + 1).map((cyc) => {
-                  const due = rawCycleDue(chit, customer.id, cyc);
-                  const paid = paidInCycle(chit, customer.id, cyc);
-                  const left = Math.max(0, due - paid);
-                  return (
-                    <tr key={cyc}>
-                      <td>{member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : `${m.terms.haptaRound} ${cyc}`}</td>
-                      <td>{inr(due)}</td>
-                      <td>{inr(paid)}</td>
-                      <td className={left ? "neg" : ""}>{left ? inr(left) : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="card block">
+          <h2>{m.memberPassbook.yourHaptas}</h2>
+          <p className="muted">{m.customerDetail.passbookHint}</p>
+          {Array.from({ length: through }, (_, i) => i + 1).map((cyc) => {
+            const due = rawCycleDue(chit, customer.id, cyc);
+            const paid = paidInCycle(chit, customer.id, cyc);
+            const left = Math.max(0, due - paid);
+            return (
+              <div key={cyc} className="kv">
+                <span>
+                  {member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : tx(m.customerDetail.haptaN, { n: cyc })}
+                  <div className="muted">{m.customerDetail.due} {inr(due)} · {m.customerDetail.paidCol} {inr(paid)}</div>
+                </span>
+                <strong className={left ? "neg" : ""}>{left ? m.customerDetail.stillDueWord : m.customerDetail.paidWord}</strong>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="card flush block">
-          <div className="card-pad">
-            <h2>{m.customerDetail.ledger}</h2>
-            <p className="muted">{m.customerDetail.ledgerThisBhishi}</p>
-          </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{m.common.date}</th>
-                  <th>{m.customerDetail.entry}</th>
-                  <th>{m.payModal.mode}</th>
-                  <th>{m.customerDetail.inCol}</th>
-                  <th>{m.customerDetail.outCol}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledger.map((row) => (
-                  <tr key={row.key}>
-                    <td>{new Date(row.when).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}</td>
-                    <td>{row.label}</td>
-                    <td>{row.mode ? modeLabel(row.mode) || row.mode : "—"}</td>
-                    <td>{row.credit ? inr(row.credit) : "—"}</td>
-                    <td>{row.debit ? inr(row.debit) : "—"}</td>
-                  </tr>
-                ))}
-                {!ledger.length && (
-                  <tr><td colSpan={5}><p className="empty">{m.chit.ledgerEmpty}</p></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="card block">
+          <h2>{m.customerDetail.ledger}</h2>
+          <p className="muted">{m.customerDetail.ledgerThisBhishi}</p>
+          {ledger.map((row) => (
+            <div key={row.key} className="kv">
+              <span>
+                {row.label}
+                <div className="muted">
+                  {new Date(row.when).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}
+                  {row.mode ? ` · ${modeLabel(row.mode) || row.mode}` : ""}
+                </div>
+              </span>
+              <strong>{row.credit ? inr(row.credit) : row.debit ? inr(row.debit) : "—"}</strong>
+            </div>
+          ))}
+          {!ledger.length && <p className="empty">{m.chit.ledgerEmpty}</p>}
         </div>
       </div>
     </AppShell>
