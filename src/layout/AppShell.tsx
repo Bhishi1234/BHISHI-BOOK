@@ -106,7 +106,7 @@ export function AppShell({
         <span>{m.brand}</span>
       </NavLink>
       {NAV.map((n) => (
-        <NavLink key={n.to} to={n.to} end={n.to === "/"} data-tour={n.to === "/chits" ? "nav-bhishi" : undefined} className={({ isActive }) => `nav-btn${isActive ? " active" : ""}`}>
+        <NavLink key={n.to} to={n.to} end={n.to === "/"} data-tour={tourTarget(n.to)} className={({ isActive }) => `nav-btn${isActive ? " active" : ""}`}>
           <n.icon size={18} />
           {n.label}
         </NavLink>
@@ -226,7 +226,7 @@ export function AppShell({
                 key={n.to}
                 to={n.to}
                 end={n.to === "/"}
-                data-tour={n.to === "/chits" ? "nav-bhishi" : undefined}
+                data-tour={tourTarget(n.to)}
                 className={({ isActive }) => `bottom-tab${isActive ? " active" : ""}`}
               >
                 <n.icon size={20} strokeWidth={isActivePath(loc.pathname, n.to) ? 2.4 : 2} />
@@ -235,6 +235,7 @@ export function AppShell({
             ))}
             <button
               type="button"
+              data-tour="nav-more"
               className={`bottom-tab${moreActive || sheetOpen ? " active" : ""}`}
               onClick={() => setSheetOpen(true)}
             >
@@ -246,6 +247,13 @@ export function AppShell({
       </div>
     </div>
   );
+}
+
+function tourTarget(to: string) {
+  if (to === "/chits") return "nav-bhishi";
+  if (to === "/collections") return "nav-collect";
+  if (to === "/customers") return "nav-people";
+  return undefined;
 }
 
 function isActivePath(pathname: string, to: string) {

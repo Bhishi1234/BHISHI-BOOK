@@ -1,17 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 
-const TARGETS = ["hapta", "hapta-cta", "chit-more", "nav-bhishi"] as const;
+const TARGETS = ["hapta", "hapta-cta", "chit-more", "nav-bhishi", "nav-collect", "nav-people", "nav-more"] as const;
 
-type Box = { top: number; left: number; width: number; height: number };
+type Box = { top: number; left: number; width: number; height: number; radius: number };
+
+function radiusOf(el: Element, rect: DOMRect, pad: number) {
+  const raw = getComputedStyle(el).borderRadius;
+  const n = Math.max(0, ...raw.split(/\s+/).map((part) => parseFloat(part) || 0));
+  const radius = (n || 14) + pad;
+  return Math.min(radius, (rect.height + pad * 2) / 2, (rect.width + pad * 2) / 2);
+}
 
 export function FirstRunTour({ onDone }: { onDone: () => void }) {
   const { m } = useI18n();
   const copy = m.firstRun;
-  const lines = [copy.tourHapta, copy.tourButton, copy.tourMore, copy.tourList];
+  const lines = [
+    copy.tourHapta,
+    copy.tourButton,
+    copy.tourMore,
+    copy.tourList,
+    copy.tourCollect,
+    copy.tourPeople,
+    copy.tourNavMore,
+  ];
   const [step, setStep] = useState(0);
   const [box, setBox] = useState<Box | null>(null);
   const [cardOnTop, setCardOnTop] = useState(false);
+  const [glide, setGlide] = useState(false);
+  const placed = useRef(false);
   const done = step >= lines.length;
 
   useEffect(() => {
@@ -25,10 +42,20 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
         setBox(null);
         return;
       }
-      el.scrollIntoView({ block: "center", inline: "nearest" });
+      const fixed = getComputedStyle(el).position === "fixed";
+      if (!fixed) el.scrollIntoView({ block: "center", inline: "nearest" });
       const r = el.getBoundingClientRect();
-      setBox({ top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 });
-      setCardOnTop(r.top > window.innerHeight * 0.55);
+      const pad = 8;
+      setBox({
+        top: r.top - pad,
+        left: r.left - pad,
+        width: r.width + pad * 2,
+        height: r.height + pad * 2,
+        radius: radiusOf(el, r, pad),
+      });
+      setCardOnTop(r.top > window.innerHeight * 0.5);
+      if (placed.current) setGlide(true);
+      placed.current = true;
     };
     place();
     const t = window.setTimeout(place, 80);
@@ -39,19 +66,15 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
     };
   }, [step, done]);
 
-  const shades = box && !done
-    ? [
-        { top: 0, left: 0, width: "100%", height: box.top },
-        { top: box.top, left: 0, width: box.left, height: box.height },
-        { top: box.top, left: box.left + box.width, right: 0, height: box.height },
-        { top: box.top + box.height, left: 0, right: 0, bottom: 0 },
-      ]
-    : null;
-
   return (
     <div className="tour-layer">
-      {shades ? shades.map((style, i) => <div key={i} className="tour-shade" style={style} />) : <div className="tour-dim" />}
-      {box && !done ? <div className="tour-hole" style={box} /> : null}
+      <div className="tour-catch" />
+      {box && !done ? (
+        <div
+          className={`tour-spot${glide ? " is-on" : ""}`}
+          style={{ top: box.top, left: box.left, width: box.width, height: box.height, borderRadius: box.radius }}
+        />
+      ) : !done ? <div className="tour-dim" /> : null}
       <div className={`tour-card${cardOnTop && !done ? " is-top" : ""}`} role="dialog" aria-modal="true">
         {done ? (
           <>

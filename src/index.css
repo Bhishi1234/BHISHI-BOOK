@@ -3219,31 +3219,59 @@ body.native-app {
 .first-run-card h2 { margin: 4px 0 8px; font-size: 20px; }
 .first-run-card p { margin: 0 0 14px; color: #475569; line-height: 1.5; }
 .first-run-card .btn { margin-bottom: 4px; }
-.tour-layer { position: fixed; inset: 0; z-index: 70; }
-.tour-dim, .tour-shade {
+.tour-layer { position: fixed; inset: 0; z-index: 80; }
+.tour-catch {
   position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+}
+.tour-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
   background: rgb(15 23 42 / 0.62);
 }
-.tour-dim { inset: 0; }
-.tour-hole {
+.tour-spot {
   position: fixed;
-  border-radius: 16px;
-  box-shadow: 0 0 0 2px #fff;
-  pointer-events: auto;
+  z-index: 1;
+  pointer-events: none;
   background: transparent;
+  box-shadow: 0 0 0 9999px rgb(15 23 42 / 0.62);
+}
+.tour-spot.is-on {
+  transition:
+    top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tour-spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 5px rgb(47 111 237 / 0.28);
+  animation: tour-ring 1.6s ease-in-out infinite;
+}
+@keyframes tour-ring {
+  0%, 100% { box-shadow: 0 0 0 4px rgb(47 111 237 / 0.18); }
+  50% { box-shadow: 0 0 0 8px rgb(47 111 237 / 0.28); }
 }
 .tour-card {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  bottom: calc(96px + env(safe-area-inset-bottom));
   max-width: 420px;
   margin: 0 auto;
   padding: 16px;
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 16px 40px rgb(15 23 42 / 0.2);
-  z-index: 71;
+  z-index: 2;
 }
 .tour-card.is-top { bottom: auto; top: 16px; }
 .tour-card h2 { margin: 0 0 8px; font-size: 18px; }

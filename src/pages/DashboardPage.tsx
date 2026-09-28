@@ -160,10 +160,6 @@ export function DashboardPage() {
           onCreate={() => {
             setFirstRun(user, "creating");
           }}
-          onLater={() => {
-            setFirstRun(user, "done");
-            setWelcome(false);
-          }}
         />
       )}
     </AppShell>

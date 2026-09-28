@@ -1089,6 +1089,9 @@ export type Messages = {
     tourButton: string;
     tourMore: string;
     tourList: string;
+    tourCollect: string;
+    tourPeople: string;
+    tourNavMore: string;
     next: string;
     skip: string;
     doneTitle: string;

@@ -2,13 +2,7 @@ import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { ModalPortal } from "./ModalPortal";
 
-export function FirstRunWelcome({
-  onCreate,
-  onLater,
-}: {
-  onCreate: () => void;
-  onLater: () => void;
-}) {
+export function FirstRunWelcome({ onCreate }: { onCreate: () => void }) {
   const { m } = useI18n();
   const copy = m.firstRun;
   return (
@@ -19,7 +13,6 @@ export function FirstRunWelcome({
           <h2 id="first-run-title">{copy.welcomeTitle}</h2>
           <p>{copy.welcomeBody}</p>
           <Link className="btn wide" to="/chits/new" onClick={onCreate}>{copy.createBhishi}</Link>
-          <button type="button" className="hapta-text-btn" onClick={onLater}>{copy.later}</button>
         </div>
       </div>
     </ModalPortal>
