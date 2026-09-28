@@ -214,27 +214,29 @@ select.field {
   border: 1px solid #eef1f6;
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  padding: 16px 18px;
-  margin: 0 0 14px;
+  padding: 12px 14px;
+  margin: 0 0 12px;
 }
 .lead-card .kicker {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--muted);
 }
 .lead-card .lead-figure {
   display: block;
-  margin: 4px 0 2px;
-  font-size: 28px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
+  margin: 2px 0 2px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
-.lead-card > p:last-child { margin: 4px 0 0; color: #475569; font-size: 13.5px; line-height: 1.45; }
-.dash-due-line { margin-top: 8px; font-size: 13px; font-weight: 600; color: #b42318; }
+.lead-card > p:last-child { margin: 4px 0 0; color: #475569; font-size: 13px; line-height: 1.4; }
+.member-page h1 { font-size: 18px; font-weight: 600; }
+.dash-due-line { margin-top: 6px; font-size: 12.5px; font-weight: 600; line-height: 1.35; color: #b42318; }
 .dash-due-line.clear { color: #067647; font-weight: 600; }
 .dash-due-line.soft { color: #475569; font-weight: 500; }
 .dash-chit.featured .dash-due-line,
@@ -249,7 +251,8 @@ select.field {
   border: 0;
   color: #64748b;
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
+  line-height: 1.4;
   text-align: center;
   cursor: pointer;
 }
@@ -2289,6 +2292,8 @@ body.native-app {
   .table { font-size: 12.5px; }
   .table th, .table td { padding: 9px 8px; white-space: nowrap; }
   .hero-figure { font-size: 20px; }
+  .lead-card .lead-figure { font-size: 18px; }
+  .member-page h1 { font-size: 17px; }
 
   .bottom-tabs {
     display: block;

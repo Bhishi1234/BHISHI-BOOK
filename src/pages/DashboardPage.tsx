@@ -130,8 +130,12 @@ export function DashboardPage() {
           <>
             <div className="lead-card">
               <p className="kicker">{m.dash.sharedWithMe}</p>
-              <strong className="lead-figure">{tx(m.dash.youPayLine, { amount: inr(sharedPay) })}</strong>
-              <p>{shared.some((c) => sharedLine(c).left > 0) ? m.dash.notPaidYet : m.dash.paidHapta}</p>
+              <strong className="lead-figure">{inr(sharedPay)}</strong>
+              <p>
+                {m.memberPassbook.youPay}
+                {" · "}
+                {shared.some((c) => sharedLine(c).left > 0) ? m.dash.notPaidYet : m.dash.paidHapta}
+              </p>
             </div>
             <div className="dash-chits">
               {shared.map((c, i) => groupCard(c, i, 2, sharedExtra(c, true), false))}

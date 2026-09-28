@@ -190,12 +190,12 @@ export function MemberInChitPage() {
 
         <div className="lead-card">
           <p className="kicker">{tx(m.customerDetail.haptaN, { n: through })}</p>
-          <strong className="lead-figure">
-            {leftNow > 0
-              ? tx(m.customerDetail.thisHaptaOwes, { amount: inr(leftNow) })
-              : m.customerDetail.thisHaptaClear}
-          </strong>
-          <p>{tx(m.customerDetail.eachHapta, { amount: inr(chit.instalment) })}</p>
+          <strong className="lead-figure">{inr(leftNow)}</strong>
+          <p>
+            {leftNow > 0 ? m.customerDetail.stillDueWord : m.customerDetail.thisHaptaClear}
+            {" · "}
+            {tx(m.customerDetail.eachHapta, { amount: inr(chit.instalment) })}
+          </p>
         </div>
 
         <div className="stats four">

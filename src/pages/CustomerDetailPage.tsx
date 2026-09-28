@@ -204,7 +204,7 @@ export function CustomerDetailPage() {
 
         <div className="block">
           <div className="row-head" style={{ marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>{m.customerDetail.bhishiCards}</h2>
+            <h2 style={{ margin: 0 }}>{m.customerDetail.bhishiCards}</h2>
             <span className="muted">{memberships.length}</span>
           </div>
           {!memberships.length && (

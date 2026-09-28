@@ -92,8 +92,8 @@ export function MemberChitPage() {
         )}
 
         <div className="lead-card">
-          <p className="kicker">{tx(m.customerDetail.haptaN, { n: cycle })} / {data.duration}</p>
-          <strong className="lead-figure">{m.memberPassbook.youPay} {inr(monthDue)}</strong>
+          <p className="kicker">{m.memberPassbook.youPay} · {tx(m.customerDetail.haptaN, { n: cycle })} / {data.duration}</p>
+          <strong className="lead-figure">{inr(monthDue)}</strong>
           <p>
             <span className={`pill ${monthStatus}`}>{monthPaid >= monthDue ? m.dash.paidHapta : m.memberPassbook.notPaidYet}</span>
             {" "}
