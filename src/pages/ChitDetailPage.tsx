@@ -98,6 +98,7 @@ import {
 } from "../lib/share";
 import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { initials, inr } from "../lib/format";
+import { haptaDateOptions, haptaEveryLabel, intervalDaysOf } from "../lib/haptaInterval";
 import { useStore } from "../store";
 import type { AuctionRecord, PayMode, PaymentKind } from "../types";
 
@@ -584,19 +585,15 @@ export function ChitDetailPage() {
               </div>
               <div className="chit-details-cell">
                 <span>{copy.chit.instalment}</span>
-                <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
+                <strong>{inr(data.instalment)}/{haptaEveryLabel(data, copy.freq, tx, freqLabel(data.frequency) || data.frequency)}</strong>
               </div>
               <div className="chit-details-cell">
                 <span>{copy.chit.started}</span>
-                <strong>{new Date(data.startDate).toLocaleDateString(locale, data.frequency === "monthly"
-                  ? { month: "short", year: "numeric" }
-                  : { day: "numeric", month: "short", year: "numeric" })}</strong>
+                <strong>{cycleStartDate(data, 1).toLocaleDateString(locale, haptaDateOptions(data))}</strong>
               </div>
               <div className="chit-details-cell">
                 <span>{copy.chit.ends}</span>
-                <strong>{ended.toLocaleDateString(locale, data.frequency === "monthly"
-                  ? { month: "short", year: "numeric" }
-                  : { day: "numeric", month: "short", year: "numeric" })}</strong>
+                <strong>{ended.toLocaleDateString(locale, haptaDateOptions(data))}</strong>
               </div>
               <div className="chit-details-cell">
                 <span>{copy.terms.commission}</span>
@@ -806,9 +803,13 @@ export function ChitDetailPage() {
               )}
               <div className="grid-2" style={{ marginTop: 8 }}>
                 <div className="kv"><span>{copy.detail.type}</span><strong>{typeLabel(data.type).toUpperCase()}</strong></div>
-                <div className="kv"><span>{copy.detail.frequency}</span><strong>{freqLabel(data.frequency)}</strong></div>
+                <div className="kv"><span>{copy.detail.frequency}</span><strong>{haptaEveryLabel(data, copy.freq, tx, freqLabel(data.frequency))}</strong></div>
                 <div className="kv"><span>{copy.chit.contribution}</span><strong>{inr(data.instalment)}</strong></div>
-                <div className="kv"><span>{copy.chit.durationLabel}</span><strong>{tx(copy.chit.durationMonths, { n: data.duration })}</strong></div>
+                <div className="kv"><span>{copy.chit.durationLabel}</span><strong>{
+                  intervalDaysOf(data)
+                    ? tx(copy.chit.durationSpan, { n: data.duration, total: data.duration * (intervalDaysOf(data) || 0) })
+                    : tx(copy.chit.durationMonths, { n: data.duration })
+                }</strong></div>
                 {data.type === "loan" && (
                   <>
                     <div className="kv"><span>{copy.chit.interest}</span><strong>{copy.chit.interestSetPerLoan}</strong></div>
@@ -843,10 +844,7 @@ export function ChitDetailPage() {
                     {Array.from({ length: cycle }, (_, i) => i + 1).reverse().map((cyc) => {
                       const row = cycleLedger(data, cyc);
                       const when = cycleStartDate(data, cyc);
-                      const dateOpts: Intl.DateTimeFormatOptions =
-                        data.frequency === "biweekly" || data.frequency === "weekly" || data.frequency === "daily"
-                          ? { day: "numeric", month: "short", year: "numeric" }
-                          : { month: "short", year: "numeric" };
+                      const dateOpts = haptaDateOptions(data);
                       return (
                         <tr key={cyc}>
                           <td>{when.toLocaleDateString(locale, dateOpts)}</td>
@@ -969,10 +967,7 @@ export function ChitDetailPage() {
                 const rows = byCycle.get(cyc) || [];
                 const monthTotal = rows.reduce((s, p) => s + p.amount, 0);
                 const when = cycleStartDate(data, cyc);
-                const dateOpts: Intl.DateTimeFormatOptions =
-                  data.frequency === "biweekly" || data.frequency === "weekly" || data.frequency === "daily"
-                    ? { day: "numeric", month: "short", year: "numeric" }
-                    : { month: "short", year: "numeric" };
+                const dateOpts = haptaDateOptions(data);
                 return (
                   <div key={cyc} className="card flush">
                     <div className="card-pad" style={{ paddingBottom: 10 }}>

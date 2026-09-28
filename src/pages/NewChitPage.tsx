@@ -6,15 +6,14 @@ import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
 import { InviteWhatsAppButton } from "../components/InviteWhatsAppButton";
 import { PromptBox } from "../components/PromptBox";
-import type { AuctionStyle, ChitType, FixedStyle, Frequency } from "../types";
+import type { AuctionStyle, ChitType, FixedStyle } from "../types";
 import { inr } from "../lib/format";
-import { computeInstalment } from "../lib/chitMath";
+import { chitEndDate, computeInstalment } from "../lib/chitMath";
+import { frequencyForInterval, HAPTA_PRESETS } from "../lib/haptaInterval";
 import { pickContactsFromBook } from "../lib/contacts";
 import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
 import { usePhonesOnApp } from "../lib/usePhonesOnApp";
 import { useStore } from "../store";
-
-const FREQS: Frequency[] = ["biweekly", "monthly"];
 
 type Phase = "type" | "variant" | "collect" | "terms" | "members";
 
@@ -26,7 +25,7 @@ function phasesFor(type: ChitType): Phase[] {
 
 export function NewChitPage() {
   const { customers, addCustomer, addChit, error, user } = useStore();
-  const { m, tx, freqLabel, freqHint, typeLabel } = useI18n();
+  const { m, tx, typeLabel } = useI18n();
   const nav = useNavigate();
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ChitType>("auction");
@@ -38,7 +37,9 @@ export function NewChitPage() {
   const [durationManual, setDurationManual] = useState(false);
   const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
   const [title, setTitle] = useState("");
-  const [freq, setFreq] = useState<Frequency>("monthly");
+  const [presetDays, setPresetDays] = useState(30);
+  const [customOn, setCustomOn] = useState(false);
+  const [customDays, setCustomDays] = useState("");
   const [commKind, setCommKind] = useState<"amount" | "percent">("amount");
   const [comm, setComm] = useState("0");
   const [adjust, setAdjust] = useState<"every_month" | "at_end">("every_month");
@@ -59,6 +60,8 @@ export function NewChitPage() {
   const [termsHelpOpen, setTermsHelpOpen] = useState(false);
 
   const { isOnApp } = usePhonesOnApp(customers.map((c) => c.phone));
+  const intervalDays = customOn ? Math.floor(Number(customDays) || 0) : presetDays;
+  const intervalOk = intervalDays >= 1 && intervalDays <= 3660;
 
   const TYPES = useMemo(
     () => ([
@@ -168,11 +171,15 @@ export function NewChitPage() {
 
   const preview = useMemo(() => ({
     members: n || "—",
-    duration: months ? tx(m.newChitExtra.monthsCount, { n: months }) : m.newChitExtra.monthsZero,
+    duration: intervalOk && months
+      ? tx(m.chit.durationSpan, { n: months, total: months * intervalDays })
+      : months
+        ? tx(m.newChitExtra.monthsCount, { n: months })
+        : m.newChitExtra.monthsZero,
     per: instalment ? inr(instalment) : "—",
     commission: commMonth ? inr(commMonth) : "—",
     style: styleLabel,
-  }), [n, months, instalment, commMonth, styleLabel, m, tx]);
+  }), [n, months, instalment, commMonth, styleLabel, m, tx, intervalOk, intervalDays]);
 
   /** Short labels for the segmented stepper (long titles truncate on mobile). */
   function phaseTabLabel(p: Phase) {
@@ -228,6 +235,10 @@ export function NewChitPage() {
       window.alert(m.newChitExtra.enterPotAlert);
       return;
     }
+    if (!intervalOk) {
+      window.alert(m.freq.invalidDays);
+      return;
+    }
     if (!confirm) {
       window.alert(m.newChitExtra.confirmAlert);
       return;
@@ -240,7 +251,8 @@ export function NewChitPage() {
         name: title.trim() || `${typeTitle} - ${inr(potN)}`,
         title: title.trim() || undefined,
         type: resolvedType,
-        frequency: freq,
+        frequency: frequencyForInterval(intervalDays),
+        haptaIntervalDays: intervalDays,
         pot: potN,
         instalment,
         membersCount: n,
@@ -488,11 +500,60 @@ export function NewChitPage() {
                 <label className="label">{m.newChit.frequency}</label>
                 <p className="muted" style={{ marginBottom: 8 }}>{m.newChit.frequencyHint}</p>
                 <div className="seg block">
-                  {FREQS.map((f) => (
-                    <button key={f} type="button" title={freqHint(f)} className={`chip ${freq === f ? "on" : ""}`} onClick={() => setFreq(f)}>{freqLabel(f)}</button>
+                  {HAPTA_PRESETS.map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      className={`chip ${!customOn && presetDays === days ? "on" : ""}`}
+                      onClick={() => {
+                        setCustomOn(false);
+                        setPresetDays(days);
+                      }}
+                    >
+                      {days === 1 ? m.freq.oneDay : days === 7 ? m.freq.oneWeek : days === 15 ? m.freq.days15 : m.freq.days30}
+                    </button>
                   ))}
+                  <button
+                    type="button"
+                    className={`chip ${customOn ? "on" : ""}`}
+                    onClick={() => setCustomOn(true)}
+                  >
+                    {m.freq.custom}
+                  </button>
                 </div>
-                {freqHint(freq) ? <p className="muted" style={{ marginTop: 8 }}>{freqHint(freq)}</p> : null}
+                {customOn && (
+                  <input
+                    className="field hapta-days-field"
+                    inputMode="numeric"
+                    placeholder={m.freq.customDaysPh}
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    aria-label={m.freq.custom}
+                  />
+                )}
+                {intervalOk ? (
+                  <p className="muted" style={{ marginTop: 8 }}>
+                    {intervalDays === 1 ? m.freq.payEveryDay : tx(m.freq.payEveryNDays, { n: intervalDays })}
+                  </p>
+                ) : (
+                  <p className="due" style={{ marginTop: 8 }}>{m.freq.invalidDays}</p>
+                )}
+                {intervalOk && (Number(duration) || Number(count)) > 0 ? (
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    {tx(m.freq.runLength, {
+                      haptas: Number(duration) || Number(count),
+                      days: intervalDays,
+                      total: (Number(duration) || Number(count)) * intervalDays,
+                    })}
+                    {" · "}
+                    {chitEndDate({
+                      startDate: start,
+                      frequency: frequencyForInterval(intervalDays),
+                      haptaIntervalDays: intervalDays,
+                      duration: Number(duration) || Number(count),
+                    }).toLocaleDateString()}
+                  </p>
+                ) : null}
               </div>
 
               <div className="card" style={{ marginTop: 16 }}>
@@ -621,9 +682,13 @@ export function NewChitPage() {
                   <button className="btn ghost" onClick={goBack}>{m.common.back}</button>
                   <button
                     className="btn"
-                    disabled={!confirm || !potN || !n}
+                    disabled={!confirm || !potN || !n || !intervalOk}
                     onClick={() => {
                       const haptaN = Number(duration) || 0;
+                      if (!intervalOk) {
+                        window.alert(m.freq.invalidDays);
+                        return;
+                      }
                       if (haptaN !== n) {
                         window.alert(tx(m.newChitExtra.haptasMustMatchHands, { hands: n }));
                         return;

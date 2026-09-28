@@ -11,7 +11,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
 import { ModalPortal } from "../components/ModalPortal";
 import { AppShell } from "../layout/AppShell";
-import { baseInstalment, paidInCycle, chitEndDate } from "../lib/chitMath";
+import { baseInstalment, paidInCycle, chitEndDate, cycleStartDate } from "../lib/chitMath";
+import { haptaDateOptions, haptaEveryLabel } from "../lib/haptaInterval";
 import { useI18n } from "../i18n";
 import { initials, inr, todayIso } from "../lib/format";
 import { useStore } from "../store";
@@ -61,7 +62,7 @@ export function TrackedChitPage() {
   const isRunning = data.status === "running";
   const ended = chitEndDate(data);
   const pct = totalDue > 0 ? Math.min(100, Math.round((paid / totalDue) * 100)) : 0;
-  const monthFmt = { month: "short" as const, year: "numeric" as const };
+  const monthFmt = haptaDateOptions(data);
 
   function openLog(month: number) {
     const already = selfId ? paidInCycle(data, selfId, month) : 0;
@@ -112,7 +113,7 @@ export function TrackedChitPage() {
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
                 <span>{m.chit.instalment}</span>
-                <strong>{inr(instalment)}/{freqLabel(data.frequency) || m.terms.haptaShort}</strong>
+                <strong>{inr(instalment)}/{haptaEveryLabel(data, m.freq, tx, freqLabel(data.frequency) || m.terms.haptaShort)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
@@ -126,14 +127,14 @@ export function TrackedChitPage() {
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
                 <span>{m.chit.started}</span>
-                <strong>{new Date(data.startDate).toLocaleString(locale, monthFmt)}</strong>
+                <strong>{cycleStartDate(data, 1).toLocaleDateString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
               <div>
                 <span>{m.chit.ends}</span>
-                <strong>{ended.toLocaleString(locale, monthFmt)}</strong>
+                <strong>{ended.toLocaleDateString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">

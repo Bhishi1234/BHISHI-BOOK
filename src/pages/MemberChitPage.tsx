@@ -13,6 +13,7 @@ import { PromptBox } from "../components/PromptBox";
 import { AppShell } from "../layout/AppShell";
 import {
   chitEndDate,
+  cycleStartDate,
   displayCycle,
   memberBalance,
   paidInCycle,
@@ -20,6 +21,7 @@ import {
   rawCycleDue,
 } from "../lib/chitMath";
 import { useI18n } from "../i18n";
+import { haptaDateOptions, haptaEveryLabel } from "../lib/haptaInterval";
 import { initials, inr } from "../lib/format";
 import { useStore } from "../store";
 import { StatCard } from "../ui/StatCard";
@@ -65,7 +67,7 @@ export function MemberChitPage() {
   const wins = data.auctions.filter((a) => a.method !== "settlement");
   const isRunning = data.status === "running";
   const ended = chitEndDate(data);
-  const monthFmt = { month: "short" as const, year: "numeric" as const };
+  const monthFmt = haptaDateOptions(data);
 
   return (
     <AppShell crumb={m.nav.chits} crumb2={data.name}>
@@ -102,21 +104,21 @@ export function MemberChitPage() {
               <div className="chit-hero-icon"><Wallet size={16} strokeWidth={2} /></div>
               <div>
                 <span>{m.chit.instalment}</span>
-                <strong>{inr(data.instalment)}/{freqLabel(data.frequency) || data.frequency}</strong>
+                <strong>{inr(data.instalment)}/{haptaEveryLabel(data, m.freq, tx, freqLabel(data.frequency) || data.frequency)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><Calendar size={16} strokeWidth={2} /></div>
               <div>
                 <span>{m.chit.started}</span>
-                <strong>{new Date(data.startDate).toLocaleString(locale, monthFmt)}</strong>
+                <strong>{cycleStartDate(data, 1).toLocaleDateString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">
               <div className="chit-hero-icon"><CalendarRange size={16} strokeWidth={2} /></div>
               <div>
                 <span>{m.chit.ends}</span>
-                <strong>{ended.toLocaleString(locale, monthFmt)}</strong>
+                <strong>{ended.toLocaleDateString(locale, monthFmt)}</strong>
               </div>
             </div>
             <div className="chit-hero-cell">

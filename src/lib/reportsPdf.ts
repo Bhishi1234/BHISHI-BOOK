@@ -27,7 +27,8 @@ import {
   paymentStatus,
   treasuryOf,
 } from "./chitMath";
-import { FREQ_LABEL, MODE_LABEL, TYPE_LABEL } from "./format";
+import { MODE_LABEL, TYPE_LABEL } from "./format";
+import { haptaEveryLabelEn } from "./haptaInterval";
 import { isNativeApp } from "./native";
 import { BHISHI_MARK_PNG } from "./reportAssets/bhishiMark";
 import { drawReportIcon, type ReportIcon } from "./reportIcons";
@@ -753,7 +754,7 @@ export function downloadChitReportPdf(chit: Chit, names: Record<string, string>,
 
   let y = reportTitleBlock(doc, {
     title: chit.name,
-    pills: [typeLabel, chit.status, FREQ_LABEL[chit.frequency] || chit.frequency],
+    pills: [typeLabel, chit.status, haptaEveryLabelEn(chit)],
     meta: `Started ${new Date(chit.startDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · Month ${cycle} of ${chit.duration} · ${chit.members.length} of ${chit.membersCount} slots`,
     quote: "Strong Communities\nBuild Wealth.",
   });
@@ -1138,7 +1139,7 @@ export function downloadMonthDuesPdf(chit: Chit, names: Record<string, string>) 
   let y = reportTitleBlock(doc, {
     title: chit.name,
     subtitle: `Month ${cycle} collection sheet`,
-    pills: [TYPE_LABEL[chit.type] || chit.type, FREQ_LABEL[chit.frequency] || chit.frequency],
+    pills: [TYPE_LABEL[chit.type] || chit.type, haptaEveryLabelEn(chit)],
     meta: `${chit.members.length} hands · Expected vs collected this hapta`,
     quote: "Collect with\nclarity.",
   });

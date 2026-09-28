@@ -374,6 +374,7 @@ button.stat {
   font-size: 14px;
 }
 .support-wa:hover { background: #1ebe5d; color: #073b16; }
+.hapta-days-field { max-width: 160px; margin-top: 10px; }
 .card.flush { padding: 0; overflow: hidden; }
 .card-pad { padding: 14px 16px; }
 .card-top { display: flex; gap: 10px; align-items: flex-start; }

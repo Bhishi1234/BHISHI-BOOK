@@ -36,11 +36,9 @@ export const META_TYPES = [
 ] as const;
 
 export const META_FREQUENCIES = [
-  { id: "daily", label: "Daily hapta" },
-  { id: "weekly", label: "Weekly hapta" },
-  { id: "biweekly", label: "Every 15 days" },
-  { id: "monthly", label: "Monthly hapta" },
-  { id: "quarterly", label: "Every 3 months" },
-  { id: "halfyearly", label: "Every 6 months" },
-  { id: "yearly", label: "Yearly hapta" },
+  { id: "daily", label: "1 day" },
+  { id: "weekly", label: "1 week" },
+  { id: "biweekly", label: "15 days" },
+  { id: "monthly", label: "30 days" },
+  { id: "custom", label: "Custom days" },
 ] as const;

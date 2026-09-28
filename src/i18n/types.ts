@@ -252,6 +252,17 @@ export type Messages = {
     quarterly: string;
     halfyearly: string;
     yearly: string;
+    oneDay: string;
+    oneWeek: string;
+    days15: string;
+    days30: string;
+    everyNDays: string;
+    custom: string;
+    customDaysPh: string;
+    payEveryDay: string;
+    payEveryNDays: string;
+    runLength: string;
+    invalidDays: string;
   };
   freqHint: {
     daily: string;
@@ -362,6 +373,7 @@ export type Messages = {
     onHand: string;
     contribution: string;
     durationMonths: string;
+    durationSpan: string;
     interest: string;
     repaymentTenure: string;
     restOfChit: string;

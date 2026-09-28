@@ -81,6 +81,9 @@ export function mapChit(row: Record<string, unknown>, viewerRole?: Chit["viewerR
     title: row.title ? String(row.title) : undefined,
     type: row.type as Chit["type"],
     frequency: (row.frequency as Chit["frequency"]) || "monthly",
+    haptaIntervalDays: row.hapta_interval_days != null || row.haptaIntervalDays != null
+      ? num(row.hapta_interval_days ?? row.haptaIntervalDays) || undefined
+      : undefined,
     pot: num(row.pot),
     instalment: num(row.instalment),
     membersCount: num(row.members_count ?? row.membersCount),
@@ -140,6 +143,7 @@ export function chitPayload(input: Omit<Chit, "id" | "payments" | "status">) {
     title: input.title ?? "",
     type: input.type,
     frequency: input.frequency,
+    haptaIntervalDays: input.haptaIntervalDays ?? "",
     pot: input.pot,
     instalment: input.instalment,
     membersCount: input.membersCount,

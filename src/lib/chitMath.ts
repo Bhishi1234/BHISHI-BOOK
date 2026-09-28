@@ -1,4 +1,5 @@
 import type { AuctionRecord, Chit, PaymentKind } from "../types";
+import { intervalDaysOf, parseChitDate } from "./haptaInterval";
 
 export function baseInstalment(chit: Chit) {
   const n = memberCount(chit);
@@ -520,29 +521,35 @@ export function memberBalance(chit: Chit, memberId: string, slot?: number) {
 }
 
 /**
- * Calendar start of hapta `cycle` (1-based), honouring frequency.
- * 15-day (biweekly) advances by 15 days; monthly by calendar month.
+ * Calendar start of hapta `cycle` (1-based).
+ * Day-based books (1, 7, 15, 30, or a custom gap) step by that many days.
+ * A group of 10 haptas every 3 days therefore runs 30 days.
+ * Quarter / half-year / year books with no stored gap still step by calendar months.
  */
 export function cycleStartDate(
-  chit: Pick<Chit, "startDate" | "frequency">,
+  chit: Pick<Chit, "startDate" | "frequency" | "haptaIntervalDays">,
   cycle: number,
 ): Date {
-  const d = new Date(chit.startDate);
+  const d = parseChitDate(chit.startDate);
   if (Number.isNaN(d.getTime())) return d;
   const n = Math.max(0, (cycle || 1) - 1);
+  const days = intervalDaysOf(chit);
+  if (days) {
+    d.setDate(d.getDate() + n * days);
+    return d;
+  }
   switch (chit.frequency) {
-    case "daily":
-      d.setDate(d.getDate() + n);
+    case "quarterly":
+      d.setMonth(d.getMonth() + n * 3);
       break;
-    case "weekly":
-      d.setDate(d.getDate() + n * 7);
+    case "halfyearly":
+      d.setMonth(d.getMonth() + n * 6);
       break;
-    case "biweekly":
-      d.setDate(d.getDate() + n * 15);
+    case "yearly":
+      d.setFullYear(d.getFullYear() + n);
       break;
-    case "monthly":
     default:
-      d.setMonth(d.getMonth() + n);
+      d.setDate(d.getDate() + n * 30);
       break;
   }
   return d;
@@ -550,7 +557,7 @@ export function cycleStartDate(
 
 /** End date of the bhishi = start of the cycle after the last hapta. */
 export function chitEndDate(
-  chit: Pick<Chit, "startDate" | "frequency" | "duration">,
+  chit: Pick<Chit, "startDate" | "frequency" | "duration" | "haptaIntervalDays">,
 ): Date {
   return cycleStartDate(chit, (chit.duration || 1) + 1);
 }

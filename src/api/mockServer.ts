@@ -258,13 +258,11 @@ export const mockServer = {
     },
     frequencies() {
       return [
-        { id: "daily", label: "Daily" },
-        { id: "weekly", label: "Weekly" },
-        { id: "biweekly", label: "Bi Weekly" },
-        { id: "monthly", label: "Monthly" },
-        { id: "quarterly", label: "Quarterly" },
-        { id: "halfyearly", label: "Half Yearly" },
-        { id: "yearly", label: "Yearly" },
+        { id: "daily", label: "1 day" },
+        { id: "weekly", label: "1 week" },
+        { id: "biweekly", label: "15 days" },
+        { id: "monthly", label: "30 days" },
+        { id: "custom", label: "Custom days" },
       ];
     },
   },

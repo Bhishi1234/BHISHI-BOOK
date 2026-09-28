@@ -57,6 +57,7 @@ export const FREQ_LABEL: Record<string, string> = {
   quarterly: "Every 3 months",
   halfyearly: "Every 6 months",
   yearly: "Yearly hapta",
+  custom: "Custom hapta",
 };
 
 export const MODE_LABEL: Record<string, string> = {

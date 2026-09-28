@@ -10,7 +10,8 @@ export type Frequency =
   | "monthly"
   | "quarterly"
   | "halfyearly"
-  | "yearly";
+  | "yearly"
+  | "custom";
 
 export type ChitMode = "organise" | "tracking";
 export type ChitStatus = "running" | "cancelled" | "completed";
@@ -78,6 +79,8 @@ export type Chit = {
   name: string;
   type: ChitType;
   frequency: Frequency;
+  /** Days between haptas. 1, 7, 15, 30, or a custom count. Dates use this, not the calendar month. */
+  haptaIntervalDays?: number;
   pot: number;
   instalment: number;
   membersCount: number;
