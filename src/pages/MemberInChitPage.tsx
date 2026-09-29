@@ -1,15 +1,6 @@
 import { useState } from "react";
-import {
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  Gift,
-  HandCoins,
-  PiggyBank,
-  Trophy,
-  Wallet,
-} from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { ChevronLeft, Gift, Trophy } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import { MemberReachButtons } from "../components/MemberReachButtons";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
@@ -22,7 +13,6 @@ import {
 } from "../lib/chitMath";
 import { chitPath, initials, inr } from "../lib/format";
 import { useStore } from "../store";
-import { StatCard } from "../ui/StatCard";
 
 /** Member view scoped to one bhishi — opened from Members / Hapta Collect. */
 export function MemberInChitPage() {
@@ -99,9 +89,6 @@ export function MemberInChitPage() {
   const dueNow = rawCycleDue(chit, customer.id, through);
   const paidNow = paidInCycle(chit, customer.id, through);
   const leftNow = Math.max(0, dueNow - paidNow);
-  const cyclesPaid = Array.from({ length: through }, (_, i) => i + 1).filter(
-    (cyc) => paidInCycle(chit, customer.id, cyc) >= rawCycleDue(chit, customer.id, cyc) && rawCycleDue(chit, customer.id, cyc) > 0,
-  ).length;
 
   return (
     <AppShell crumb={chit.name} crumb2={customer.name}>
@@ -114,22 +101,22 @@ export function MemberInChitPage() {
 
         <div className="card member-hero-card">
           <div className="member-hero">
-            <div className="avatar tone-blue" style={{ width: 56, height: 56, fontSize: 18 }}>
+            <div className="avatar tone-blue" style={{ width: 48, height: 48, fontSize: 16 }}>
               {initials(customer.name)}
             </div>
             <div className="grow">
               <h1 style={{ margin: 0 }}>{customer.name}</h1>
-              <p className="page-sub" style={{ margin: "4px 0 0" }}>
-                {customer.phone || m.customersPage.noPhone}
-                {" · "}
-                {tx(m.customerDetail.handInChit, { n: member.slot })}
-                {member.prizedCycle ? ` · ${tx(m.customerDetail.cyclePrized, { n: member.prizedCycle })}` : ""}
+              <p className="page-sub" style={{ margin: "2px 0 0" }}>
+                {customer.phone ? `+91 ${customer.phone}` : m.customersPage.noPhone}
               </p>
-              <Link className="member-chit-chip" to={chitPath(chit)}>
-                {chit.name}
-                <span className="muted"> · {typeLabel(chit.type)} · {statusLabel(chit.status)}</span>
-              </Link>
             </div>
+            {!editPhone && customer.phone ? (
+              <MemberReachButtons
+                phone={customer.phone}
+                whatsappText={`Hi ${customer.name}`}
+                compact
+              />
+            ) : null}
           </div>
           {editPhone ? (
             <div className="phone-edit-row" style={{ marginTop: 12 }}>
@@ -157,64 +144,48 @@ export function MemberInChitPage() {
               </button>
             </div>
           ) : (
-            <div className="member-hero-actions">
-              <button
-                type="button"
-                className="btn ghost btn-sm"
-                onClick={() => {
-                  setPhoneVal(customer.phone || "");
-                  setEditPhone(true);
-                }}
-              >
-                {m.chit.editPhone}
-              </button>
-              {customer.phone ? (
-                <MemberReachButtons
-                  phone={customer.phone}
-                  whatsappText={`Hi ${customer.name}`}
-                  compact
-                />
-              ) : null}
-            </div>
+            <button
+              type="button"
+              className="link"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setPhoneVal(customer.phone || "");
+                setEditPhone(true);
+              }}
+            >
+              {m.chit.editPhone}
+            </button>
           )}
           {error && editPhone && <p className="due" style={{ marginTop: 6 }}>{error}</p>}
+          <p className="owe-line">
+            {m.customerDetail.oweLead}{" "}
+            <span className="neg">{inr(leftNow)}</span>
+          </p>
+          <div className="fact-grid">
+            <div>
+              <span>{m.customerDetail.contributed}</span>
+              <strong>{inr(bal.paid)}</strong>
+            </div>
+            <div>
+              <span>{m.customerDetail.received}</span>
+              <strong>{inr(payouts)}</strong>
+            </div>
+            <div>
+              <span>{m.terms.hands}</span>
+              <strong>{member.slot} / {chit.duration}</strong>
+            </div>
+            <div>
+              <span>{m.customerDetail.winsCard}</span>
+              <strong>{awards[0] ? awards[0].cycle : "—"}</strong>
+            </div>
+          </div>
           <button
             type="button"
-            className="btn member-all-details-btn"
+            className="quiet-link"
             onClick={() => nav(`/customers/${customer.id}`)}
           >
             {m.customerDetail.viewAllDetails}
-            <ChevronRight size={16} strokeWidth={2.4} />
           </button>
-        </div>
-
-        <div className="lead-card">
-          <p className="kicker">{tx(m.customerDetail.haptaN, { n: through })}</p>
-          <strong className="lead-figure">{inr(leftNow)}</strong>
-          <p>
-            {leftNow > 0 ? m.customerDetail.stillDueWord : m.customerDetail.thisHaptaClear}
-            {" · "}
-            {tx(m.customerDetail.eachHapta, { amount: inr(chit.instalment) })}
-          </p>
-        </div>
-
-        <div className="stats four">
-          <StatCard label={m.customerDetail.contributed} value={inr(bal.paid)} hint={m.customerDetail.inThisBhishi} tone="teal" icon={PiggyBank} />
-          <StatCard label={m.customerDetail.received} value={inr(payouts)} hint={m.customerDetail.winsAndLoans} tone="blue" icon={Wallet} />
-          <StatCard
-            label={m.terms.outstanding}
-            value={<span className={bal.outstanding ? "neg" : undefined}>{inr(bal.outstanding)}</span>}
-            hint={m.customersPage.stillDue}
-            tone="rose"
-            icon={AlertCircle}
-          />
-          <StatCard
-            label={m.customerDetail.haptaPaid}
-            value={`${cyclesPaid}/${through}`}
-            hint={m.customerDetail.cyclesCleared}
-            tone="green"
-            icon={HandCoins}
-          />
         </div>
 
         <div className="grid-2 block">
@@ -259,20 +230,24 @@ export function MemberInChitPage() {
           </div>
         </div>
 
-        <div className="card block">
-          <h2>{m.memberPassbook.yourHaptas}</h2>
-          <p className="muted">{m.customerDetail.passbookHint}</p>
+        <h2>{m.customerDetail.eachHaptaTitle}</h2>
+        <div className="hapta-rows block">
           {Array.from({ length: through }, (_, i) => i + 1).map((cyc) => {
             const due = rawCycleDue(chit, customer.id, cyc);
             const paid = paidInCycle(chit, customer.id, cyc);
             const left = Math.max(0, due - paid);
             return (
-              <div key={cyc} className="kv">
-                <span>
-                  {member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : tx(m.customerDetail.haptaN, { n: cyc })}
-                  <div className="muted">{m.customerDetail.due} {inr(due)} · {m.customerDetail.paidCol} {inr(paid)}</div>
+              <div key={cyc} className="hapta-row">
+                <strong>{tx(m.customerDetail.haptaN, { n: cyc })}</strong>
+                <span className="hapta-row-mid">
+                  {m.customerDetail.due} {inr(due)}
+                  {" · "}
+                  {m.customerDetail.paidCol}{" "}
+                  <span className={left ? "neg" : ""}>{inr(paid)}</span>
                 </span>
-                <strong className={left ? "neg" : ""}>{left ? m.customerDetail.stillDueWord : m.customerDetail.paidWord}</strong>
+                <span className={`pill ${left ? "partial" : "paid"}`}>
+                  {left ? m.customerDetail.stillDueWord : m.customerDetail.paidWord}
+                </span>
               </div>
             );
           })}

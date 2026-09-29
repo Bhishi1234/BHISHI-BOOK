@@ -7,7 +7,7 @@ import { HideChitButton } from "../components/HideChitButton";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { scrollPageToTop } from "../layout/ScrollToTop";
-import { chitProgress, displayCycle, customerOutstanding } from "../lib/chitMath";
+import { chitProgress, displayCycle, customerOutstanding, outstandingOf } from "../lib/chitMath";
 import { contactsPickerAvailable, pickContactsFromBook } from "../lib/contacts";
 import { chitPath, initials, inr } from "../lib/format";
 import { inviteMemberWhatsAppMessage, tryPhone10 } from "../lib/share";
@@ -51,11 +51,11 @@ export function ChitsPage() {
           <div className="dash-chits block">
             {managed.map((c, i) => {
               const pct = chitProgress(c);
-              const featured = i % 2 === 0;
+              const due = outstandingOf(c);
               return (
                 <article
                   key={c.id}
-                  className={`dash-chit${featured ? " featured" : ""}`}
+                  className="dash-chit"
                   onClick={() => nav(chitPath(c))}
                 >
                   <div className="dash-chit-top">
@@ -82,12 +82,17 @@ export function ChitsPage() {
                       <strong>{inr(c.instalment)}</strong>
                     </div>
                   </div>
-                  <div className="dash-chit-progress">
-                    <div className="dash-chit-progress-head">
-                      <span>{m.terms.collection}</span>
-                      <strong>{pct}%</strong>
+                  <div className="dash-meter">
+                    <div className="dash-meter-bar">
+                      <div className="dash-chit-progress-head">
+                        <span>{pct}%</span>
+                      </div>
+                      <div className="progress"><i style={{ width: `${pct}%` }} /></div>
                     </div>
-                    <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="dash-meter-due">
+                      <span>{due ? m.customerDetail.stillDueWord : m.dash.paidHapta}</span>
+                      <strong className={due ? "neg" : "ok"}>{inr(due)}</strong>
+                    </div>
                   </div>
                   {canDelete && (
                     <div className="dash-chit-foot">
@@ -122,11 +127,11 @@ export function ChitsPage() {
           <div className="dash-chits block">
             {shared.map((c, i) => {
               const pct = chitProgress(c);
-              const featured = i % 2 === 0;
+              const due = outstandingOf(c);
               return (
                 <article
                   key={c.id}
-                  className={`dash-chit${featured ? " featured" : ""}`}
+                  className="dash-chit"
                   onClick={() => nav(chitPath(c))}
                 >
                   <div className="dash-chit-top">
@@ -151,12 +156,17 @@ export function ChitsPage() {
                       <strong>{inr(c.instalment)}</strong>
                     </div>
                   </div>
-                  <div className="dash-chit-progress">
-                    <div className="dash-chit-progress-head">
-                      <span>{m.terms.collection}</span>
-                      <strong>{pct}%</strong>
+                  <div className="dash-meter">
+                    <div className="dash-meter-bar">
+                      <div className="dash-chit-progress-head">
+                        <span>{pct}%</span>
+                      </div>
+                      <div className="progress"><i style={{ width: `${pct}%` }} /></div>
                     </div>
-                    <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="dash-meter-due">
+                      <span>{due ? m.customerDetail.stillDueWord : m.dash.paidHapta}</span>
+                      <strong className={due ? "neg" : "ok"}>{inr(due)}</strong>
+                    </div>
                   </div>
                   {canDelete && (
                     <div className="dash-chit-foot">
@@ -177,11 +187,11 @@ export function ChitsPage() {
             <div className="dash-chits block">
               {tracking.map((c, i) => {
                 const pct = chitProgress(c);
-                const featured = i % 2 === 0;
+                const due = outstandingOf(c);
                 return (
                   <article
                     key={c.id}
-                    className={`dash-chit${featured ? " featured" : ""}`}
+                    className="dash-chit"
                     onClick={() => nav(chitPath(c))}
                   >
                     <div className="dash-chit-top">
@@ -214,8 +224,14 @@ export function ChitsPage() {
                         </div>
                       </div>
                     )}
-                    <div className="dash-chit-progress">
-                      <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="dash-meter">
+                      <div className="dash-meter-bar">
+                        <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+                      </div>
+                      <div className="dash-meter-due">
+                        <span>{due ? m.customerDetail.stillDueWord : m.dash.paidHapta}</span>
+                        <strong className={due ? "neg" : "ok"}>{inr(due)}</strong>
+                      </div>
                     </div>
                     {canDelete && (
                       <div className="dash-chit-foot">

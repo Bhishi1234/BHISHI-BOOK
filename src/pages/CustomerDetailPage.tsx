@@ -1,28 +1,19 @@
 import { useState } from "react";
-import {
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  Layers,
-  PiggyBank,
-  Trophy,
-  Wallet,
-} from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MemberReachButtons } from "../components/MemberReachButtons";
 import { useI18n } from "../i18n";
 import { AppShell } from "../layout/AppShell";
 import { displayCycle, memberBalance, paidInCycle, rawCycleDue, customerOutstanding, cycleStartDate } from "../lib/chitMath";
-import { chitPath, initials, inr } from "../lib/format";
+import { initials, inr } from "../lib/format";
 import { useStore } from "../store";
-import { StatCard } from "../ui/StatCard";
 
 /** Full People profile — every bhishi this member is in. */
 export function CustomerDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { customers, chits, updateCustomer, error } = useStore();
-  const { m, tx, typeLabel, modeLabel, locale } = useI18n();
+  const { m, tx, modeLabel, locale } = useI18n();
   const customer = customers.find((c) => c.id === id);
   const [editPhone, setEditPhone] = useState(false);
   const [phoneVal, setPhoneVal] = useState("");
@@ -161,45 +152,52 @@ export function CustomerDetailPage() {
               </button>
             </div>
           ) : (
-            <div className="member-hero-actions">
-              <button
-                type="button"
-                className="btn ghost btn-sm"
-                onClick={() => {
-                  setPhoneVal(customer.phone || "");
-                  setEditPhone(true);
-                }}
-              >
-                {m.chit.editPhone}
-              </button>
-              {customer.phone ? (
+            customer.phone ? (
+              <div style={{ marginTop: 12 }}>
                 <MemberReachButtons
                   phone={customer.phone}
                   whatsappText={`Hi ${customer.name}`}
-                  compact
+                  wide
                 />
-              ) : null}
-            </div>
+              </div>
+            ) : null
+          )}
+          {!editPhone && (
+            <button
+              type="button"
+              className="link"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setPhoneVal(customer.phone || "");
+                setEditPhone(true);
+              }}
+            >
+              {m.chit.editPhone}
+            </button>
           )}
           {error && editPhone && <p className="due" style={{ marginTop: 6 }}>{error}</p>}
-        </div>
-
-        <div className="lead-card">
-          <p className="kicker">{m.customerDetail.stillDueWord}</p>
-          <strong className="lead-figure">{inr(outstanding)}</strong>
-        </div>
-
-        <div className="stats four">
-          <StatCard label={m.customerDetail.contributed} value={inr(contributed)} hint={m.customersPage.lifetime} tone="teal" icon={PiggyBank} />
-          <StatCard label={m.customerDetail.received} value={inr(received)} hint={m.chit.payoutsAndLoans} tone="blue" icon={Wallet} />
-          <StatCard
-            label={m.terms.outstanding}
-            value={<span className={outstanding ? "neg" : undefined}>{inr(outstanding)}</span>}
-            hint={m.customersPage.stillDue}
-            tone="rose"
-            icon={AlertCircle}
-          />
-          <StatCard label={m.chit.activeChits} value={running} hint={m.chit.runningNow} tone="green" icon={Layers} />
+          <p className="owe-line center">
+            {m.customerDetail.stillToPayLabel}{" "}
+            <span className="neg">{inr(outstanding)}</span>
+          </p>
+          <div className="fact-grid">
+            <div>
+              <span>{m.customerDetail.contributed}</span>
+              <strong>{inr(contributed)}</strong>
+            </div>
+            <div>
+              <span>{m.customerDetail.received}</span>
+              <strong>{inr(received)}</strong>
+            </div>
+            <div>
+              <span>{m.customerDetail.stillDueWord}</span>
+              <strong className={outstanding ? "neg" : ""}>{inr(outstanding)}</strong>
+            </div>
+            <div>
+              <span>{m.chit.activeChits}</span>
+              <strong>{running}</strong>
+            </div>
+          </div>
         </div>
 
         <div className="block">
@@ -211,65 +209,33 @@ export function CustomerDetailPage() {
             <div className="card"><p className="muted" style={{ margin: 0 }}>{m.chit.notMapped}</p></div>
           )}
           <div className="member-chit-grid">
-            {memberships.map(({ ch, bal, member, hands, payouts, awards }) => {
+            {memberships.map(({ ch, bal, member, payouts }) => {
               const hapta = displayCycle(ch);
               const dueNow = rawCycleDue(ch, customer.id, hapta);
               const paidNow = paidInCycle(ch, customer.id, hapta);
               return (
-              <div key={ch.id} className="card member-chit-card">
-                <div className="member-chit-card-top">
-                  <div>
-                    <Link className="link" to={chitPath(ch)} style={{ fontWeight: 650, fontSize: 15 }}>
-                      {ch.name}
-                    </Link>
-                    <div className="muted" style={{ marginTop: 2 }}>
-                      {typeLabel(ch.type)} · {tx(m.customerDetail.haptaN, { n: hapta })} / {ch.duration}
-                      {hands.length > 1 ? ` · ${hands.length} ${m.terms.hands}` : ` · ${m.terms.hand} ${member.slot}`}
-                    </div>
-                    <div className="muted" style={{ marginTop: 4 }}>
-                      {paidNow >= dueNow ? m.dash.paidHapta : m.dash.notPaidYet}
-                      {" · "}
-                      {tx(m.dash.paidSoFarLine, { amount: inr(bal.paid) })}
-                      {" · "}
-                      {member.prizedCycle
-                        ? tx(m.customerDetail.cyclePrized, { n: member.prizedCycle })
-                        : m.customerDetail.noWinsYet}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn ghost btn-sm"
-                    onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
-                  >
-                    {m.customerDetail.thisBhishi}
-                    <ChevronRight size={14} strokeWidth={2.4} />
-                  </button>
+              <button
+                key={ch.id}
+                type="button"
+                className="card member-chit-card"
+                onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
+              >
+                <div className="group-tile-top">
+                  <strong>{ch.name}</strong>
+                  <span className="pill hapta">{tx(m.customerDetail.haptaN, { n: hapta })} / {ch.duration}</span>
                 </div>
-                <div className="member-mini-stats">
-                  <div>
-                    <span className="muted">{m.customerDetail.contributed}</span>
-                    <strong>{inr(bal.paid)}</strong>
-                  </div>
-                  <div>
-                    <span className="muted">{m.customerDetail.received}</span>
-                    <strong>{inr(payouts)}</strong>
-                  </div>
-                  <div>
-                    <span className="muted">{m.terms.outstanding}</span>
-                    <strong className={bal.outstanding ? "neg" : undefined}>{inr(bal.outstanding)}</strong>
-                  </div>
+                <p className={`group-tile-status ${paidNow >= dueNow ? "ok" : "neg"}`}>
+                  {paidNow >= dueNow ? m.customerDetail.thisHaptaPaid : m.customerDetail.thisHaptaNotPaid}
+                </p>
+                <div className="kv">
+                  <span>{m.dash.paidSoFarLine.replace("{amount}", "").trim() || m.customerDetail.contributed}</span>
+                  <strong>{inr(bal.paid)}</strong>
                 </div>
-                {!!awards.length && (
-                  <div className="member-win-strip">
-                    <Trophy size={13} strokeWidth={2.2} />
-                    {awards.map((a) => (
-                      <span key={a.cycle}>
-                        {tx(m.customerDetail.haptaN, { n: a.cycle })} · {inr(a.payout)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+                <div className="kv">
+                  <span>{member.prizedCycle ? tx(m.customerDetail.potInHapta, { n: member.prizedCycle }) : m.customerDetail.noWinsYet}</span>
+                  <strong>{member.prizedCycle ? inr(payouts) : ""}</strong>
+                </div>
+              </button>
               );
             })}
           </div>
@@ -297,35 +263,30 @@ export function CustomerDetailPage() {
           {!ledger.length && <p className="empty">{m.chit.ledgerEmpty}</p>}
         </div>
 
-        {memberships.map(({ ch, member }) => (
-          <div key={`pass-${ch.id}`} className="card block">
-            <div className="row-head" style={{ margin: 0 }}>
-              <div>
-                <h2 style={{ margin: 0 }}>{m.customerDetail.passbook} · {ch.name}</h2>
-                <p className="muted" style={{ margin: "4px 0 0" }}>{m.customerDetail.passbookHint}</p>
-              </div>
-              <button
-                type="button"
-                className="btn ghost btn-sm"
-                onClick={() => nav(`/chits/${ch.id}/members/${customer.id}`)}
-              >
-                {m.customerDetail.openInBhishi}
-              </button>
-            </div>
+        {memberships.map(({ ch }) => (
+          <div key={`pass-${ch.id}`} className="block">
+            <h2>{m.customerDetail.eachHaptaTitle} · {ch.name}</h2>
+            <div className="hapta-rows">
             {Array.from({ length: displayCycle(ch) }, (_, i) => i + 1).map((cyc) => {
               const due = rawCycleDue(ch, customer.id, cyc);
               const paid = paidInCycle(ch, customer.id, cyc);
               const left = Math.max(0, due - paid);
               return (
-                <div key={cyc} className="kv">
-                  <span>
-                    {member.prizedCycle === cyc ? tx(m.customerDetail.cyclePrized, { n: cyc }) : tx(m.customerDetail.haptaN, { n: cyc })}
-                    <div className="muted">{m.customerDetail.due} {inr(due)} · {m.customerDetail.paidCol} {inr(paid)}</div>
+                <div key={cyc} className="hapta-row">
+                  <strong>{tx(m.customerDetail.haptaN, { n: cyc })}</strong>
+                  <span className="hapta-row-mid">
+                    {m.customerDetail.due} {inr(due)}
+                    {" · "}
+                    {m.customerDetail.paidCol}{" "}
+                    <span className={left ? "neg" : ""}>{inr(paid)}</span>
                   </span>
-                  <strong className={left ? "neg" : ""}>{left ? tx(m.find.stillToPay, { amount: inr(left) }) : m.customerDetail.paidWord}</strong>
+                  <span className={`pill ${left ? "partial" : "paid"}`}>
+                    {left ? m.customerDetail.stillDueWord : m.customerDetail.paidWord}
+                  </span>
                 </div>
               );
             })}
+            </div>
           </div>
         ))}
       </div>

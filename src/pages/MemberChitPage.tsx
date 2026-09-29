@@ -91,14 +91,17 @@ export function MemberChitPage() {
           <PromptBox tone="rose">{m.memberPassbook.phoneMatchFail}</PromptBox>
         )}
 
-        <div className="lead-card">
-          <p className="kicker">{m.memberPassbook.youPay} · {tx(m.customerDetail.haptaN, { n: cycle })} / {data.duration}</p>
-          <strong className="lead-figure">{inr(monthDue)}</strong>
-          <p>
-            <span className={`pill ${monthStatus}`}>{monthPaid >= monthDue ? m.dash.paidHapta : m.memberPassbook.notPaidYet}</span>
-            {" "}
-            {m.memberPassbook.organiserMarks}
+        <div className="card block">
+          <p className="owe-line" style={{ marginTop: 0 }}>
+            {m.customerDetail.oweLead}{" "}
+            <span className="neg">{inr(Math.max(0, monthDue - monthPaid))}</span>
           </p>
+          <p className="muted" style={{ margin: "6px 0 0" }}>
+            {m.memberPassbook.youPay} · {tx(m.customerDetail.haptaN, { n: cycle })} / {data.duration}
+            {" · "}
+            <span className={`pill ${monthStatus}`}>{monthPaid >= monthDue ? m.dash.paidHapta : m.memberPassbook.notPaidYet}</span>
+          </p>
+          <p className="muted" style={{ margin: "8px 0 0" }}>{m.memberPassbook.organiserMarks}</p>
         </div>
 
         <div className="card block">
@@ -126,8 +129,8 @@ export function MemberChitPage() {
           </div>
         )}
 
-        <div className="card block">
-          <h2>{m.memberPassbook.yourHaptas}</h2>
+        <h2>{m.customerDetail.eachHaptaTitle}</h2>
+        <div className="hapta-rows block">
           {Array.from({ length: cycle }, (_, i) => i + 1).map((cyc) => {
             if (!selfId) return null;
             const due = rawCycleDue(data, selfId, cyc);
@@ -135,14 +138,15 @@ export function MemberChitPage() {
             const status = paymentStatus(data, selfId, cyc);
             const left = Math.max(0, due - paid);
             return (
-              <div key={cyc} className="kv">
-                <span>
-                  {tx(m.customerDetail.haptaN, { n: cyc })}
-                  <div className="muted">{m.memberPassbook.due} {inr(due)} · {m.memberPassbook.paid} {inr(paid)}</div>
+              <div key={cyc} className="hapta-row">
+                <strong>{tx(m.customerDetail.haptaN, { n: cyc })}</strong>
+                <span className="hapta-row-mid">
+                  {m.memberPassbook.due} {inr(due)}
+                  {" · "}
+                  {m.memberPassbook.paid}{" "}
+                  <span className={left ? "neg" : ""}>{inr(paid)}</span>
                 </span>
-                <strong className={left ? "neg" : ""}>
-                  <span className={`pill ${status}`}>{payStatusLabel(status)}</span>
-                </strong>
+                <span className={`pill ${status}`}>{payStatusLabel(status)}</span>
               </div>
             );
           })}

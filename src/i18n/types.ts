@@ -850,6 +850,12 @@ export type Messages = {
     eachHapta: string;
     paidWord: string;
     stillDueWord: string;
+    stillToPayLabel: string;
+    oweLead: string;
+    thisHaptaNotPaid: string;
+    thisHaptaPaid: string;
+    eachHaptaTitle: string;
+    potInHapta: string;
     bhishiCards: string;
     thisBhishi: string;
     openInBhishi: string;

@@ -8,20 +8,35 @@ export function MemberReachButtons({
   whatsappText,
   disabled,
   compact,
+  wide,
   showWhatsApp = true,
 }: {
   phone?: string | null;
   whatsappText: string;
   disabled?: boolean;
   compact?: boolean;
+  wide?: boolean;
   showWhatsApp?: boolean;
 }) {
   const { m } = useI18n();
   const ok = canMessagePhone(phone) && !disabled;
-  const cls = compact ? "reach-btn reach-btn-sm" : "reach-btn";
+  const cls = wide ? "reach-btn" : compact ? "reach-btn reach-btn-sm outline" : "reach-btn";
 
   return (
-    <div className="reach-actions" onClick={(e) => e.stopPropagation()}>
+    <div className={wide ? "reach-pair" : "reach-actions"} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className={`${cls} call`}
+        title={m.reach.call}
+        disabled={!ok}
+        onClick={() => {
+          if (!phone || !ok) return;
+          openCall(phone);
+        }}
+      >
+        <Phone size={compact && !wide ? 14 : 16} strokeWidth={2.3} />
+        <span>{m.reach.call}</span>
+      </button>
       {showWhatsApp ? (
         <button
           type="button"
@@ -33,23 +48,10 @@ export function MemberReachButtons({
             openWhatsApp(phone, whatsappText);
           }}
         >
-          <WhatsAppIcon size={compact ? 14 : 15} />
-          {!compact ? <span>{m.reach.whatsapp}</span> : null}
+          <WhatsAppIcon size={compact && !wide ? 14 : 16} />
+          <span>{m.reach.whatsapp}</span>
         </button>
       ) : null}
-      <button
-        type="button"
-        className={`${cls} call`}
-        title={m.reach.call}
-        disabled={!ok}
-        onClick={() => {
-          if (!phone || !ok) return;
-          openCall(phone);
-        }}
-      >
-        <Phone size={compact ? 14 : 15} strokeWidth={2.3} />
-        {!compact ? <span>{m.reach.call}</span> : null}
-      </button>
     </div>
   );
 }

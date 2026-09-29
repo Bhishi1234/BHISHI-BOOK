@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, Layers, Wallet, Share2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { CancelChitButton } from "../components/CancelChitButton";
@@ -23,7 +23,7 @@ import type { Chit } from "../types";
 
 export function DashboardPage() {
   const { user, chits, customers } = useStore();
-  const { m, tx, typeLabel, freqLabel, statusLabel, greetingNow, longDateNow } = useI18n();
+  const { m, tx, typeLabel, freqLabel, greetingNow, longDateNow } = useI18n();
   const nav = useNavigate();
   const [welcome, setWelcome] = useState(false);
   useEffect(() => {
@@ -57,12 +57,14 @@ export function DashboardPage() {
 
   const sharedPay = shared.reduce((s, c) => s + sharedLine(c).left, 0);
 
-  function groupCard(c: Chit, i: number, toneShift: number, extra: ReactNode, featured = i % 2 === 0) {
+  function groupCard(c: Chit, i: number, toneShift: number, kind: "run" | "share" | "track") {
     const pct = chitProgress(c);
+    const due = outstandingOf(c);
+    const line = kind === "share" ? sharedLine(c) : null;
     return (
       <article
         key={c.id}
-        className={`dash-chit slim${featured ? " featured" : ""}`}
+        className="dash-chit slim"
         onClick={() => nav(chitPath(c))}
       >
         <div className="dash-chit-top">
@@ -71,39 +73,22 @@ export function DashboardPage() {
             <strong>{c.name}</strong>
             <span>
               {typeLabel(c.type)}
-              {` · ${displayCycle(c)} / ${c.duration}`}
+              {` · ${tx(m.customerDetail.haptaN, { n: displayCycle(c) })} / ${c.duration}`}
             </span>
           </div>
-          <div className="dash-chit-actions">
-            <span className={`dash-chit-status${c.viewerRole !== "member" && c.mode === "organise" ? " live" : ""}`}>
-              {c.viewerRole === "member" ? m.chitsPage.shared : statusLabel(c.status) || c.status}
-            </span>
-            <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
-          </div>
+          <span className="go-btn" aria-hidden><ArrowUpRight size={14} strokeWidth={2.4} /></span>
         </div>
-        <div className="dash-chit-progress">
-          <div className="dash-chit-progress-head">
-            <span>{m.terms.collection}</span>
-            <strong>{pct}%</strong>
-          </div>
-          <div className="progress"><i style={{ width: `${pct}%` }} /></div>
-        </div>
-        {extra}
-      </article>
-    );
-  }
-
-  function sharedExtra(c: Chit, detailed: boolean) {
-    const line = sharedLine(c);
-    return (
-      <>
-        <div className={`dash-due-line${line.left ? "" : " clear"}`}>
-          {tx(m.dash.youPayLine, { amount: inr(line.due) })}
-          {" · "}
-          {line.left ? m.dash.notPaidYet : m.dash.paidHapta}
-        </div>
-        {detailed && (
+        {line ? (
           <>
+            <div className="dash-pay">
+              <div>
+                <span>{m.memberPassbook.youPay}</span>
+                <strong>{inr(line.due)}</strong>
+              </div>
+              <span className={`pill ${line.left ? "partial" : "paid"}`}>
+                {line.left ? m.dash.notPaidYet : m.customerDetail.paidWord}
+              </span>
+            </div>
             <div className="dash-due-line soft">
               {c.members.length} {m.common.members}
               {" · "}
@@ -112,11 +97,29 @@ export function DashboardPage() {
             <div className="dash-due-line soft">
               {tx(m.dash.paidSoFarLine, { amount: inr(line.soFar) })}
               {" · "}
-              {line.prize ? tx(m.customerDetail.cyclePrized, { n: line.prize.cycle }) : m.customerDetail.noWinsYet}
+              {line.prize ? tx(m.customerDetail.potInHapta, { n: line.prize.cycle }) : m.customerDetail.noWinsYet}
             </div>
           </>
+        ) : (
+          <div className="dash-meter">
+            <div className="dash-meter-bar">
+              <div className="dash-chit-progress-head">
+                <span>{pct}%</span>
+              </div>
+              <div className="progress"><i style={{ width: `${pct}%` }} /></div>
+            </div>
+            <div className="dash-meter-due">
+              <span>{due ? m.customerDetail.stillDueWord : m.dash.paidHapta}</span>
+              <strong className={due ? "neg" : "ok"}>{inr(due)}</strong>
+            </div>
+          </div>
         )}
-      </>
+        {kind === "track" && (
+          <div style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+            <CancelChitButton chitId={c.id} className="link" label={m.common.cancel} />
+          </div>
+        )}
+      </article>
     );
   }
 
@@ -138,7 +141,7 @@ export function DashboardPage() {
               </p>
             </div>
             <div className="dash-chits">
-              {shared.map((c, i) => groupCard(c, i, 2, sharedExtra(c, true), false))}
+              {shared.map((c, i) => groupCard(c, i, 2, "share"))}
               {!shared.length && <p className="empty">{m.chitsPage.empty}</p>}
             </div>
           </>
@@ -149,7 +152,7 @@ export function DashboardPage() {
               <strong className="lead-figure">{inr(outstanding)}</strong>
               <p>{m.dash.stillToCollectHint}</p>
             </div>
-            <div className="stats three home-stats">
+            <div className="stats three">
               <StatCard label={m.dash.activeChits} value={managed.length} hint={m.dash.activeHint} tone="green" icon={Layers} onClick={() => nav("/chits")} />
               <StatCard label={m.dash.collectedCycle} value={inr(collected)} hint={m.dash.collectedHint} tone="teal" icon={Wallet} />
               <StatCard label={m.dash.sharedWithMe} value={shared.length} hint={m.dash.onTrackHint} tone="blue" icon={Share2} onClick={() => nav("/chits")} />
@@ -160,16 +163,7 @@ export function DashboardPage() {
             </div>
             {!!managed.length && (
               <div className="dash-chits block">
-                {managed.map((c, i) => groupCard(
-                  c,
-                  i,
-                  0,
-                  <div className={`dash-due-line${outstandingOf(c) ? "" : " clear"}`}>
-                    {outstandingOf(c)
-                      ? tx(m.dash.stillDueLine, { amount: inr(outstandingOf(c)) })
-                      : m.dash.paidHapta}
-                  </div>,
-                ))}
+                {managed.map((c, i) => groupCard(c, i, 0, "run"))}
               </div>
             )}
             {!managed.length && <p className="empty block">{m.chitsPage.empty}</p>}
@@ -180,7 +174,7 @@ export function DashboardPage() {
                   <Link className="link" to="/chits">{m.common.viewAll}</Link>
                 </div>
                 <div className="dash-chits block">
-                  {shared.map((c, i) => groupCard(c, i, 2, sharedExtra(c, true), false))}
+                  {shared.map((c, i) => groupCard(c, i, 2, "share"))}
                 </div>
               </>
             )}
@@ -190,15 +184,7 @@ export function DashboardPage() {
                   <h2>{m.dash.trackingTitle}</h2>
                 </div>
                 <div className="dash-chits">
-                  {tracking.map((c, i) => groupCard(
-                    c,
-                    i,
-                    1,
-                    <div className="dash-chit-actions" style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
-                      <CancelChitButton chitId={c.id} className="link" label={m.common.cancel} />
-                    </div>,
-                    false,
-                  ))}
+                  {tracking.map((c, i) => groupCard(c, i, 1, "track"))}
                 </div>
               </>
             )}
